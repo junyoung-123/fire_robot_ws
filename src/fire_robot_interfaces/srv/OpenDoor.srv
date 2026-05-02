@@ -1,0 +1,5 @@
+string door_id
+geometry_msgs/PointStamped handle_position
+---
+bool success
+string message

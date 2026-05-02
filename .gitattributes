@@ -1,0 +1,9 @@
+# 모든 텍스트 파일을 LF로 저장 (Linux/Ubuntu 환경에서 실행되는 ROS2 프로젝트)
+* text=auto eol=lf
+
+# 바이너리 파일
+*.png binary
+*.jpg binary
+*.pt  binary
+*.db3 binary
+*.bag binary

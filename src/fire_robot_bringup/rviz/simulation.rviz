@@ -1,0 +1,88 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+  - Class: rviz_common/Views
+    Name: Views
+
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Value: true
+      Cell Size: 1
+      Color: 160; 160; 164
+      Plane: XY
+
+    - Class: rviz_default_plugins/RobotModel
+      Name: RobotModel
+      Value: true
+      Description Topic: /robot_description
+      Alpha: 1
+
+    - Class: rviz_default_plugins/LaserScan
+      Name: LiDAR
+      Value: true
+      Topic: /scan
+      Color: 255; 0; 0
+      Size (m): 0.03
+      Style: Spheres
+
+    - Class: rviz_default_plugins/Map
+      Name: Map (SLAM)
+      Value: true
+      Topic: /map
+      Color Scheme: map
+      Alpha: 0.8
+
+    - Class: rviz_default_plugins/Path
+      Name: Nav2 Path
+      Value: true
+      Topic: /plan
+      Color: 0; 200; 0
+      Line Width: 0.03
+
+    - Class: rviz_default_plugins/Odometry
+      Name: Odometry
+      Value: true
+      Topic: /odom
+      Keep: 50
+      Color: 255; 165; 0
+
+    - Class: rviz_default_plugins/Image
+      Name: Camera
+      Value: true
+      Topic: /camera/color/image_raw
+      Transport Hint: raw
+
+    - Class: rviz_default_plugins/MarkerArray
+      Name: Door Markers
+      Value: true
+      Topic: /detected_doors_markers
+
+    - Class: rviz_default_plugins/TF
+      Name: TF
+      Value: false
+      Marker Scale: 0.5
+
+  Global Options:
+    Background Color: 48; 48; 48
+    Fixed Frame: map
+    Frame Rate: 30
+
+  Tools:
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/SetInitialPose
+      Topic: /initialpose
+    - Class: rviz_default_plugins/SetGoal
+      Topic: /goal_pose
+
+  Value: true
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 10
+      Pitch: 0.8
+      Target Frame: base_footprint
+      Yaw: 3.14

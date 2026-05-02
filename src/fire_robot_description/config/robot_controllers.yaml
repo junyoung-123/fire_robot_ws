@@ -1,0 +1,86 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 50  # Hz
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    diff_drive_controller:
+      type: diff_drive_controller/DiffDriveController
+
+    piper_arm_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+    piper_gripper_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+
+diff_drive_controller:
+  ros__parameters:
+    left_wheel_names:  [front_left_wheel_joint,  rear_left_wheel_joint]
+    right_wheel_names: [front_right_wheel_joint, rear_right_wheel_joint]
+
+    wheel_separation:  0.40   # base_width + wheel_width
+    wheel_radius:      0.07
+
+    wheel_separation_multiplier: 1.0
+    left_wheel_radius_multiplier: 1.0
+    right_wheel_radius_multiplier: 1.0
+
+    publish_rate: 50.0
+    odom_frame_id: odom
+    base_frame_id: base_footprint
+    pose_covariance_diagonal:   [0.001, 0.001, 0.001, 0.001, 0.001, 0.01]
+    twist_covariance_diagonal:  [0.001, 0.001, 0.001, 0.001, 0.001, 0.01]
+
+    open_loop_control: false
+    enable_odom_tf: true
+
+    cmd_vel_timeout: 0.5
+
+    linear.x.has_velocity_limits:     true
+    linear.x.max_velocity:            0.5   # m/s
+    linear.x.min_velocity:           -0.3
+    linear.x.has_acceleration_limits: true
+    linear.x.max_acceleration:        1.0
+    linear.x.min_acceleration:       -1.0
+
+    angular.z.has_velocity_limits:     true
+    angular.z.max_velocity:            1.5   # rad/s
+    angular.z.min_velocity:           -1.5
+    angular.z.has_acceleration_limits: true
+    angular.z.max_acceleration:        2.0
+    angular.z.min_acceleration:       -2.0
+
+
+piper_arm_controller:
+  ros__parameters:
+    joints:
+      - joint1
+      - joint2
+      - joint3
+      - joint4
+      - joint5
+      - joint6
+    command_interfaces: [position]
+    state_interfaces:   [position, velocity]
+    state_publish_rate: 50.0
+    action_monitor_rate: 20.0
+    allow_partial_joints_goal: false
+    constraints:
+      stopped_velocity_tolerance: 0.01
+      goal_time: 5.0
+
+
+piper_gripper_controller:
+  ros__parameters:
+    joints:
+      - gripper_left_joint
+    command_interfaces: [position]
+    state_interfaces:   [position, velocity]
+    state_publish_rate: 50.0
+    action_monitor_rate: 20.0
+    allow_partial_joints_goal: false
+    constraints:
+      stopped_velocity_tolerance: 0.01
+      goal_time: 3.0

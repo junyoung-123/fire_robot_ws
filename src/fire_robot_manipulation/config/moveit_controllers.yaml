@@ -1,0 +1,28 @@
+# MoveIt2 컨트롤러 설정
+# ros2_control 의 컨트롤러와 연결
+
+moveit_controller_manager: moveit_simple_controller_manager/MoveItSimpleControllerManager
+
+moveit_simple_controller_manager:
+  controller_names:
+    - piper_arm_controller
+    - piper_gripper_controller
+
+  piper_arm_controller:
+    type: FollowJointTrajectory
+    action_ns: follow_joint_trajectory
+    default: true
+    joints:
+      - joint1
+      - joint2
+      - joint3
+      - joint4
+      - joint5
+      - joint6
+
+  piper_gripper_controller:
+    type: FollowJointTrajectory
+    action_ns: follow_joint_trajectory
+    default: true
+    joints:
+      - gripper_left_joint

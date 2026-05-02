@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>fire_robot_bringup</name>
+  <version>0.1.0</version>
+  <description>Launch files and configurations for fire robot system</description>
+  <maintainer email="hjy6881629@gmail.com">fire_robot_team</maintainer>
+  <license>Apache-2.0</license>
+
+  <exec_depend>fire_robot_description</exec_depend>
+  <exec_depend>fire_robot_perception</exec_depend>
+  <exec_depend>fire_robot_navigation</exec_depend>
+  <exec_depend>fire_robot_manipulation</exec_depend>
+  <exec_depend>fire_robot_fsm</exec_depend>
+  <exec_depend>nav2_bringup</exec_depend>
+  <exec_depend>slam_toolbox</exec_depend>
+  <exec_depend>ros_gz_sim</exec_depend>
+  <exec_depend>ros_gz_bridge</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>xacro</exec_depend>
+  <exec_depend>moveit_ros_move_group</exec_depend>
+
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

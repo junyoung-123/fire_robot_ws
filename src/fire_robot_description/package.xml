@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>fire_robot_description</name>
+  <version>0.1.0</version>
+  <description>URDF/xacro description for fire robot (mobile base + PIPER arm)</description>
+  <maintainer email="hjy6881629@gmail.com">fire_robot_team</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend>urdf</depend>
+  <depend>xacro</depend>
+  <depend>robot_state_publisher</depend>
+  <depend>joint_state_publisher</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

@@ -1,0 +1,34 @@
+# colcon 빌드 산출물
+build/
+install/
+log/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+
+# 데이터셋 (용량 크므로 각자 prepare_dataset.py 실행)
+src/fire_robot_perception/datasets/
+
+# 학습 결과 (best.pt만 별도 공유)
+src/fire_robot_perception/runs/
+src/fire_robot_perception/scripts/runs/
+*.pt
+*.onnx
+*.tflite
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# ROS2
+*.bag
+*.db3

@@ -1,0 +1,47 @@
+# ── 데이터셋 설정 ─────────────────────────────────────────
+dataset:
+  name: "OpenImages v7 Door"
+  prepare_script: "scripts/prepare_dataset.py"
+  train_script:   "scripts/train_door_detector.py"
+  default_output: "datasets/door_detection"
+  classes:
+    - Door
+  max_samples_train: 5000
+  max_samples_val:   500
+
+# ── YOLOv8 모델 설정 ──────────────────────────────────────
+yolo:
+  base_model: "yolov8s.pt"    # n(가장빠름) / s(균형) / m(정확)
+  epochs: 50
+  imgsz: 640
+  batch: 16
+  patience: 15                 # early stopping
+  confidence_threshold: 0.40  # 추론 시 최소 신뢰도
+  iou_threshold: 0.45         # NMS IoU threshold
+
+# ── SegFormer 설정 ────────────────────────────────────────
+segformer:
+  model: "nvidia/segformer-b0-finetuned-ade-512-512"
+  # b0: 경량/빠름  b2: 정확도 높음
+  # 추가 학습 없이 pretrained 모델 그대로 사용
+
+# ── 센서 파라미터 ─────────────────────���───────────────────
+sensor:
+  camera_hfov_deg: 69.0        # 수평 시야각 (RealSense D435 기준)
+  lidar_max_range: 8.0         # LiDAR 최대 유효 거리 (m)
+
+# ── 색상 분류 파라미터 ────────────────────────────────────
+color:
+  ratio_threshold: 0.20        # bbox 내 색상 픽셀 비율 임계값
+  blue_hsv_lower: [100, 80, 50]
+  blue_hsv_upper: [130, 255, 255]
+  red_hsv_lower1: [0,   80, 50]
+  red_hsv_upper1: [10,  255, 255]
+  red_hsv_lower2: [160, 80, 50]
+  red_hsv_upper2: [179, 255, 255]
+
+# ── 학습 환경 ───────────────────────────────────���─────────
+training:
+  device: ""          # 빈 문자열=자동 (GPU 있으면 GPU, 없으면 CPU)
+  workers: 4
+  save_period: 10     # 체크포인트 저장 주기 (에폭)

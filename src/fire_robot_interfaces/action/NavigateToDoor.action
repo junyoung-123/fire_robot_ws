@@ -1,0 +1,11 @@
+# Goal
+string door_id
+geometry_msgs/PoseStamped target_pose
+---
+# Result
+bool success
+string message
+---
+# Feedback
+float32 distance_remaining
+string current_state
