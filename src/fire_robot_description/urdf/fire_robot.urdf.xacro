@@ -5,8 +5,9 @@
        화재 대피 모바일 매니퓰레이터
        - 모바일 베이스 : 차동 구동(Differential Drive) 4바퀴
        - 로봇팔        : PIPER 6DoF (간략화 링크)
-       - 센서          : RGB-D 카메라 (Intel RealSense D435 스펙 참조)
-                         2D LiDAR (RPLiDAR A1 스펙 참조)
+       - 센서          : RGB 카메라 (Intel RealSense D435 컬러)
+                         Depth 카메라 (Intel RealSense D435 뎁스)
+                         Radar (mmWave 2D, 240° FOV, 80m 레인지)
        =================================================== -->
 
   <xacro:property name="base_length"  value="0.40"/>
@@ -93,25 +94,25 @@
   <xacro:wheel name="rear_left"   x_pos="${-(base_length/2 - 0.05)}" y_pos="${base_width/2 + wheel_width/2}"/>
   <xacro:wheel name="rear_right"  x_pos="${-(base_length/2 - 0.05)}" y_pos="${-(base_width/2 + wheel_width/2)}"/>
 
-  <!-- ============ LiDAR ============ -->
-  <link name="lidar_link">
+  <!-- ============ Radar ============ -->
+  <link name="radar_link">
     <visual>
-      <geometry><cylinder radius="0.035" length="0.04"/></geometry>
+      <geometry><box size="0.06 0.04 0.02"/></geometry>
       <material name="dark_gray"><color rgba="0.2 0.2 0.2 1.0"/></material>
     </visual>
     <collision>
-      <geometry><cylinder radius="0.035" length="0.04"/></geometry>
+      <geometry><box size="0.06 0.04 0.02"/></geometry>
     </collision>
     <inertial>
-      <mass value="0.17"/>
+      <mass value="0.20"/>
       <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
     </inertial>
   </link>
 
-  <joint name="lidar_joint" type="fixed">
+  <joint name="radar_joint" type="fixed">
     <parent link="base_link"/>
-    <child  link="lidar_link"/>
-    <origin xyz="${base_length/2 - 0.05} 0 ${base_height/2 + 0.02}" rpy="0 0 0"/>
+    <child  link="radar_link"/>
+    <origin xyz="${base_length/2} 0 ${base_height/2 + 0.01}" rpy="0 0 0"/>
   </joint>
 
   <!-- ============ RGB-D 카메라 마운트 ============ -->
@@ -141,6 +142,29 @@
   <joint name="camera_optical_joint" type="fixed">
     <parent link="camera_link"/>
     <child  link="camera_color_optical_frame"/>
+    <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}"/>
+  </joint>
+
+  <!-- ============ Depth Camera (RealSense D435 뎁스 모듈) ============ -->
+  <!-- D435의 뎁스 모듈은 컬러 모듈과 같은 하우징 내 약 17.5mm 오프셋 -->
+  <link name="depth_camera_link">
+    <inertial>
+      <mass value="0.001"/>
+      <inertia ixx="0.000001" ixy="0" ixz="0"
+               iyy="0.000001" iyz="0" izz="0.000001"/>
+    </inertial>
+  </link>
+  <joint name="depth_camera_joint" type="fixed">
+    <parent link="camera_link"/>
+    <child  link="depth_camera_link"/>
+    <origin xyz="0 -0.0175 0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Depth 광학 프레임 -->
+  <link name="depth_optical_frame"/>
+  <joint name="depth_optical_joint" type="fixed">
+    <parent link="depth_camera_link"/>
+    <child  link="depth_optical_frame"/>
     <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}"/>
   </joint>
 
@@ -299,36 +323,42 @@
 
   <!-- ============ Gazebo Ignition 플러그인 ============ -->
 
-  <!-- 2D LiDAR (Ignition lidar 센서) -->
-  <gazebo reference="lidar_link">
-    <sensor name="lidar_sensor" type="lidar">
+  <!-- Radar (Ignition gpu_lidar: 240° FOV, 80m, /scan 토픽 → Nav2 호환) -->
+  <gazebo reference="radar_link">
+    <sensor name="radar_sensor" type="gpu_lidar">
       <always_on>true</always_on>
-      <visualize>true</visualize>
-      <update_rate>10</update_rate>
+      <visualize>false</visualize>
+      <update_rate>20</update_rate>
       <topic>scan</topic>
       <lidar>
         <scan>
           <horizontal>
-            <samples>360</samples>
+            <samples>500</samples>
             <resolution>1</resolution>
-            <min_angle>-3.14159</min_angle>
-            <max_angle>3.14159</max_angle>
+            <min_angle>-2.094</min_angle>
+            <max_angle>2.094</max_angle>
           </horizontal>
+          <vertical>
+            <samples>1</samples>
+            <resolution>1</resolution>
+            <min_angle>0</min_angle>
+            <max_angle>0</max_angle>
+          </vertical>
         </scan>
         <range>
-          <min>0.12</min>
-          <max>8.0</max>
-          <resolution>0.01</resolution>
+          <min>0.5</min>
+          <max>80.0</max>
+          <resolution>0.05</resolution>
         </range>
         <noise type="gaussian">
           <mean>0.0</mean>
-          <stddev>0.01</stddev>
+          <stddev>0.05</stddev>
         </noise>
       </lidar>
     </sensor>
   </gazebo>
 
-  <!-- RGB 카메라 (Ignition camera 센서, depth 없음) -->
+  <!-- RGB 카메라 (Ignition camera 센서) -->
   <gazebo reference="camera_link">
     <sensor name="rgb_camera" type="camera">
       <always_on>true</always_on>
@@ -350,6 +380,33 @@
           <type>gaussian</type>
           <mean>0.0</mean>
           <stddev>0.007</stddev>
+        </noise>
+      </camera>
+    </sensor>
+  </gazebo>
+
+  <!-- Depth Camera (Ignition rgbd_camera: RGB + Depth + PointCloud) -->
+  <gazebo reference="depth_camera_link">
+    <sensor name="depth_camera" type="rgbd_camera">
+      <always_on>true</always_on>
+      <visualize>false</visualize>
+      <update_rate>30</update_rate>
+      <topic>depth_camera</topic>
+      <camera name="depth">
+        <horizontal_fov>1.204</horizontal_fov>
+        <image>
+          <width>640</width>
+          <height>480</height>
+          <format>R8G8B8</format>
+        </image>
+        <clip>
+          <near>0.1</near>
+          <far>10.0</far>
+        </clip>
+        <noise>
+          <type>gaussian</type>
+          <mean>0.0</mean>
+          <stddev>0.003</stddev>
         </noise>
       </camera>
     </sensor>

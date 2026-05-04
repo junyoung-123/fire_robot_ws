@@ -1,17 +1,19 @@
 """
 door_detection_node.py
 
-RGB 카메라 + LiDAR를 이용한 문 탐지 노드.
+RGB 카메라 + Radar(+ 선택적 Depth 카메라)를 이용한 문 탐지 노드.
 
 처리 파이프라인:
   1. YOLOv8 → 이미지 내 문(door) bounding box 탐지
   2. HSV 색상 분석 (bbox 내부) → "blue"(안전) / "red"(위험) 분류
-  3. LiDAR 스캔에서 bbox 방향의 range 추출 → 문까지 거리 추정
+  3. 거리 추정 (우선순위):
+     a) Depth 카메라 활성화 시: bbox 중심 픽셀의 depth 값
+     b) Radar /scan: bbox 방향의 LaserScan range 값
   4. 카메라 intrinsics + 거리 → 2D 위치 추정 (robot frame)
   5. DoorInfo / FireInfo 토픽 발행
 
 모델: YOLOv8 (scripts/train_door_detector.py로 학습한 것,
-             없으면 ultralytics 기본 yolov8n.pt fallback)
+             없으면 HSV-only fallback)
 """
 
 import math
@@ -25,7 +27,7 @@ from cv_bridge import CvBridge
 from rclpy.node import Node
 from rclpy.callback_groups import ReentrantCallbackGroup
 from sensor_msgs.msg import Image, CameraInfo, LaserScan
-from geometry_msgs.msg import PoseStamped, PointStamped
+from geometry_msgs.msg import PointStamped
 
 from fire_robot_interfaces.msg import DoorInfo, FireInfo
 
@@ -46,12 +48,11 @@ RED_UPPER2 = np.array([179, 255, 255])
 # bbox 내 색상 픽셀이 이 비율 이상이면 해당 색으로 판정
 COLOR_RATIO_THRESHOLD = 0.20
 
-# LiDAR 방향 매핑: 카메라 수평 시야각 (라디안)
 CAMERA_HFOV_RAD = 1.204   # RealSense D435 기준 ~69도
 
 
 class DoorDetectionNode(Node):
-    """YOLOv8 + HSV + LiDAR 기반 파란/빨간 문 탐지 노드"""
+    """YOLOv8 + HSV + Radar(+ Depth) 기반 파란/빨간 문 탐지 노드"""
 
     def __init__(self):
         super().__init__('door_detection_node')
@@ -60,22 +61,28 @@ class DoorDetectionNode(Node):
         self.declare_parameter('confidence_threshold', 0.40)
         self.declare_parameter('frame_id', 'base_link')
         self.declare_parameter('camera_hfov_deg', 69.0)
+        self.declare_parameter('use_depth_camera', False)
 
-        model_path = self.get_parameter('model_path').value
-        self._conf  = self.get_parameter('confidence_threshold').value
-        self._frame = self.get_parameter('frame_id').value
-        hfov_deg    = self.get_parameter('camera_hfov_deg').value
-        self._hfov  = math.radians(hfov_deg)
+        model_path       = self.get_parameter('model_path').value
+        self._conf       = self.get_parameter('confidence_threshold').value
+        self._frame      = self.get_parameter('frame_id').value
+        hfov_deg         = self.get_parameter('camera_hfov_deg').value
+        self._hfov       = math.radians(hfov_deg)
+        self._use_depth  = self.get_parameter('use_depth_camera').value
 
         self.bridge = CvBridge()
 
         # 카메라 내부 파라미터 기본값 (CameraInfo 수신 전)
         self._fx = 500.0
+        self._fy = 500.0
         self._cx = 320.0
+        self._cy = 240.0
         self._img_w = 640
+        self._img_h = 480
 
-        self._latest_scan: LaserScan | None = None
-        self._door_id_map: dict[str, str] = {}
+        self._latest_scan:  LaserScan | None  = None
+        self._latest_depth: np.ndarray | None = None   # (H, W) float32 [m]
+        self._door_id_map:  dict[str, str]    = {}
 
         cb = ReentrantCallbackGroup()
 
@@ -87,8 +94,14 @@ class DoorDetectionNode(Node):
             CameraInfo, '/camera/color/camera_info',
             self.camera_info_callback, 10)
         self.create_subscription(
-            LaserScan, '/scan', self.lidar_callback, 10,
+            LaserScan, '/scan', self.radar_callback, 10,
             callback_group=cb)
+
+        if self._use_depth:
+            self.create_subscription(
+                Image, '/camera/depth/image_rect_raw',
+                self.depth_callback, 10, callback_group=cb)
+            self.get_logger().info('Depth camera enabled.')
 
         # Publishers
         self.door_pub  = self.create_publisher(DoorInfo, '/detected_door', 10)
@@ -99,7 +112,8 @@ class DoorDetectionNode(Node):
         self._model = self._load_model(model_path)
 
         self.get_logger().info(
-            f'DoorDetectionNode started | YOLO={"OK" if self._model else "FALLBACK_HSV"}')
+            f'DoorDetectionNode started | YOLO={"OK" if self._model else "FALLBACK_HSV"}'
+            f' | depth={"ON" if self._use_depth else "OFF"}')
 
     # ── 모델 로드 ─────────────────────────────────────────
     def _load_model(self, model_path: str):
@@ -119,12 +133,27 @@ class DoorDetectionNode(Node):
 
     # ── 콜백 ──────────────────────────────────────────────
     def camera_info_callback(self, msg: CameraInfo):
-        self._fx   = msg.k[0]
-        self._cx   = msg.k[2]
+        self._fx    = msg.k[0]
+        self._fy    = msg.k[4]
+        self._cx    = msg.k[2]
+        self._cy    = msg.k[5]
         self._img_w = msg.width
+        self._img_h = msg.height
 
-    def lidar_callback(self, msg: LaserScan):
+    def radar_callback(self, msg: LaserScan):
         self._latest_scan = msg
+
+    def depth_callback(self, msg: Image):
+        # 16UC1(mm) 또는 32FC1(m) 형식 → float32 미터 단위로 통일
+        try:
+            if msg.encoding == '32FC1':
+                depth = self.bridge.imgmsg_to_cv2(msg, '32FC1')
+            else:
+                depth_mm = self.bridge.imgmsg_to_cv2(msg, '16UC1')
+                depth = depth_mm.astype(np.float32) / 1000.0
+            self._latest_depth = depth
+        except Exception as e:
+            self.get_logger().warn(f'depth decode error: {e}')
 
     def image_callback(self, msg: Image):
         image = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
@@ -145,7 +174,8 @@ class DoorDetectionNode(Node):
                 continue
 
             cx_pix = (x1 + x2) // 2
-            dist   = self._lidar_distance_at_pixel(cx_pix)
+            cy_pix = (y1 + y2) // 2
+            dist   = self._lidar_distance_at_pixel(cx_pix, cy_pix)
             if dist is None:
                 continue
 
@@ -231,26 +261,41 @@ class DoorDetectionNode(Node):
             return 'red'
         return 'unknown'
 
-    # ── LiDAR로 거리 추정 ─────────────────────────────────
-    def _lidar_distance_at_pixel(self, cx_pix: int) -> float | None:
-        """이미지 픽셀 x 위치 → 로봇 전방 기준 수평각 → LiDAR range"""
+    # ── 거리 추정 ─────────────────────────────────────────
+    def _lidar_distance_at_pixel(self, cx_pix: int,
+                                  cy_pix: int | None = None) -> float | None:
+        """거리 추정: Depth 카메라 우선, 없으면 Radar /scan fallback."""
+        if self._use_depth and self._latest_depth is not None:
+            dist = self._depth_distance_at_pixel(cx_pix, cy_pix)
+            if dist is not None:
+                return dist
+        return self._radar_distance_at_pixel(cx_pix)
+
+    def _depth_distance_at_pixel(self,
+                                   cx_pix: int,
+                                   cy_pix: int | None) -> float | None:
+        """bbox 중심 주변 패치의 중앙값 depth 반환 (단위: m)."""
+        depth = self._latest_depth
+        if depth is None:
+            return None
+        cy = cy_pix if cy_pix is not None else depth.shape[0] // 2
+        # 11×11 패치 중앙값으로 노이즈 억제
+        r0, r1 = max(0, cy - 5), min(depth.shape[0], cy + 6)
+        c0, c1 = max(0, cx_pix - 5), min(depth.shape[1], cx_pix + 6)
+        patch = depth[r0:r1, c0:c1]
+        valid = patch[(patch > 0.1) & (patch < 15.0)]
+        if valid.size == 0:
+            return None
+        return float(np.median(valid))
+
+    def _radar_distance_at_pixel(self, cx_pix: int) -> float | None:
+        """이미지 픽셀 x → 수평각 → Radar /scan range."""
         if self._latest_scan is None:
             return None
         scan = self._latest_scan
-
-        # 카메라 픽셀 → 수평각 (카메라 중심 = 0, 좌 = +, 우 = -)
-        # LiDAR 좌표: 전방 = 0도
-        angle_cam = ((cx_pix - self._cx) / self._fx)   # tan(θ) ≈ θ [rad, 소각도]
-        angle_cam = math.atan(angle_cam)                # 정확한 각도
-
-        # LiDAR에서 로봇 전방 = 0 또는 π (장착 방향에 따라 다름)
-        # 기본 가정: LiDAR 전방 = 0도 (angle_min이 -π인 경우)
-        target_angle = angle_cam  # 카메라와 LiDAR 전방이 같다고 가정
-
-        # angle → LiDAR index
-        idx = int((target_angle - scan.angle_min) / scan.angle_increment)
+        angle = math.atan((cx_pix - self._cx) / self._fx)
+        idx = int((angle - scan.angle_min) / scan.angle_increment)
         n   = len(scan.ranges)
-        # 주변 5개 index의 중앙값으로 노이즈 억제
         window = []
         for offset in range(-2, 3):
             i = (idx + offset) % n

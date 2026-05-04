@@ -1,28 +1,32 @@
 """
 sensor_fusion_node.py
 
-RGB 카메라 + 2D LiDAR 융합으로 Nav2용 OccupancyGrid 생성.
+RGB 카메라 + Radar(+ 선택적 Depth 카메라) 융합으로 Nav2용 OccupancyGrid 생성.
 
 융합 방식:
-  1. SegFormer(ADE20K) → RGB 이미지의 픽셀별 시맨틱 레이블
-  2. 각 LiDAR 포인트를 카메라 이미지에 투영 → 해당 픽셀의 시맨틱 레이블 획득
-  3. 레이블이 '장애물'이면 → 그리드 셀 점유 / '바닥'이면 → 빈 공간
-  4. OccupancyGrid로 발행 → Nav2 costmap에 반영
+  [기본] Radar /scan + SegFormer 시맨틱 세그멘테이션
+    1. SegFormer(ADE20K) → RGB 이미지의 픽셀별 시맨틱 레이블
+    2. 각 Radar 포인트를 카메라 이미지에 투영 → 해당 픽셀의 시맨틱 레이블 획득
+    3. 레이블이 '장애물'이면 → 그리드 셀 점유 / '바닥'이면 → 빈 공간
 
-SegFormer 모델: nvidia/segformer-b0-finetuned-ade-512-512 (경량)
-  - ADE20K 150 클래스 사전학습 → 추가 학습 불필요
-  - B0: 경량 (3.7M params, ~실시간 가능)
+  [심화] use_depth_camera=True 시 Depth PointCloud2 추가 융합
+    - PointCloud2 포인트를 로봇 프레임으로 변환 → 그리드 직접 마킹
+    - Radar 기반 그리드와 OR 합성
+
+SegFormer 모델: nvidia/segformer-b0-finetuned-ade-512-512 (경량, 3.7M params)
 """
 
 import math
 import threading
+
+import struct
 
 import cv2
 import numpy as np
 import rclpy
 from cv_bridge import CvBridge
 from rclpy.node import Node
-from sensor_msgs.msg import Image, LaserScan, CameraInfo
+from sensor_msgs.msg import Image, LaserScan, CameraInfo, PointCloud2
 from nav_msgs.msg import OccupancyGrid
 
 try:
@@ -66,22 +70,24 @@ ROBOT_GY   = MAP_H // 2
 
 
 class SensorFusionNode(Node):
-    """RGB + LiDAR → OccupancyGrid 노드"""
+    """RGB + Radar(+ Depth) → OccupancyGrid 노드"""
 
     def __init__(self):
         super().__init__('sensor_fusion_node')
 
         self.declare_parameter('segformer_model',
                                'nvidia/segformer-b0-finetuned-ade-512-512')
-        self.declare_parameter('use_gpu',     False)
-        self.declare_parameter('publish_rate', 2.0)
-        # LiDAR-카메라 외부 파라미터 (카메라와 LiDAR의 상대 위치, 기본: 동일 위치)
-        self.declare_parameter('lidar_to_cam_x', 0.0)
-        self.declare_parameter('lidar_to_cam_y', 0.0)
+        self.declare_parameter('use_gpu',          False)
+        self.declare_parameter('publish_rate',     2.0)
+        self.declare_parameter('use_depth_camera', False)
+        # Radar-카메라 외부 파라미터 (상대 위치, 기본: 동일 위치)
+        self.declare_parameter('radar_to_cam_x', 0.0)
+        self.declare_parameter('radar_to_cam_y', 0.0)
 
-        model_name = self.get_parameter('segformer_model').value
-        use_gpu    = self.get_parameter('use_gpu').value
-        rate       = self.get_parameter('publish_rate').value
+        model_name      = self.get_parameter('segformer_model').value
+        use_gpu         = self.get_parameter('use_gpu').value
+        rate            = self.get_parameter('publish_rate').value
+        self._use_depth = self.get_parameter('use_depth_camera').value
 
         self.bridge = CvBridge()
 
@@ -91,9 +97,10 @@ class SensorFusionNode(Node):
         self._img_w = 640
         self._img_h = 480
 
-        self._latest_image: np.ndarray | None = None
-        self._seg_labels:   np.ndarray | None = None  # (H, W) int32
-        self._latest_scan:  LaserScan | None  = None
+        self._latest_image:  np.ndarray | None  = None
+        self._seg_labels:    np.ndarray | None  = None  # (H, W) int32
+        self._latest_scan:   LaserScan | None   = None
+        self._latest_cloud:  PointCloud2 | None = None
         self._lock = threading.Lock()
 
         # SegFormer 로드
@@ -126,7 +133,13 @@ class SensorFusionNode(Node):
             CameraInfo, '/camera/color/camera_info',
             self.camera_info_callback, 10)
         self.create_subscription(
-            LaserScan, '/scan', self.lidar_callback, 10)
+            LaserScan, '/scan', self.radar_callback, 10)
+
+        if self._use_depth:
+            self.create_subscription(
+                PointCloud2, '/camera/depth/points',
+                self.depth_cloud_callback, 10)
+            self.get_logger().info('Depth PointCloud2 fusion enabled.')
 
         # Publishers
         self.grid_pub   = self.create_publisher(OccupancyGrid, '/segmentation_map', 10)
@@ -138,7 +151,8 @@ class SensorFusionNode(Node):
         self._seg_thread.start()
 
         self.create_timer(1.0 / rate, self.publish_map)
-        self.get_logger().info('SensorFusionNode started')
+        self.get_logger().info(
+            f'SensorFusionNode started | depth={"ON" if self._use_depth else "OFF"}')
 
     # ── 콜백 ──────────────────────────────────────────────
     def camera_info_callback(self, msg: CameraInfo):
@@ -153,8 +167,11 @@ class SensorFusionNode(Node):
         with self._lock:
             self._latest_image = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
 
-    def lidar_callback(self, msg: LaserScan):
+    def radar_callback(self, msg: LaserScan):
         self._latest_scan = msg
+
+    def depth_cloud_callback(self, msg: PointCloud2):
+        self._latest_cloud = msg
 
     # ── SegFormer 추론 루프 ───────────────────────────────
     def _segmentation_loop(self):
@@ -193,13 +210,16 @@ class SensorFusionNode(Node):
         with self._lock:
             seg = self._seg_labels.copy() if self._seg_labels is not None else None
 
-        # LiDAR 포인트를 카메라에 투영 → 시맨틱 레이블 얻기
+        # Radar 포인트를 카메라에 투영 → 시맨틱 레이블 얻기
         if self._latest_scan is not None:
             self._fuse_lidar_with_seg(grid, self._latest_scan, seg)
 
+        # Depth PointCloud2 추가 융합
+        if self._use_depth and self._latest_cloud is not None:
+            self._fuse_depth_cloud(grid, self._latest_cloud)
+
         self._publish_grid(grid)
 
-        # 시각화
         if seg is not None:
             self._publish_seg_visual(seg)
 
@@ -260,6 +280,40 @@ class SensorFusionNode(Node):
         if not (0 <= u < self._img_w and 0 <= v < self._img_h):
             return -1
         return int(seg[v, u])
+
+    def _fuse_depth_cloud(self, grid: np.ndarray, cloud: PointCloud2):
+        """PointCloud2 XYZ 포인트를 로봇 프레임 그리드에 직접 마킹."""
+        # point_step과 field offsets 파싱
+        field_names = [f.name for f in cloud.fields]
+        if 'x' not in field_names or 'z' not in field_names:
+            return
+        x_off = next(f.offset for f in cloud.fields if f.name == 'x')
+        y_off = next(f.offset for f in cloud.fields if f.name == 'y')
+        z_off = next(f.offset for f in cloud.fields if f.name == 'z')
+        step   = cloud.point_step
+        data   = cloud.data
+        # 카메라 광학 프레임 → 로봇 베이스 프레임 변환 (카메라 Z=전방, 로봇 X=전방)
+        for i in range(0, len(data), step):
+            cx = struct.unpack_from('f', data, i + x_off)[0]
+            cy = struct.unpack_from('f', data, i + y_off)[0]
+            cz = struct.unpack_from('f', data, i + z_off)[0]
+            if not (math.isfinite(cx) and math.isfinite(cz)):
+                continue
+            if cz < 0.1 or cz > 10.0:
+                continue
+            # 카메라 광학 프레임(Z=전방, X=오른쪽, Y=아래)
+            # → 로봇 프레임(X=전방, Y=왼쪽)
+            rx =  cz
+            ry = -cx
+            rz =  cy
+            # 바닥면 포인트 무시 (z가 너무 낮으면 바닥)
+            if rz < -0.1:
+                continue
+            gx = ROBOT_GX + int(rx / MAP_RES)
+            gy = ROBOT_GY - int(ry / MAP_RES)
+            if 0 <= gx < MAP_W and 0 <= gy < MAP_H:
+                if grid[gy, gx] != 100:
+                    grid[gy, gx] = 0 if rz < 0.05 else 100
 
     def _publish_grid(self, grid: np.ndarray):
         msg = OccupancyGrid()

@@ -13,20 +13,19 @@ from launch_ros.substitutions import FindPackageShare
 def generate_launch_description():
     """실제 하드웨어 런치파일.
     실행 전 확인:
-      - LiDAR USB: /dev/ttyUSB0 (권한: sudo chmod 777 /dev/ttyUSB0)
-      - 카메라: /dev/video0
+      - Radar USB: /dev/ttyUSB0 (권한: sudo chmod 777 /dev/ttyUSB0)
+      - RealSense D435: USB3.0 연결 확인 (realsense2_camera 자동 인식)
       - PIPER CAN: sudo ip link set can0 type can bitrate 1000000 && sudo ip link set up can0
     """
 
     # ---------- 인자 ----------
-    use_sim_time = LaunchConfiguration('use_sim_time', default='false')
-    camera_device    = LaunchConfiguration('camera_device',    default='/dev/video0')
-    lidar_serial_port = LaunchConfiguration('lidar_serial_port', default='/dev/ttyUSB0')
+    use_sim_time     = LaunchConfiguration('use_sim_time',     default='false')
+    radar_serial_port = LaunchConfiguration('radar_serial_port', default='/dev/ttyUSB0')
     piper_can_port   = LaunchConfiguration('piper_can_port',   default='can0')
     slam_params_file = LaunchConfiguration(
         'slam_params_file',
         default=PathJoinSubstitution([
-            FindPackageShare('fire_robot_navigation'), 'config', 'slam_toolbox_params.yaml'
+            FindPackageShare('fire_robot_navigation'), 'config', 'slam_toolbox_params.yaml',
         ]),
     )
 
@@ -40,38 +39,47 @@ def generate_launch_description():
 
     # ---------- 하드웨어 드라이버 ----------
 
-    # 1) USB RGB 카메라 (v4l2_camera)
+    # 1) Intel RealSense D435 (realsense2_camera: RGB + Depth 동시 지원)
+    #    설치: sudo apt install -y ros-humble-realsense2-camera
     camera_node = Node(
-        package='v4l2_camera',
-        executable='v4l2_camera_node',
-        name='v4l2_camera',
+        package='realsense2_camera',
+        executable='realsense2_camera_node',
+        name='realsense2_camera',
         parameters=[{
-            'video_device': camera_device,
-            'image_size':   [640, 480],
-            'pixel_format': 'YUYV',
-            'camera_frame_id': 'camera_link',
-            'use_sim_time': use_sim_time,
+            'depth_module.profile':  '640x480x30',
+            'rgb_camera.profile':    '640x480x30',
+            'enable_depth':          True,
+            'enable_color':          True,
+            'pointcloud.enable':     True,
+            'align_depth.enable':    True,
+            'base_frame_id':         'camera_link',
+            'use_sim_time':          use_sim_time,
         }],
         remappings=[
-            ('image_raw', '/camera/color/image_raw'),
-            ('camera_info', '/camera/color/camera_info'),
+            ('color/image_raw',         '/camera/color/image_raw'),
+            ('color/camera_info',       '/camera/color/camera_info'),
+            ('depth/image_rect_raw',    '/camera/depth/image_rect_raw'),
+            ('depth/camera_info',       '/camera/depth/camera_info'),
+            ('depth/color/points',      '/camera/depth/points'),
         ],
         output='screen',
     )
 
-    # 2) 2D LiDAR — RPLiDAR A1/A2/A3 (rplidar_ros)
-    lidar_node = Node(
-        package='rplidar_ros',
-        executable='rplidar_node',
-        name='rplidar_node',
+    # 2) Radar — LD19/LD06 2D Radar (ldlidar_stl_ros2)
+    #    실제 레이더 하드웨어에 맞는 패키지로 교체 필요.
+    #    LD19 설치: https://github.com/LihanChen2004/ldlidar_stl_ros2
+    #    sudo apt install -y ros-humble-ldlidar-stl-ros2  (또는 소스 빌드)
+    radar_node = Node(
+        package='ldlidar_stl_ros2',
+        executable='ldlidar_stl_ros2_node',
+        name='radar_node',
         parameters=[{
-            'serial_port':      lidar_serial_port,
-            'serial_baudrate':  115200,
-            'frame_id':         'lidar_link',
-            'inverted':         False,
-            'angle_compensate': True,
-            'scan_mode':        'Standard',
-            'use_sim_time':     use_sim_time,
+            'product_name':  'LDLiDAR_LD19',
+            'topic_name':    'scan',
+            'port_name':     radar_serial_port,
+            'port_baudrate': 230400,
+            'frame_id':      'radar_link',
+            'use_sim_time':  use_sim_time,
         }],
         output='screen',
     )
@@ -194,19 +202,18 @@ def generate_launch_description():
 
     return LaunchDescription([
         # 인자 선언
-        DeclareLaunchArgument('use_sim_time',      default_value='false'),
-        DeclareLaunchArgument('camera_device',     default_value='/dev/video0'),
-        DeclareLaunchArgument('lidar_serial_port', default_value='/dev/ttyUSB0'),
-        DeclareLaunchArgument('piper_can_port',    default_value='can0'),
+        DeclareLaunchArgument('use_sim_time',       default_value='false'),
+        DeclareLaunchArgument('radar_serial_port',  default_value='/dev/ttyUSB0'),
+        DeclareLaunchArgument('piper_can_port',     default_value='can0'),
         DeclareLaunchArgument('slam_params_file',
             default_value=PathJoinSubstitution([
-                FindPackageShare('fire_robot_navigation'), 'config', 'slam_toolbox_params.yaml'
+                FindPackageShare('fire_robot_navigation'), 'config', 'slam_toolbox_params.yaml',
             ])),
 
         # 하드웨어
         robot_state_publisher_node,
         camera_node,
-        lidar_node,
+        radar_node,
         piper_driver_node,
         controller_manager_node,
         spawn_controllers_on_ready,  # controller_manager 기동 후 spawner 실행

@@ -74,12 +74,16 @@ def generate_launch_description():
             arguments=[
                 # 시뮬레이션 시간
                 '/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
-                # LiDAR (Ignition /scan → ROS2 /scan)
+                # Radar (Ignition /scan → ROS2 /scan, LaserScan 형식 그대로)
                 '/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
                 # RGB 카메라 이미지
                 '/camera_raw@sensor_msgs/msg/Image[gz.msgs.Image',
-                # 카메라 정보 (Ignition 규칙: <topic>/camera_info)
                 '/camera_raw/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo',
+                # Depth 카메라 (rgbd_camera → /camera/depth/*)
+                '/depth_camera/image@sensor_msgs/msg/Image[gz.msgs.Image',
+                '/depth_camera/depth_image@sensor_msgs/msg/Image[gz.msgs.Image',
+                '/depth_camera/points@sensor_msgs/msg/PointCloud2[gz.msgs.PointCloudPacked',
+                '/depth_camera/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo',
                 # 구동 명령 (ROS2 → Ignition)
                 '/cmd_vel@geometry_msgs/msg/Twist]gz.msgs.Twist',
                 # 오도메트리
@@ -89,10 +93,13 @@ def generate_launch_description():
                 # 조인트 상태
                 '/joint_states@sensor_msgs/msg/JointState[gz.msgs.Model',
             ],
-            # Ignition 카메라 토픽 → ROS2 표준 카메라 토픽으로 리매핑
             remappings=[
-                ('/camera_raw',             '/camera/color/image_raw'),
-                ('/camera_raw/camera_info', '/camera/color/camera_info'),
+                ('/camera_raw',              '/camera/color/image_raw'),
+                ('/camera_raw/camera_info',  '/camera/color/camera_info'),
+                ('/depth_camera/image',      '/camera/depth/color/image_raw'),
+                ('/depth_camera/depth_image','/camera/depth/image_rect_raw'),
+                ('/depth_camera/points',     '/camera/depth/points'),
+                ('/depth_camera/camera_info','/camera/depth/camera_info'),
             ],
             parameters=[{'use_sim_time': use_sim_time}],
             output='screen',
