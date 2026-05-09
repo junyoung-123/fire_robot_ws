@@ -22,7 +22,7 @@
 
 | 파트 | 담당 | 패키지 |
 |------|------|--------|
-| 자율주행 | 준영 | `fire_robot_perception` `fire_robot_navigation` `fire_robot_bringup` |
+| 자율주행 | 나 | `fire_robot_perception` `fire_robot_navigation` `fire_robot_bringup` |
 | 로봇 제어 | 팀원 | `fire_robot_manipulation` |
 | 공통 | 공동 | `fire_robot_interfaces` `fire_robot_description` `fire_robot_fsm` |
 
@@ -36,7 +36,7 @@ fire_robot_ws/src/
 ├── fire_robot_description    # URDF 로봇 모델 (수정 불필요)
 ├── fire_robot_fsm            # 전체 상태 머신 (수정 불필요)
 │
-├── [자율주행 - 준영]
+├── [자율주행 - 나]
 │   ├── fire_robot_perception     # 문 감지, 센서 융합
 │   ├── fire_robot_navigation     # Nav2 자율주행
 │   └── fire_robot_bringup        # 시뮬레이션/실제로봇 런치파일
@@ -49,7 +49,7 @@ fire_robot_ws/src/
 
 ## 구현 현황
 
-### 자율주행 파트 (준영)
+### 자율주행 파트 (나)
 
 | 항목 | 상태 |
 |------|------|
