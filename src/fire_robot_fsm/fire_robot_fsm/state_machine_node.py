@@ -13,36 +13,52 @@ from fire_robot_interfaces.srv import OpenDoor
 
 
 class State(IntEnum):
-    IDLE           = 0
-    EXPLORING      = 1
-    NAVIGATING     = 2
-    OPENING_DOOR   = 3
-    DOOR_OPENED    = 4
-    EMERGENCY_STOP = 5
+    IDLE             = 0
+    EXPLORING        = 1   # 파란 문 탐색 (제자리 회전)
+    NAVIGATING       = 2   # 파란 문으로 이동
+    OPENING_DOOR     = 3   # 문 개방 중
+    DOOR_OPENED      = 4   # 개방 완료 → 즉시 다음 문 탐색
+    EXITING          = 5   # 모든 문 개방 완료, 비상구로 이동
+    MISSION_COMPLETE = 6   # 비상구 도착, 미션 종료
+    EMERGENCY_STOP   = 7
 
 
 class StateMachineNode(Node):
     """전체 시스템을 조율하는 유한 상태 머신(FSM) 노드
 
-    네비게이션 실패 처리 정책:
-      - 실패 시 해당 문을 블랙리스트에 추가하고 다른 파란 문으로 재탐색
-      - 재시도 횟수(max_nav_retries) 초과 → EMERGENCY_STOP
-      - 타임아웃(nav_timeout_sec) 초과 → 동일 처리
+    미션 흐름:
+      1. 빨간 문(화재) 감지 → 탐색 시작
+      2. 파란 문 발견 → 이동 → 개방 → 다음 파란 문 탐색 (반복)
+      3. explore_timeout_sec 동안 새 파란 문 없음 → 모든 문 개방 완료로 판단
+      4. 비상구(exit_x, exit_y)로 이동 → 미션 완료
+
+    파라미터:
+      nav_timeout_sec    : 문 이동 타임아웃 (기본 60s)
+      max_nav_retries    : 최대 재시도 횟수 (기본 3)
+      explore_timeout_sec: 탐색 회전 후 비상구 이동 판단 시간 (기본 30s)
+      exit_x / exit_y    : 비상구 map 프레임 좌표 (기본 10.0 / 0.0)
+      exit_yaw           : 비상구 도착 방향 rad (기본 0.0)
     """
 
     def __init__(self):
         super().__init__('state_machine_node')
 
-        # ── 파라미터 ──────────────────────────────────────
-        self.declare_parameter('nav_timeout_sec',  60.0)
-        self.declare_parameter('max_nav_retries',  3)
+        self.declare_parameter('nav_timeout_sec',     60.0)
+        self.declare_parameter('max_nav_retries',     3)
+        self.declare_parameter('explore_timeout_sec', 30.0)
+        self.declare_parameter('exit_x',   10.0)
+        self.declare_parameter('exit_y',    0.0)
+        self.declare_parameter('exit_yaw',  0.0)
 
-        self._nav_timeout_sec = self.get_parameter('nav_timeout_sec').value
-        self._max_nav_retries = self.get_parameter('max_nav_retries').value
+        self._nav_timeout_sec     = self.get_parameter('nav_timeout_sec').value
+        self._max_nav_retries     = self.get_parameter('max_nav_retries').value
+        self._explore_timeout_sec = self.get_parameter('explore_timeout_sec').value
+        self._exit_x   = self.get_parameter('exit_x').value
+        self._exit_y   = self.get_parameter('exit_y').value
+        self._exit_yaw = self.get_parameter('exit_yaw').value
 
         cb_group = ReentrantCallbackGroup()
 
-        # ── Subscribers ───────────────────────────────────
         self.door_sub = self.create_subscription(
             DoorInfo, '/detected_door', self.door_callback, 10,
             callback_group=cb_group)
@@ -53,28 +69,25 @@ class StateMachineNode(Node):
             Bool, '/navigation_done', self.nav_done_callback, 10,
             callback_group=cb_group)
 
-        # ── Publishers ────────────────────────────────────
         self.state_pub       = self.create_publisher(RobotState, '/robot_state', 10)
         self.target_door_pub = self.create_publisher(DoorInfo,   '/target_door', 10)
         self.cmd_vel_pub     = self.create_publisher(Twist,      '/cmd_vel',     10)
 
-        # ── Service clients ───────────────────────────────
         self.open_door_client = self.create_client(
             OpenDoor, '/open_door', callback_group=cb_group)
 
-        # ── 상태 변수 ──────────────────────────────────────
-        self.state             = State.IDLE
-        self.detected_doors:   list[DoorInfo] = []
-        self.fire_info:        FireInfo | None = None
-        self.target_door:      DoorInfo | None = None
+        self.state              = State.IDLE
+        self.detected_doors:    list[DoorInfo] = []
+        self.fire_info:         FireInfo | None = None
+        self.target_door:       DoorInfo | None = None
 
         self._nav_done   = False
         self._nav_failed = False
-        self._nav_start_time: Time | None = None
+        self._nav_start_time:     Time | None = None
+        self._explore_start_time: Time | None = None
 
-        # 이번 미션에서 네비게이션 실패한 문 ID 집합
-        self._failed_door_ids: set[str] = set()
-        # 이번 미션 누적 실패 횟수
+        self._failed_door_ids: set[str] = set()   # 네비게이션 실패 문
+        self._opened_door_ids: set[str] = set()   # 개방 완료 문
         self._nav_retry_count = 0
 
         self._door_opening_in_progress = False
@@ -82,7 +95,10 @@ class StateMachineNode(Node):
         self.timer = self.create_timer(0.5, self.fsm_loop)
         self.get_logger().info(
             f'StateMachineNode started | '
-            f'timeout={self._nav_timeout_sec}s  max_retries={self._max_nav_retries}'
+            f'nav_timeout={self._nav_timeout_sec}s  '
+            f'max_retries={self._max_nav_retries}  '
+            f'explore_timeout={self._explore_timeout_sec}s  '
+            f'exit=({self._exit_x:.1f}, {self._exit_y:.1f})'
         )
 
     # ── 콜백 ──────────────────────────────────────────────
@@ -97,25 +113,27 @@ class StateMachineNode(Node):
         self.fire_info = msg
 
     def nav_done_callback(self, msg: Bool):
-        if self.state != State.NAVIGATING:
+        if self.state not in (State.NAVIGATING, State.EXITING):
             return
         if msg.data:
             self.get_logger().info('Navigation succeeded.')
             self._nav_done   = True
             self._nav_failed = False
         else:
-            self.get_logger().warn('Navigation failed (nav_done=False).')
+            self.get_logger().warn('Navigation failed.')
             self._nav_failed = True
             self._nav_done   = False
 
     # ── FSM 루프 ──────────────────────────────────────────
     def fsm_loop(self):
-        if   self.state == State.IDLE:           self._on_idle()
-        elif self.state == State.EXPLORING:      self._on_exploring()
-        elif self.state == State.NAVIGATING:     self._on_navigating()
-        elif self.state == State.OPENING_DOOR:   self._on_opening_door()
-        elif self.state == State.DOOR_OPENED:    self._on_door_opened()
-        elif self.state == State.EMERGENCY_STOP: self._on_emergency_stop()
+        if   self.state == State.IDLE:             self._on_idle()
+        elif self.state == State.EXPLORING:        self._on_exploring()
+        elif self.state == State.NAVIGATING:       self._on_navigating()
+        elif self.state == State.OPENING_DOOR:     self._on_opening_door()
+        elif self.state == State.DOOR_OPENED:      self._on_door_opened()
+        elif self.state == State.EXITING:          self._on_exiting()
+        elif self.state == State.MISSION_COMPLETE: self._on_mission_complete()
+        elif self.state == State.EMERGENCY_STOP:   self._on_emergency_stop()
 
         self._publish_state()
 
@@ -123,31 +141,60 @@ class StateMachineNode(Node):
     def _on_idle(self):
         if self.fire_info and self.fire_info.detected:
             self.get_logger().info(
-                f'Red door(s) detected ({self.fire_info.red_door_count}). '
-                'Starting exploration.'
-            )
-            # IDLE → EXPLORING 시 이전 실패 기록 초기화
+                f'Fire detected ({self.fire_info.red_door_count} red door(s)). '
+                'Starting mission.')
             self._failed_door_ids.clear()
+            self._opened_door_ids.clear()
             self._nav_retry_count = 0
             self._transition(State.EXPLORING)
 
     def _on_exploring(self):
-        # 블랙리스트를 제외한 파란 문만 후보
+        # 개방 완료 + 실패 블랙리스트 제외한 파란 문 후보
         safe_doors = [
             d for d in self.detected_doors
-            if d.door_color == 'blue' and d.door_id not in self._failed_door_ids
+            if d.door_color == 'blue'
+            and d.door_id not in self._failed_door_ids
+            and d.door_id not in self._opened_door_ids
         ]
+
         if not safe_doors:
-            if self._failed_door_ids:
-                self.get_logger().error(
-                    f'No safe doors remaining after '
-                    f'{len(self._failed_door_ids)} failure(s). Emergency stop.')
-                self._transition(State.EMERGENCY_STOP)
-                return
-            # 파란 문이 아직 보이지 않으면 제자리 회전으로 주변 스캔
+            # 블랙리스트에만 남고 개방 가능한 문이 없으면 비상정지
+            reachable = [
+                d for d in self.detected_doors
+                if d.door_color == 'blue'
+                and d.door_id not in self._opened_door_ids
+                and d.door_id in self._failed_door_ids
+            ]
+            if self._failed_door_ids and not reachable and not [
+                d for d in self.detected_doors
+                if d.door_color == 'blue'
+                and d.door_id not in self._opened_door_ids
+                and d.door_id not in self._failed_door_ids
+            ]:
+                # 실패한 문뿐이고 새 문도 없음
+                pass  # 타임아웃으로 비상구 이동 처리
+
+            # 탐색 타임아웃 → 모든 파란 문 개방 완료 판단
+            if self._explore_start_time is not None:
+                elapsed = (
+                    self.get_clock().now() - self._explore_start_time
+                ).nanoseconds / 1e9
+                if elapsed >= self._explore_timeout_sec:
+                    self.get_logger().info(
+                        f'{elapsed:.0f}s 탐색 후 새 파란 문 없음. '
+                        f'총 {len(self._opened_door_ids)}개 문 개방 완료. '
+                        '비상구로 이동합니다.')
+                    self._transition(State.EXITING)
+                    return
+
+            # 타임아웃 전 → 제자리 회전 탐색
             self._rotate_to_scan()
             return
 
+        # 새 파란 문 발견 → 탐색 타이머 리셋
+        self._explore_start_time = self.get_clock().now()
+
+        # 화재 위치에서 가장 먼 파란 문 선택 (화재 반대편 출구 우선)
         if self.fire_info and self.fire_info.detected:
             fx = self.fire_info.fire_position.point.x
             fy = self.fire_info.fire_position.point.y
@@ -162,34 +209,28 @@ class StateMachineNode(Node):
             self.target_door = max(safe_doors, key=lambda d: d.confidence)
 
         self.get_logger().info(
-            f'Target door: {self.target_door.door_id} '
-            f'(retry {self._nav_retry_count}/{self._max_nav_retries})'
-        )
+            f'목표 문: {self.target_door.door_id}  '
+            f'개방 완료: {len(self._opened_door_ids)}개  '
+            f'재시도: {self._nav_retry_count}/{self._max_nav_retries}')
         self.target_door_pub.publish(self.target_door)
         self._nav_done   = False
         self._nav_failed = False
         self._transition(State.NAVIGATING)
 
     def _on_navigating(self):
-        # ── 타임아웃 체크 ─────────────────────────────────
         if self._nav_start_time is not None:
             elapsed = (
                 self.get_clock().now() - self._nav_start_time
             ).nanoseconds / 1e9
             if elapsed > self._nav_timeout_sec:
-                self.get_logger().warn(
-                    f'Navigation timeout ({elapsed:.1f}s > '
-                    f'{self._nav_timeout_sec}s).'
-                )
+                self.get_logger().warn(f'Navigation timeout ({elapsed:.1f}s).')
                 self._handle_nav_failure(reason='timeout')
                 return
 
-        # ── 완료 신호 처리 ────────────────────────────────
         if self._nav_done:
             self._nav_done = False
             self._door_opening_in_progress = False
             self._transition(State.OPENING_DOOR)
-
         elif self._nav_failed:
             self._nav_failed = False
             self._handle_nav_failure(reason='nav2_failure')
@@ -197,38 +238,29 @@ class StateMachineNode(Node):
     def _handle_nav_failure(self, reason: str = ''):
         door_id = self.target_door.door_id if self.target_door else '(unknown)'
         self._nav_retry_count += 1
-
         self.get_logger().warn(
-            f'Nav failure [{reason}] → door {door_id}. '
-            f'Retry {self._nav_retry_count}/{self._max_nav_retries}.'
-        )
-
-        # 실패한 문 블랙리스트 등록
+            f'Nav failure [{reason}] → {door_id}. '
+            f'재시도 {self._nav_retry_count}/{self._max_nav_retries}')
         if self.target_door is not None:
             self._failed_door_ids.add(self.target_door.door_id)
             self.target_door = None
-
         if self._nav_retry_count >= self._max_nav_retries:
-            self.get_logger().error(
-                f'Max retries ({self._max_nav_retries}) reached. '
-                'Activating emergency stop.')
+            self.get_logger().error('Max retries 초과. Emergency stop.')
             self._transition(State.EMERGENCY_STOP)
         else:
-            # 다른 파란 문으로 재탐색
             self._transition(State.EXPLORING)
 
     def _on_opening_door(self):
         if self.target_door is None or self._door_opening_in_progress:
             return
         if not self.open_door_client.service_is_ready():
-            self.get_logger().warn('OpenDoor service not ready, waiting...')
+            self.get_logger().warn('OpenDoor 서비스 대기 중...')
             return
 
         self._door_opening_in_progress = True
-        req           = OpenDoor.Request()
-        req.door_id   = self.target_door.door_id
+        req               = OpenDoor.Request()
+        req.door_id       = self.target_door.door_id
         req.handle_position = self.target_door.handle_position
-
         future = self.open_door_client.call_async(req)
         future.add_done_callback(self._door_open_result)
 
@@ -242,47 +274,91 @@ class StateMachineNode(Node):
             return
 
         if result.success:
-            self.get_logger().info('Door opened! Evacuation route secured.')
+            self._opened_door_ids.add(self.target_door.door_id)
+            self._nav_retry_count = 0   # 성공 시 재시도 카운터 리셋
+            self.get_logger().info(
+                f'문 개방 성공: {self.target_door.door_id}  '
+                f'누적 개방: {len(self._opened_door_ids)}개')
             self._transition(State.DOOR_OPENED)
         else:
-            self.get_logger().error(f'Door open failed: {result.message}')
+            self.get_logger().error(f'문 개방 실패: {result.message}')
             self._transition(State.EMERGENCY_STOP)
 
     def _on_door_opened(self):
+        # 즉시 다음 파란 문 탐색으로 전환
         self.get_logger().info(
-            'Mission complete. Evacuation route secured.', once=True)
+            f'다음 파란 문 탐색 시작 (개방 완료: {len(self._opened_door_ids)}개)')
+        self._transition(State.EXPLORING)
+
+    def _on_exiting(self):
+        if self._nav_done:
+            self._nav_done = False
+            self._transition(State.MISSION_COMPLETE)
+        elif self._nav_failed:
+            self._nav_failed = False
+            self.get_logger().warn('비상구 이동 실패. 재시도...')
+            self._send_exit_goal()
+
+    def _on_mission_complete(self):
+        self.get_logger().info(
+            f'미션 완료! 개방한 문: {len(self._opened_door_ids)}개. '
+            '로봇이 비상구에 도착했습니다.', once=True)
 
     def _on_emergency_stop(self):
-        self.get_logger().error('Emergency stop activated.', once=True)
+        self.get_logger().error('비상 정지.', once=True)
 
+    # ── 비상구 이동 ───────────────────────────────────────
+    def _send_exit_goal(self):
+        """비상구 좌표를 DoorInfo로 포장해 navigation_node에 전달"""
+        msg = DoorInfo()
+        now = self.get_clock().now().to_msg()
+        msg.header.stamp      = now
+        msg.header.frame_id   = 'map'
+        msg.door_id           = 'emergency_exit'
+        msg.door_color        = 'exit'
+        msg.door_pose.header.stamp    = now
+        msg.door_pose.header.frame_id = 'map'
+        msg.door_pose.pose.position.x = self._exit_x
+        msg.door_pose.pose.position.y = self._exit_y
+        msg.door_pose.pose.orientation.z = math.sin(self._exit_yaw / 2.0)
+        msg.door_pose.pose.orientation.w = math.cos(self._exit_yaw / 2.0)
+        self.target_door_pub.publish(msg)
+        self._nav_done   = False
+        self._nav_failed = False
+
+    # ── 유틸 ─────────────────────────────────────────────
     def _rotate_to_scan(self):
-        """파란 문을 찾을 때까지 제자리 회전으로 주변 스캔."""
         twist = Twist()
-        twist.angular.z = 0.3  # rad/s
+        twist.angular.z = 0.3
         self.cmd_vel_pub.publish(twist)
 
     def _stop_rotation(self):
         self.cmd_vel_pub.publish(Twist())
 
-    # ── 유틸 ─────────────────────────────────────────────
     def _transition(self, new_state: State):
         self.get_logger().info(f'State: {self.state.name} → {new_state.name}')
         self.state = new_state
 
-        # NAVIGATING 진입 시 회전 정지 + 타이머 시작
         if new_state == State.NAVIGATING:
             self._stop_rotation()
             self._nav_start_time = self.get_clock().now()
+        elif new_state == State.EXITING:
+            self._send_exit_goal()
+            self._nav_start_time = self.get_clock().now()
+        elif new_state == State.EXPLORING:
+            # EXPLORING 재진입 시 탐색 타이머 시작
+            self._explore_start_time = self.get_clock().now()
+            self._nav_start_time = None
         else:
             self._nav_start_time = None
 
     def _publish_state(self):
-        msg                  = RobotState()
-        msg.header.stamp     = self.get_clock().now().to_msg()
-        msg.state            = int(self.state)
+        msg                   = RobotState()
+        msg.header.stamp      = self.get_clock().now().to_msg()
+        msg.state             = int(self.state)
         msg.state_description = self.state.name
-        msg.target_door_id   = (self.target_door.door_id
-                                 if self.target_door else '')
+        msg.target_door_id    = (self.target_door.door_id
+                                  if self.target_door else '')
         self.state_pub.publish(msg)
 
 

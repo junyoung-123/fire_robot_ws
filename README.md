@@ -6,10 +6,26 @@
 
 ```
 카메라로 문 색상 인식
-→ 빨간 문(화재) 감지
-→ 파란 문(안전 출구)으로 자율주행
+→ 빨간 문(화재) 감지 → 탐색 시작
+→ 파란 문 발견 → Nav2 자율주행으로 이동
 → 로봇팔로 문 손잡이 잡고 개방
-→ 대피로 확보
+→ 다음 파란 문 탐색 (반복)
+→ 모든 파란 문 개방 완료 → 비상구로 탈출
+```
+
+### FSM 상태 흐름
+
+```
+IDLE
+ └─ 화재(빨간 문) 감지
+EXPLORING  ◄──────────────────────────────┐
+ ├─ 파란 문 발견 → NAVIGATING             │
+ │    └─ 도착 → OPENING_DOOR             │
+ │         └─ 개방 성공 → DOOR_OPENED ───┘
+ └─ 30 s 동안 새 파란 문 없음
+EXITING  (비상구 좌표로 이동)
+ └─ 도착
+MISSION_COMPLETE
 ```
 
 **플랫폼:** ROS2 Humble · Gazebo Ignition · Nav2 · MoveIt2  
@@ -58,7 +74,7 @@ fire_robot_ws/src/
 | SegFormer + Radar 센서 융합 노드 | ✅ 완성 |
 | Depth 카메라 융합 (선택적) | ✅ 완성 |
 | Nav2 자율주행 노드 | ✅ 완성 |
-| FSM 상태 머신 (탐색 회전 포함) | ✅ 완성 |
+| FSM 상태 머신 (전체 파란 문 순차 개방 + 비상구 탈출) | ✅ 완성 |
 | 데이터셋 준비 (OpenImages v7 Door ~5000장) | ✅ 완성 |
 | 학습 스크립트 (`train_door_detector.py`) | ✅ 완성 |
 | **YOLOv8 학습 모델 (best.pt)** | ⏳ 팀원 GPU 학습 예정 |
@@ -81,7 +97,7 @@ python3 scripts/train_door_detector.py \
 ```bash
 ros2 launch fire_robot_bringup simulation.launch.py
 ```
-빨간 문 감지 → 파란 문으로 자율주행하는 전체 FSM 흐름 검증.
+빨간 문 감지 → 모든 파란 문 순차 개방 → 비상구 탈출 전체 FSM 흐름 검증.
 
 **3. 실측 파라미터 조정** (실제 하드웨어 시)
 
@@ -92,6 +108,8 @@ ros2 launch fire_robot_bringup simulation.launch.py
 | Nav2 최대 속도 | `nav2_params.yaml` | `0.5 m/s` |
 | HSV 색상 임계값 | `door_detection_node.py` 상단 | 현장 조명 보고 조정 |
 | 카메라–Radar 오프셋 | `sensor_fusion_node` 파라미터 | `radar_to_cam_x: 0.0` |
+| 탐색 타임아웃 | FSM `explore_timeout_sec` 파라미터 | `30.0 s` |
+| 비상구 좌표 | FSM `exit_x` / `exit_y` / `exit_yaw` 파라미터 | `10.0 / 0.0 / 0.0` |
 
 ---
 
