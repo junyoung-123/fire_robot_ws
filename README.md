@@ -54,32 +54,36 @@ fire_robot_ws/src/
 | 항목 | 상태 |
 |------|------|
 | YOLOv8 + HSV 문 탐지 노드 | ✅ 완성 |
+| 문 위치 TF 변환 (`base_link` → `map` 프레임) | ✅ 완성 |
 | SegFormer + Radar 센서 융합 노드 | ✅ 완성 |
+| Depth 카메라 융합 (선택적) | ✅ 완성 |
 | Nav2 자율주행 노드 | ✅ 완성 |
+| FSM 상태 머신 (탐색 회전 포함) | ✅ 완성 |
 | 데이터셋 준비 (OpenImages v7 Door ~5000장) | ✅ 완성 |
 | 학습 스크립트 (`train_door_detector.py`) | ✅ 완성 |
-| **YOLOv8 학습 모델 (best.pt)** | ❌ 학습 필요 |
-| 시뮬레이션 통합 테스트 | ❌ 미완 |
+| **YOLOv8 학습 모델 (best.pt)** | ⏳ 팀원 GPU 학습 예정 |
+| 시뮬레이션 통합 테스트 | ⏳ 미완 |
 
 ### 자율주행 남은 작업
 
-**1. YOLOv8 모델 학습 (WSL2에서)**
+**1. YOLOv8 모델 학습** (GPU 있는 환경에서)
 ```bash
 pip install ultralytics
-python3 src/fire_robot_perception/scripts/train_door_detector.py \
-  --dataset src/fire_robot_perception/datasets/door_detection/dataset.yaml
+cd fire_robot_ws/src/fire_robot_perception
+python3 scripts/train_door_detector.py \
+  --dataset datasets/door_detection/dataset.yaml
 # → runs/detect/door_detector/weights/best.pt 생성
 ```
 학습 후 노드 실행 시 `--ros-args -p model_path:=<best.pt 경로>` 추가.  
 현재는 best.pt 없어서 HSV contour 탐지로만 동작 중.
 
-**2. 시뮬레이션 통합 테스트**
+**2. 시뮬레이션 통합 테스트** (WSL2에서)
 ```bash
 ros2 launch fire_robot_bringup simulation.launch.py
 ```
-빨간 문 감지 → 파란 문으로 자율주행하는 전체 흐름 검증 필요.
+빨간 문 감지 → 파란 문으로 자율주행하는 전체 FSM 흐름 검증.
 
-**3. 실측 파라미터 조정 (실제 하드웨어)**
+**3. 실측 파라미터 조정** (실제 하드웨어 시)
 
 | 항목 | 파일 | 기본값 |
 |------|------|--------|
@@ -190,6 +194,7 @@ sudo apt install -y \
   ros-humble-ros2-control \
   ros-humble-ros2-controllers \
   ros-humble-realsense2-camera \
+  ros-humble-tf2-geometry-msgs \
   python3-colcon-common-extensions \
   python3-rosdep
 ```
