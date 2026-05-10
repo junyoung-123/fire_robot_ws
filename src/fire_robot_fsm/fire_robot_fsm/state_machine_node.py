@@ -6,6 +6,7 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.time import Time
 from enum import IntEnum
 from std_msgs.msg import Bool
+from geometry_msgs.msg import Twist
 
 from fire_robot_interfaces.msg import DoorInfo, FireInfo, RobotState
 from fire_robot_interfaces.srv import OpenDoor
@@ -55,6 +56,7 @@ class StateMachineNode(Node):
         # ── Publishers ────────────────────────────────────
         self.state_pub       = self.create_publisher(RobotState, '/robot_state', 10)
         self.target_door_pub = self.create_publisher(DoorInfo,   '/target_door', 10)
+        self.cmd_vel_pub     = self.create_publisher(Twist,      '/cmd_vel',     10)
 
         # ── Service clients ───────────────────────────────
         self.open_door_client = self.create_client(
@@ -141,6 +143,9 @@ class StateMachineNode(Node):
                     f'No safe doors remaining after '
                     f'{len(self._failed_door_ids)} failure(s). Emergency stop.')
                 self._transition(State.EMERGENCY_STOP)
+                return
+            # 파란 문이 아직 보이지 않으면 제자리 회전으로 주변 스캔
+            self._rotate_to_scan()
             return
 
         if self.fire_info and self.fire_info.detected:
@@ -250,13 +255,23 @@ class StateMachineNode(Node):
     def _on_emergency_stop(self):
         self.get_logger().error('Emergency stop activated.', once=True)
 
+    def _rotate_to_scan(self):
+        """파란 문을 찾을 때까지 제자리 회전으로 주변 스캔."""
+        twist = Twist()
+        twist.angular.z = 0.3  # rad/s
+        self.cmd_vel_pub.publish(twist)
+
+    def _stop_rotation(self):
+        self.cmd_vel_pub.publish(Twist())
+
     # ── 유틸 ─────────────────────────────────────────────
     def _transition(self, new_state: State):
         self.get_logger().info(f'State: {self.state.name} → {new_state.name}')
         self.state = new_state
 
-        # NAVIGATING 진입 시 타이머 시작
+        # NAVIGATING 진입 시 회전 정지 + 타이머 시작
         if new_state == State.NAVIGATING:
+            self._stop_rotation()
             self._nav_start_time = self.get_clock().now()
         else:
             self._nav_start_time = None

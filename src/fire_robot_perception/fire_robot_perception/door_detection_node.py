@@ -23,11 +23,14 @@ from pathlib import Path
 import cv2
 import numpy as np
 import rclpy
+import rclpy.duration
+import tf2_ros
+import tf2_geometry_msgs
 from cv_bridge import CvBridge
 from rclpy.node import Node
 from rclpy.callback_groups import ReentrantCallbackGroup
 from sensor_msgs.msg import Image, CameraInfo, LaserScan
-from geometry_msgs.msg import PointStamped
+from geometry_msgs.msg import PointStamped, PoseStamped
 
 from fire_robot_interfaces.msg import DoorInfo, FireInfo
 
@@ -83,6 +86,10 @@ class DoorDetectionNode(Node):
         self._latest_scan:  LaserScan | None  = None
         self._latest_depth: np.ndarray | None = None   # (H, W) float32 [m]
         self._door_id_map:  dict[str, str]    = {}
+
+        # TF: base_link → map 변환 (감지 시점에 즉시 변환해 stale 좌표 방지)
+        self._tf_buffer   = tf2_ros.Buffer()
+        self._tf_listener = tf2_ros.TransformListener(self._tf_buffer, self)
 
         cb = ReentrantCallbackGroup()
 
@@ -318,25 +325,39 @@ class DoorDetectionNode(Node):
         px = dist * math.cos(angle)
         py = dist * math.sin(angle)
 
-        msg.door_pose.header   = header
-        msg.door_pose.header.frame_id = self._frame
-        msg.door_pose.pose.position.x = px
-        msg.door_pose.pose.position.y = py
-        msg.door_pose.pose.position.z = 0.0
-        msg.door_pose.pose.orientation.w = 1.0
-
-        # 손잡이: 문 중앙 높이에서 0.9m (바닥 기준) 추정
-        msg.handle_position.header      = header
-        msg.handle_position.header.frame_id = self._frame
-        msg.handle_position.point.x     = px
-        msg.handle_position.point.y     = py
-        msg.handle_position.point.z     = 0.9   # 손잡이 높이 고정값
+        # base_link → map 프레임 변환 (감지 시점에 즉시 변환)
+        pose_base = PoseStamped()
+        pose_base.header.frame_id = self._frame
+        pose_base.header.stamp    = header.stamp
+        pose_base.pose.position.x = px
+        pose_base.pose.position.y = py
+        pose_base.pose.orientation.w = 1.0
+        try:
+            pose_map = self._tf_buffer.transform(
+                pose_base, 'map',
+                timeout=rclpy.duration.Duration(seconds=0.1))
+            msg.door_pose = pose_map
+            msg.handle_position.header   = pose_map.header
+            msg.handle_position.point.x  = pose_map.pose.position.x
+            msg.handle_position.point.y  = pose_map.pose.position.y
+            msg.handle_position.point.z  = 0.9
+        except Exception:
+            # SLAM 맵 초기화 전 → base_link 그대로 (Nav2 목표 전달 시 주의)
+            msg.door_pose.header.frame_id         = self._frame
+            msg.door_pose.header.stamp            = header.stamp
+            msg.door_pose.pose.position.x         = px
+            msg.door_pose.pose.position.y         = py
+            msg.door_pose.pose.orientation.w      = 1.0
+            msg.handle_position.header.frame_id   = self._frame
+            msg.handle_position.point.x           = px
+            msg.handle_position.point.y           = py
+            msg.handle_position.point.z           = 0.9
 
         msg.door_id    = door_id
         msg.door_color = color
         msg.is_open    = False
         msg.confidence = float(det_conf)
-        msg.distance_from_fire = 0.0   # FSM에서 계산
+        msg.distance_from_fire = 0.0
         return msg
 
     def _publish_fire_info(self, header, red_positions: list):

@@ -132,15 +132,8 @@ Response:
   string message
 ```
 
-### 완료 신호 토픽 — 팀원이 구현
-```
-/manipulation_done  [std_msgs/msg/Bool]
-  data: true   # 성공
-  data: false  # 실패
-```
-
-> FSM은 `/open_door`를 호출하고 `/manipulation_done`을 구독해서 결과를 판단한다.  
-> 이 두 가지 규격만 맞추면 자율주행 파트와 독립적으로 개발 가능하다.
+> FSM은 `/open_door` 서비스를 호출하고 **서비스 응답(response)**으로 성공/실패를 판단한다.  
+> 서비스 응답만 맞추면 자율주행 파트와 독립적으로 개발 가능하다.
 
 ---
 
