@@ -233,7 +233,7 @@ local_costmap:
         observation_sources: scan
         scan:
           topic: /scan
-          sensor_frame: lidar_link
+          sensor_frame: radar_link
           data_type: "LaserScan"
           max_obstacle_height: 2.0
           min_obstacle_height: 0.0
@@ -285,7 +285,7 @@ global_costmap:
         observation_sources: scan
         scan:
           topic: /scan
-          sensor_frame: lidar_link
+          sensor_frame: radar_link
           data_type: "LaserScan"
           max_obstacle_height: 2.0
           min_obstacle_height: 0.0
