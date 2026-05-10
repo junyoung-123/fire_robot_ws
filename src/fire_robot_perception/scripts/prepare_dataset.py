@@ -169,7 +169,8 @@ def merge_roboflow(rf_dir: Path, out_dir: Path):
 
 def write_dataset_yaml(out_dir: Path, class_names: list):
     content = (
-        f'path: {out_dir.resolve()}\n'
+        f'# OpenImages v7 Door Detection Dataset\n'
+        f'path: .\n'
         f'train: images/train\n'
         f'val:   images/val\n\n'
         f'nc: {len(class_names)}\n'
