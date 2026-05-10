@@ -106,7 +106,13 @@ def generate_launch_description():
                 package='fire_robot_fsm',
                 executable='state_machine_node',
                 name='state_machine_node',
-                parameters=[{'use_sim_time': use_sim_time}],
+                parameters=[{
+                    'use_sim_time':        use_sim_time,
+                    'exit_x':              16.0,   # corridor.world 비상구 X
+                    'exit_y':               0.0,
+                    'exit_yaw':             0.0,
+                    'explore_timeout_sec': 30.0,
+                }],
                 output='screen',
             ),
         ],
