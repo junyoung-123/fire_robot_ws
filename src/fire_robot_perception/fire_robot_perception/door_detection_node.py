@@ -305,7 +305,9 @@ class DoorDetectionNode(Node):
         n   = len(scan.ranges)
         window = []
         for offset in range(-2, 3):
-            i = (idx + offset) % n
+            i = idx + offset
+            if not (0 <= i < n):   # 범위 밖은 스킵 (wrap-around 방지)
+                continue
             r = scan.ranges[i]
             if math.isfinite(r) and scan.range_min <= r <= scan.range_max:
                 window.append(r)
@@ -366,13 +368,26 @@ class DoorDetectionNode(Node):
         msg.red_door_count   = len(red_positions)
         msg.detected         = len(red_positions) > 0
         if red_positions:
-            msg.fire_position.header            = header
-            msg.fire_position.header.frame_id   = self._frame
-            msg.fire_position.point.x = float(
-                sum(p.x for p in red_positions) / len(red_positions))
-            msg.fire_position.point.y = float(
-                sum(p.y for p in red_positions) / len(red_positions))
-            msg.fire_position.point.z = 0.0
+            cx = float(sum(p.x for p in red_positions) / len(red_positions))
+            cy = float(sum(p.y for p in red_positions) / len(red_positions))
+            # map 프레임으로 변환 시도 — 성공 시 FSM에서 거리 비교에 사용 가능
+            pt_base = PointStamped()
+            pt_base.header.frame_id = self._frame
+            pt_base.header.stamp    = header.stamp
+            pt_base.point.x = cx
+            pt_base.point.y = cy
+            pt_base.point.z = 0.0
+            try:
+                pt_map = self._tf_buffer.transform(
+                    pt_base, 'map',
+                    timeout=rclpy.duration.Duration(seconds=0.1))
+                msg.fire_position = pt_map
+            except Exception:
+                msg.fire_position.header.frame_id = self._frame
+                msg.fire_position.header.stamp    = header.stamp
+                msg.fire_position.point.x = cx
+                msg.fire_position.point.y = cy
+                msg.fire_position.point.z = 0.0
         self.fire_pub.publish(msg)
 
     def _get_door_id(self, color: str, cx_pix: int, img_w: int) -> str:

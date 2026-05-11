@@ -174,22 +174,6 @@ class StateMachineNode(Node):
         ]
 
         if not safe_doors:
-            # 블랙리스트에만 남고 개방 가능한 문이 없으면 비상정지
-            reachable = [
-                d for d in self.detected_doors
-                if d.door_color == 'blue'
-                and d.door_id not in self._opened_door_ids
-                and d.door_id in self._failed_door_ids
-            ]
-            if self._failed_door_ids and not reachable and not [
-                d for d in self.detected_doors
-                if d.door_color == 'blue'
-                and d.door_id not in self._opened_door_ids
-                and d.door_id not in self._failed_door_ids
-            ]:
-                # 실패한 문뿐이고 새 문도 없음
-                pass  # 타임아웃으로 비상구 이동 처리
-
             # 탐색 타임아웃 → 모든 파란 문 개방 완료 판단
             if self._explore_start_time is not None:
                 elapsed = (
@@ -211,9 +195,15 @@ class StateMachineNode(Node):
         self._explore_start_time = self.get_clock().now()
 
         # 화재 위치에서 가장 먼 파란 문 선택 (화재 반대편 출구 우선)
-        if self.fire_info and self.fire_info.detected:
-            fx = self.fire_info.fire_position.point.x
-            fy = self.fire_info.fire_position.point.y
+        # fire_position은 base_link 프레임 — door_pose는 map 프레임이므로
+        # 프레임이 일치할 때만 거리 비교 사용, 아니면 confidence 기반 선택
+        fire_pos = (self.fire_info.fire_position
+                    if self.fire_info and self.fire_info.detected else None)
+        fire_in_map = (fire_pos is not None
+                       and fire_pos.header.frame_id == 'map')
+        if fire_in_map:
+            fx = fire_pos.point.x
+            fy = fire_pos.point.y
             self.target_door = max(
                 safe_doors,
                 key=lambda d: math.hypot(

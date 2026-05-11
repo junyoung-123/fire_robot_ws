@@ -302,11 +302,12 @@ class SensorFusionNode(Node):
             if cz < 0.1 or cz > 10.0:
                 continue
             # 카메라 광학 프레임(Z=전방, X=오른쪽, Y=아래)
-            # → 로봇 프레임(X=전방, Y=왼쪽)
+            # → 로봇 프레임(X=전방, Y=왼쪽, Z=위)
+            # 광학 Y(아래) → 로봇 Z(위): 부호 반전 필요
             rx =  cz
             ry = -cx
-            rz =  cy
-            # 바닥면 포인트 무시 (z가 너무 낮으면 바닥)
+            rz = -cy
+            # 바닥면 포인트 무시 (카메라 기준 아래 방향 = rz 음수)
             if rz < -0.1:
                 continue
             gx = ROBOT_GX + int(rx / MAP_RES)
