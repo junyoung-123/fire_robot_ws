@@ -19,7 +19,7 @@ import math
 import rclpy
 from rclpy.node import Node
 from rclpy.callback_groups import ReentrantCallbackGroup
-from geometry_msgs.msg import PointStamped, Pose, Point, Quaternion
+from geometry_msgs.msg import PointStamped, Pose, PoseStamped, Point, Quaternion
 from std_msgs.msg import Bool
 
 from fire_robot_interfaces.msg import DoorInfo
@@ -201,8 +201,13 @@ class ManipulationNode(Node):
     def _plan_and_execute_cartesian(self, target_pose: Pose) -> bool:
         if self._arm is None:
             return False
+        # MoveIt2 set_goal_state는 PoseStamped를 요구함
+        pose_stamped = PoseStamped()
+        pose_stamped.header.frame_id = 'base_link'
+        pose_stamped.header.stamp    = self.get_clock().now().to_msg()
+        pose_stamped.pose            = target_pose
         self._arm.set_start_state_to_current_state()
-        self._arm.set_goal_state(pose_stamped_msg=target_pose,
+        self._arm.set_goal_state(pose_stamped_msg=pose_stamped,
                                   pose_link=f'{self._planning_group}_link6')
         plan_result = self._arm.plan()
         if not plan_result:
