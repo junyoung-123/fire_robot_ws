@@ -103,10 +103,26 @@ class StateMachineNode(Node):
 
     # ── 콜백 ──────────────────────────────────────────────
     def door_callback(self, msg: DoorInfo):
+        # 1차: 동일 door_id → 갱신
         existing = next(
             (d for d in self.detected_doors if d.door_id == msg.door_id), None)
         if existing:
             self.detected_doors.remove(existing)
+            self.detected_doors.append(msg)
+            return
+
+        # 2차: 탐색 회전 중 같은 문이 이미지 X 위치에 따라 다른 ID로 발급될 수 있음
+        # map 프레임 기준 0.8 m 이내 + 같은 색이면 동일 문으로 판단 → 기존 항목 갱신
+        px = msg.door_pose.pose.position.x
+        py = msg.door_pose.pose.position.y
+        nearby = next(
+            (d for d in self.detected_doors
+             if d.door_color == msg.door_color
+             and math.hypot(d.door_pose.pose.position.x - px,
+                            d.door_pose.pose.position.y - py) < 0.8),
+            None)
+        if nearby:
+            self.detected_doors.remove(nearby)
         self.detected_doors.append(msg)
 
     def fire_callback(self, msg: FireInfo):
