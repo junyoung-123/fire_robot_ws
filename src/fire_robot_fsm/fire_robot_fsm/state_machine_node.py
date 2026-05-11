@@ -80,6 +80,7 @@ class StateMachineNode(Node):
         self.detected_doors:    list[DoorInfo] = []
         self.fire_info:         FireInfo | None = None
         self.target_door:       DoorInfo | None = None
+        self._exit_door:        DoorInfo | None = None   # 탐지된 초록 비상구
 
         self._nav_done   = False
         self._nav_failed = False
@@ -103,6 +104,16 @@ class StateMachineNode(Node):
 
     # ── 콜백 ──────────────────────────────────────────────
     def door_callback(self, msg: DoorInfo):
+        # 초록 문(비상구) → 별도 저장, detected_doors에 추가하지 않음
+        if msg.door_color == 'green':
+            if self._exit_door is None:
+                self.get_logger().info(
+                    f'비상구 탐지: {msg.door_id} '
+                    f'({msg.door_pose.pose.position.x:.1f}, '
+                    f'{msg.door_pose.pose.position.y:.1f})')
+            self._exit_door = msg
+            return
+
         # 1차: 동일 door_id → 갱신
         existing = next(
             (d for d in self.detected_doors if d.door_id == msg.door_id), None)
@@ -161,6 +172,7 @@ class StateMachineNode(Node):
                 'Starting mission.')
             self._failed_door_ids.clear()
             self._opened_door_ids.clear()
+            self._exit_door = None
             self._nav_retry_count = 0
             self._transition(State.EXPLORING)
 
@@ -315,20 +327,32 @@ class StateMachineNode(Node):
 
     # ── 비상구 이동 ───────────────────────────────────────
     def _send_exit_goal(self):
-        """비상구 좌표를 DoorInfo로 포장해 navigation_node에 전달"""
-        msg = DoorInfo()
-        now = self.get_clock().now().to_msg()
-        msg.header.stamp      = now
-        msg.header.frame_id   = 'map'
-        msg.door_id           = 'emergency_exit'
-        msg.door_color        = 'exit'
-        msg.door_pose.header.stamp    = now
-        msg.door_pose.header.frame_id = 'map'
-        msg.door_pose.pose.position.x = self._exit_x
-        msg.door_pose.pose.position.y = self._exit_y
-        msg.door_pose.pose.orientation.z = math.sin(self._exit_yaw / 2.0)
-        msg.door_pose.pose.orientation.w = math.cos(self._exit_yaw / 2.0)
-        self.target_door_pub.publish(msg)
+        """탐지된 초록 비상구 or 하드코딩 좌표를 navigation_node에 전달"""
+        if self._exit_door is not None:
+            # 카메라로 탐지한 비상구 위치 사용
+            self.get_logger().info(
+                f'탐지된 비상구로 이동: {self._exit_door.door_id} '
+                f'({self._exit_door.door_pose.pose.position.x:.1f}, '
+                f'{self._exit_door.door_pose.pose.position.y:.1f})')
+            self.target_door_pub.publish(self._exit_door)
+        else:
+            # 비상구 미탐지 → 파라미터 하드코딩 좌표 폴백
+            self.get_logger().warn(
+                f'비상구 미탐지 → 하드코딩 좌표 '
+                f'({self._exit_x:.1f}, {self._exit_y:.1f}) 사용')
+            msg = DoorInfo()
+            now = self.get_clock().now().to_msg()
+            msg.header.stamp              = now
+            msg.header.frame_id           = 'map'
+            msg.door_id                   = 'emergency_exit'
+            msg.door_color                = 'green'
+            msg.door_pose.header.stamp    = now
+            msg.door_pose.header.frame_id = 'map'
+            msg.door_pose.pose.position.x = self._exit_x
+            msg.door_pose.pose.position.y = self._exit_y
+            msg.door_pose.pose.orientation.z = math.sin(self._exit_yaw / 2.0)
+            msg.door_pose.pose.orientation.w = math.cos(self._exit_yaw / 2.0)
+            self.target_door_pub.publish(msg)
         self._nav_done   = False
         self._nav_failed = False
 

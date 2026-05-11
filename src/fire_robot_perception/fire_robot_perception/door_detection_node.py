@@ -41,12 +41,16 @@ except ImportError:
     _HAS_YOLO = False
 
 # ── HSV 색상 범위 ────────────────────────────────────────
-BLUE_LOWER = np.array([100, 80, 50])
-BLUE_UPPER = np.array([130, 255, 255])
-RED_LOWER1 = np.array([0,   80, 50])
-RED_UPPER1 = np.array([10,  255, 255])
-RED_LOWER2 = np.array([160, 80, 50])
-RED_UPPER2 = np.array([179, 255, 255])
+BLUE_LOWER  = np.array([100,  80,  50])
+BLUE_UPPER  = np.array([130, 255, 255])
+RED_LOWER1  = np.array([  0,  80,  50])
+RED_UPPER1  = np.array([ 10, 255, 255])
+RED_LOWER2  = np.array([160,  80,  50])
+RED_UPPER2  = np.array([179, 255, 255])
+# 초록: H 50-80 (100°-160°) — 비상구 탐지용
+# Gazebo exit_marker ambient(0.05, 0.85, 0.15) → OpenCV H≈64
+GREEN_LOWER = np.array([ 50, 100,  80])
+GREEN_UPPER = np.array([ 80, 255, 255])
 
 # bbox 내 색상 픽셀이 이 비율 이상이면 해당 색으로 판정
 COLOR_RATIO_THRESHOLD = 0.20
@@ -195,8 +199,9 @@ class DoorDetectionNode(Node):
             if color == 'red':
                 red_positions.append(door_msg.door_pose.pose.position)
 
-            # 디버그 드로잉
-            col = (255, 100, 0) if color == 'blue' else (0, 60, 255)
+            # 디버그 드로잉 (BGR: blue, red, green)
+            _DBG = {'blue': (255, 100, 0), 'red': (0, 60, 255), 'green': (0, 200, 50)}
+            col  = _DBG.get(color, (200, 200, 200))
             cv2.rectangle(debug, (x1, y1), (x2, y2), col, 3)
             cv2.putText(debug, f'{color} {det_conf:.2f} d={dist:.1f}m',
                         (x1, y1 - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.6, col, 2)
@@ -232,10 +237,11 @@ class DoorDetectionNode(Node):
     def _hsv_fallback_detect(self, image: np.ndarray) -> list:
         """YOLO 없을 때 HSV 기반 contour로 문 후보 검출"""
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-        blue_mask = cv2.inRange(hsv, BLUE_LOWER, BLUE_UPPER)
-        red_mask  = (cv2.inRange(hsv, RED_LOWER1, RED_UPPER1) |
-                     cv2.inRange(hsv, RED_LOWER2, RED_UPPER2))
-        combined  = cv2.bitwise_or(blue_mask, red_mask)
+        blue_mask  = cv2.inRange(hsv, BLUE_LOWER, BLUE_UPPER)
+        red_mask   = (cv2.inRange(hsv, RED_LOWER1, RED_UPPER1) |
+                      cv2.inRange(hsv, RED_LOWER2, RED_UPPER2))
+        green_mask = cv2.inRange(hsv, GREEN_LOWER, GREEN_UPPER)
+        combined   = blue_mask | red_mask | green_mask
         kernel    = cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7))
         combined  = cv2.morphologyEx(combined, cv2.MORPH_CLOSE, kernel)
         contours, _ = cv2.findContours(combined, cv2.RETR_EXTERNAL,
@@ -254,19 +260,18 @@ class DoorDetectionNode(Node):
     def _classify_color(self, roi_hsv: np.ndarray) -> str:
         if roi_hsv.size == 0:
             return 'unknown'
-        total = roi_hsv.shape[0] * roi_hsv.shape[1]
-        blue_pix = cv2.countNonZero(
-            cv2.inRange(roi_hsv, BLUE_LOWER, BLUE_UPPER))
-        red_pix  = cv2.countNonZero(
+        total     = roi_hsv.shape[0] * roi_hsv.shape[1]
+        blue_r    = cv2.countNonZero(
+            cv2.inRange(roi_hsv, BLUE_LOWER, BLUE_UPPER)) / total
+        red_r     = cv2.countNonZero(
             cv2.inRange(roi_hsv, RED_LOWER1, RED_UPPER1) |
-            cv2.inRange(roi_hsv, RED_LOWER2, RED_UPPER2))
-        blue_r = blue_pix / total
-        red_r  = red_pix  / total
-        if blue_r > COLOR_RATIO_THRESHOLD and blue_r >= red_r:
-            return 'blue'
-        if red_r  > COLOR_RATIO_THRESHOLD and red_r  >  blue_r:
-            return 'red'
-        return 'unknown'
+            cv2.inRange(roi_hsv, RED_LOWER2, RED_UPPER2)) / total
+        green_r   = cv2.countNonZero(
+            cv2.inRange(roi_hsv, GREEN_LOWER, GREEN_UPPER)) / total
+        best, ratio = max(
+            [('blue', blue_r), ('red', red_r), ('green', green_r)],
+            key=lambda x: x[1])
+        return best if ratio > COLOR_RATIO_THRESHOLD else 'unknown'
 
     # ── 거리 추정 ─────────────────────────────────────────
     def _lidar_distance_at_pixel(self, cx_pix: int,

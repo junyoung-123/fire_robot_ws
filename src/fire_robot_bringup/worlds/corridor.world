@@ -274,18 +274,32 @@
       </link>
     </model>
 
-    <!-- ===== 비상구 마커 (X=+17, 동쪽 벽) ===== -->
-    <!-- 초록 패널 — FSM exit_x=16.0 목표 지점 시각 표시 -->
-    <model name="exit_marker">
+    <!-- ===== 비상구 (초록 문, X=+17.9, 탐지 대상) ===== -->
+    <!-- HSV H≈64 — door_detection_node GREEN_LOWER/UPPER 범위에 맞게 설정 -->
+    <!-- 충돌 없음 — 로봇이 앞까지 접근 가능 -->
+    <model name="door_exit">
       <static>true</static>
-      <pose>17.92 0 1.25 0 0 0</pose>
+      <pose>17.92 0 1.0 0 0 0</pose>
       <link name="link">
         <visual name="vis">
-          <geometry><box><size>0.05 1.5 1.5</size></box></geometry>
+          <geometry><box><size>0.06 0.9 2.0</size></box></geometry>
           <material>
-            <ambient>0.05 0.85 0.15 1</ambient>
-            <diffuse>0.05 0.85 0.15 1</diffuse>
+            <ambient>0.0 0.88 0.05 1</ambient>
+            <diffuse>0.0 0.88 0.05 1</diffuse>
+            <specular>0.0 0.2 0.0 1</specular>
           </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- 비상구 손잡이 -->
+    <model name="handle_exit">
+      <static>true</static>
+      <pose>17.88 -0.30 0.95 0 1.5708 0</pose>
+      <link name="link">
+        <visual name="vis">
+          <geometry><cylinder><radius>0.018</radius><length>0.13</length></cylinder></geometry>
+          <material><ambient>0.75 0.60 0.05 1</ambient></material>
         </visual>
       </link>
     </model>
