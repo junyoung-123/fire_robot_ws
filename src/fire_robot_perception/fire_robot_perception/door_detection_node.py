@@ -73,6 +73,7 @@ class DoorDetectionNode(Node):
         self.declare_parameter('max_detection_distance_m', 12.0)
         self.declare_parameter('door_approach_offset_m', 0.8)
         self.declare_parameter('nav_goal_max_abs_y_m', 0.0)
+        self.declare_parameter('min_door_aspect_ratio', 1.3)
 
         model_path       = self.get_parameter('model_path').value
         self._conf       = self.get_parameter('confidence_threshold').value
@@ -87,6 +88,8 @@ class DoorDetectionNode(Node):
             self.get_parameter('door_approach_offset_m').value)
         self._nav_goal_max_abs_y = float(
             self.get_parameter('nav_goal_max_abs_y_m').value)
+        self._min_door_aspect_ratio = float(
+            self.get_parameter('min_door_aspect_ratio').value)
 
         self.bridge = CvBridge()
 
@@ -245,6 +248,8 @@ class DoorDetectionNode(Node):
                 area = (x2 - x1) * (y2 - y1)
                 if area < image.shape[0] * image.shape[1] * 0.01:
                     continue
+                if not self._passes_door_shape_filter(x1, y1, x2, y2):
+                    continue
                 boxes.append((x1, y1, x2, y2, conf))
         return boxes
 
@@ -266,9 +271,17 @@ class DoorDetectionNode(Node):
             if cv2.contourArea(cnt) < min_area:
                 continue
             x, y, w, h = cv2.boundingRect(cnt)
+            if not self._passes_door_shape_filter(x, y, x + w, y + h):
+                continue
             conf = min(1.0, cv2.contourArea(cnt) / (min_area * 5))
             boxes.append((x, y, x + w, y + h, conf))
         return boxes
+
+    def _passes_door_shape_filter(self, x1: int, y1: int,
+                                  x2: int, y2: int) -> bool:
+        width = max(1, x2 - x1)
+        height = max(1, y2 - y1)
+        return (height / width) >= self._min_door_aspect_ratio
 
     # ── 색상 분류 ─────────────────────────────────────────
     def _classify_color(self, roi_hsv: np.ndarray) -> str:
