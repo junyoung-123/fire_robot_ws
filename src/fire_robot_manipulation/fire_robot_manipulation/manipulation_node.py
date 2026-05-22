@@ -208,7 +208,7 @@ class ManipulationNode(Node):
         pose_stamped.pose            = target_pose
         self._arm.set_start_state_to_current_state()
         self._arm.set_goal_state(pose_stamped_msg=pose_stamped,
-                                  pose_link=f'{self._planning_group}_link6')
+                                  pose_link='arm_link6')
         plan_result = self._arm.plan()
         if not plan_result:
             self.get_logger().warn('MoveIt2 planning failed')

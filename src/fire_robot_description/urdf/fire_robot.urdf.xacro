@@ -330,6 +330,7 @@
       <visualize>false</visualize>
       <update_rate>20</update_rate>
       <topic>scan</topic>
+      <gz_frame_id>radar_link</gz_frame_id>
       <lidar>
         <scan>
           <horizontal>
@@ -365,6 +366,7 @@
       <visualize>true</visualize>
       <update_rate>30</update_rate>
       <topic>camera_raw</topic>
+      <gz_frame_id>camera_color_optical_frame</gz_frame_id>
       <camera name="rgb">
         <horizontal_fov>1.204</horizontal_fov>
         <image>
@@ -392,6 +394,7 @@
       <visualize>false</visualize>
       <update_rate>30</update_rate>
       <topic>depth_camera</topic>
+      <gz_frame_id>depth_optical_frame</gz_frame_id>
       <camera name="depth">
         <horizontal_fov>1.204</horizontal_fov>
         <image>

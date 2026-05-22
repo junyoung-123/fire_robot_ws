@@ -48,7 +48,7 @@ RED_UPPER1  = np.array([ 10, 255, 255])
 RED_LOWER2  = np.array([160,  80,  50])
 RED_UPPER2  = np.array([179, 255, 255])
 # 초록: H 50-80 (100°-160°) — 비상구 탐지용
-# Gazebo exit_marker ambient(0.05, 0.85, 0.15) → OpenCV H≈64
+# Gazebo exit_marker ambient(0.0, 0.88, 0.05) → OpenCV H≈62
 GREEN_LOWER = np.array([ 50, 100,  80])
 GREEN_UPPER = np.array([ 80, 255, 255])
 
@@ -69,6 +69,10 @@ class DoorDetectionNode(Node):
         self.declare_parameter('frame_id', 'base_link')
         self.declare_parameter('camera_hfov_deg', 69.0)
         self.declare_parameter('use_depth_camera', False)
+        self.declare_parameter('door_height_m', 2.0)
+        self.declare_parameter('max_detection_distance_m', 12.0)
+        self.declare_parameter('door_approach_offset_m', 0.8)
+        self.declare_parameter('nav_goal_max_abs_y_m', 0.0)
 
         model_path       = self.get_parameter('model_path').value
         self._conf       = self.get_parameter('confidence_threshold').value
@@ -76,6 +80,13 @@ class DoorDetectionNode(Node):
         hfov_deg         = self.get_parameter('camera_hfov_deg').value
         self._hfov       = math.radians(hfov_deg)
         self._use_depth  = self.get_parameter('use_depth_camera').value
+        self._door_height_m = float(self.get_parameter('door_height_m').value)
+        self._max_detection_distance = float(
+            self.get_parameter('max_detection_distance_m').value)
+        self._door_approach_offset = float(
+            self.get_parameter('door_approach_offset_m').value)
+        self._nav_goal_max_abs_y = float(
+            self.get_parameter('nav_goal_max_abs_y_m').value)
 
         self.bridge = CvBridge()
 
@@ -186,7 +197,7 @@ class DoorDetectionNode(Node):
 
             cx_pix = (x1 + x2) // 2
             cy_pix = (y1 + y2) // 2
-            dist   = self._lidar_distance_at_pixel(cx_pix, cy_pix)
+            dist   = self._door_distance_at_pixel(cx_pix, cy_pix, y2 - y1)
             if dist is None:
                 continue
 
@@ -197,7 +208,10 @@ class DoorDetectionNode(Node):
             self.door_pub.publish(door_msg)
 
             if color == 'red':
-                red_positions.append(door_msg.door_pose.pose.position)
+                red_point = PointStamped()
+                red_point.header = door_msg.door_pose.header
+                red_point.point = door_msg.door_pose.pose.position
+                red_positions.append(red_point)
 
             # 디버그 드로잉 (BGR: blue, red, green)
             _DBG = {'blue': (255, 100, 0), 'red': (0, 60, 255), 'green': (0, 200, 50)}
@@ -283,6 +297,27 @@ class DoorDetectionNode(Node):
                 return dist
         return self._radar_distance_at_pixel(cx_pix)
 
+    def _door_distance_at_pixel(self,
+                                cx_pix: int,
+                                cy_pix: int,
+                                bbox_height: int) -> float | None:
+        measured = self._lidar_distance_at_pixel(cx_pix, cy_pix)
+        visual = self._visual_distance_from_bbox(bbox_height)
+
+        if measured is None:
+            return visual
+        if measured > self._max_detection_distance and visual is not None:
+            return visual
+        return measured
+
+    def _visual_distance_from_bbox(self, bbox_height: int) -> float | None:
+        if bbox_height <= 0 or self._fy <= 0.0:
+            return None
+        dist = (self._door_height_m * self._fy) / float(bbox_height)
+        if 0.2 <= dist <= self._max_detection_distance:
+            return float(dist)
+        return None
+
     def _depth_distance_at_pixel(self,
                                    cx_pix: int,
                                    cy_pix: int | None) -> float | None:
@@ -329,8 +364,11 @@ class DoorDetectionNode(Node):
 
         # 카메라 수평각 → robot frame (x = 전방, y = 좌)
         angle = math.atan((cx_pix - self._cx) / self._fx)
-        px = dist * math.cos(angle)
-        py = dist * math.sin(angle)
+        handle_x = dist * math.cos(angle)
+        handle_y = dist * math.sin(angle)
+        nav_dist = max(0.3, dist - self._door_approach_offset)
+        px = nav_dist * math.cos(angle)
+        py = nav_dist * math.sin(angle)
 
         # base_link → map 프레임 변환 (감지 시점에 즉시 변환)
         pose_base = PoseStamped()
@@ -339,15 +377,21 @@ class DoorDetectionNode(Node):
         pose_base.pose.position.x = px
         pose_base.pose.position.y = py
         pose_base.pose.orientation.w = 1.0
+        handle_base = PointStamped()
+        handle_base.header = pose_base.header
+        handle_base.point.x = handle_x
+        handle_base.point.y = handle_y
+        handle_base.point.z = 0.9
         try:
             pose_map = self._tf_buffer.transform(
                 pose_base, 'map',
                 timeout=rclpy.duration.Duration(seconds=0.1))
+            handle_map = self._tf_buffer.transform(
+                handle_base, 'map',
+                timeout=rclpy.duration.Duration(seconds=0.1))
+            self._clamp_navigation_pose(pose_map)
             msg.door_pose = pose_map
-            msg.handle_position.header   = pose_map.header
-            msg.handle_position.point.x  = pose_map.pose.position.x
-            msg.handle_position.point.y  = pose_map.pose.position.y
-            msg.handle_position.point.z  = 0.9
+            msg.handle_position = handle_map
         except Exception:
             # SLAM 맵 초기화 전 → base_link 그대로 (Nav2 목표 전달 시 주의)
             msg.door_pose.header.frame_id         = self._frame
@@ -355,9 +399,11 @@ class DoorDetectionNode(Node):
             msg.door_pose.pose.position.x         = px
             msg.door_pose.pose.position.y         = py
             msg.door_pose.pose.orientation.w      = 1.0
+            self._clamp_navigation_pose(msg.door_pose)
             msg.handle_position.header.frame_id   = self._frame
-            msg.handle_position.point.x           = px
-            msg.handle_position.point.y           = py
+            msg.handle_position.header.stamp      = header.stamp
+            msg.handle_position.point.x           = handle_x
+            msg.handle_position.point.y           = handle_y
             msg.handle_position.point.z           = 0.9
 
         msg.door_id    = door_id
@@ -367,32 +413,45 @@ class DoorDetectionNode(Node):
         msg.distance_from_fire = 0.0
         return msg
 
-    def _publish_fire_info(self, header, red_positions: list):
+    def _clamp_navigation_pose(self, pose: PoseStamped):
+        """Keep side-door Nav2 goals inside the corridor, not on the wall panel."""
+        if self._nav_goal_max_abs_y <= 0.0:
+            return
+        y = pose.pose.position.y
+        limit = self._nav_goal_max_abs_y
+        pose.pose.position.y = max(-limit, min(limit, y))
+
+    def _publish_fire_info(self, header, red_positions: list[PointStamped]):
         msg = FireInfo()
         msg.header           = header
         msg.red_door_count   = len(red_positions)
         msg.detected         = len(red_positions) > 0
         if red_positions:
-            cx = float(sum(p.x for p in red_positions) / len(red_positions))
-            cy = float(sum(p.y for p in red_positions) / len(red_positions))
-            # map 프레임으로 변환 시도 — 성공 시 FSM에서 거리 비교에 사용 가능
-            pt_base = PointStamped()
-            pt_base.header.frame_id = self._frame
-            pt_base.header.stamp    = header.stamp
-            pt_base.point.x = cx
-            pt_base.point.y = cy
-            pt_base.point.z = 0.0
-            try:
-                pt_map = self._tf_buffer.transform(
-                    pt_base, 'map',
-                    timeout=rclpy.duration.Duration(seconds=0.1))
-                msg.fire_position = pt_map
-            except Exception:
-                msg.fire_position.header.frame_id = self._frame
-                msg.fire_position.header.stamp    = header.stamp
-                msg.fire_position.point.x = cx
-                msg.fire_position.point.y = cy
-                msg.fire_position.point.z = 0.0
+            frame_id = red_positions[0].header.frame_id or self._frame
+            same_frame = [
+                p for p in red_positions
+                if (p.header.frame_id or self._frame) == frame_id
+            ]
+            cx = float(sum(p.point.x for p in same_frame) / len(same_frame))
+            cy = float(sum(p.point.y for p in same_frame) / len(same_frame))
+            cz = float(sum(p.point.z for p in same_frame) / len(same_frame))
+
+            fire_point = PointStamped()
+            fire_point.header.frame_id = frame_id
+            fire_point.header.stamp = header.stamp
+            fire_point.point.x = cx
+            fire_point.point.y = cy
+            fire_point.point.z = cz
+
+            if frame_id == 'map':
+                msg.fire_position = fire_point
+            else:
+                try:
+                    msg.fire_position = self._tf_buffer.transform(
+                        fire_point, 'map',
+                        timeout=rclpy.duration.Duration(seconds=0.1))
+                except Exception:
+                    msg.fire_position = fire_point
         self.fire_pub.publish(msg)
 
     def _get_door_id(self, color: str, cx_pix: int, img_w: int) -> str:

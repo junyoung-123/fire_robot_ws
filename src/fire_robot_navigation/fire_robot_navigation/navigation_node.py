@@ -59,6 +59,8 @@ class NavigationNode(Node):
 
         goal = NavigateToPose.Goal()
         goal.pose = pose
+        goal.pose.header.stamp.sec = 0
+        goal.pose.header.stamp.nanosec = 0
         self._navigating = True
 
         send_future = self.nav2_client.send_goal_async(

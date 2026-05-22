@@ -1,7 +1,8 @@
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess
+from launch.conditions import IfCondition, UnlessCondition
 from launch.substitutions import (Command, FindExecutable,
-                                   LaunchConfiguration, PathJoinSubstitution)
+                                  LaunchConfiguration, PathJoinSubstitution)
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
@@ -10,6 +11,7 @@ from launch_ros.substitutions import FindPackageShare
 def generate_launch_description():
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')
     world_file   = LaunchConfiguration('world',        default='corridor.world')
+    headless     = LaunchConfiguration('headless',     default='false')
 
     world_path = PathJoinSubstitution([
         FindPackageShare('fire_robot_bringup'), 'worlds', world_file,
@@ -29,11 +31,22 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('use_sim_time', default_value='true'),
         DeclareLaunchArgument('world',        default_value='corridor.world'),
+        DeclareLaunchArgument(
+            'headless',
+            default_value='false',
+            description='Run Gazebo server-only mode without GUI when true.',
+        ),
 
         # ── 1. Gazebo Ignition 실행 ───────────────────────
         ExecuteProcess(
-            cmd=['gz', 'sim', '-r', world_path],
+            cmd=['ign', 'gazebo', '-r', world_path],
             output='screen',
+            condition=UnlessCondition(headless),
+        ),
+        ExecuteProcess(
+            cmd=['ign', 'gazebo', '-r', '-s', world_path],
+            output='screen',
+            condition=IfCondition(headless),
         ),
 
         # ── 2. robot_state_publisher (URDF 내용 전달) ────
@@ -45,6 +58,20 @@ def generate_launch_description():
                 'use_sim_time': use_sim_time,
                 'robot_description': robot_description,
             }],
+            output='screen',
+        ),
+
+        Node(
+            package='tf2_ros',
+            executable='static_transform_publisher',
+            name='sim_radar_sensor_tf',
+            arguments=[
+                '0.2', '0.0', '0.07',
+                '0.0', '0.0', '0.0',
+                'base_link',
+                'fire_robot/base_footprint/radar_sensor',
+            ],
+            parameters=[{'use_sim_time': use_sim_time}],
             output='screen',
         ),
 

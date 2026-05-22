@@ -11,6 +11,7 @@ from launch_ros.substitutions import FindPackageShare
 def generate_launch_description():
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')
     use_rviz     = LaunchConfiguration('use_rviz',     default='true')
+    headless     = LaunchConfiguration('headless',     default='false')
 
     slam_params = PathJoinSubstitution([
         FindPackageShare('fire_robot_navigation'), 'config', 'slam_toolbox_params.yaml',
@@ -23,7 +24,10 @@ def generate_launch_description():
                 FindPackageShare('fire_robot_bringup'), 'launch', 'gazebo.launch.py'
             ])
         ]),
-        launch_arguments={'use_sim_time': use_sim_time}.items(),
+        launch_arguments={
+            'use_sim_time': use_sim_time,
+            'headless':     headless,
+        }.items(),
     )
 
     # ── 2. SLAM (slam_toolbox online async) ──────────────
@@ -61,12 +65,15 @@ def generate_launch_description():
                 FindPackageShare('fire_robot_manipulation'), 'launch', 'move_group.launch.py'
             ])
         ]),
-        launch_arguments={'use_sim_time': use_sim_time}.items(),
+        launch_arguments={
+            'use_sim_time': use_sim_time,
+            'launch_manipulation': 'false',
+        }.items(),
     )
 
     # ── 5. 애플리케이션 노드 (Gazebo 완전 기동 후 3초 지연) ─
     app_nodes = TimerAction(
-        period=3.0,
+        period=6.0,
         actions=[
             Node(
                 package='fire_robot_perception',
@@ -79,7 +86,11 @@ def generate_launch_description():
                 package='fire_robot_perception',
                 executable='door_detection_node',
                 name='door_detection_node',
-                parameters=[{'use_sim_time': use_sim_time}],
+                parameters=[{
+                    'use_sim_time': use_sim_time,
+                    'door_approach_offset_m': 1.0,
+                    'nav_goal_max_abs_y_m': 0.85,
+                }],
                 output='screen',
             ),
             Node(
@@ -108,10 +119,13 @@ def generate_launch_description():
                 name='state_machine_node',
                 parameters=[{
                     'use_sim_time':        use_sim_time,
+                    'nav_timeout_sec':     120.0,
                     'exit_x':              16.0,   # corridor.world 비상구 X
                     'exit_y':               0.0,
                     'exit_yaw':             0.0,
-                    'explore_timeout_sec': 30.0,
+                    'explore_timeout_sec': 25.0,
+                    'explore_linear_vel':   0.45,
+                    'explore_angular_vel':  0.0,
                 }],
                 output='screen',
             ),
@@ -133,6 +147,11 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('use_sim_time', default_value='true'),
         DeclareLaunchArgument('use_rviz',     default_value='true'),
+        DeclareLaunchArgument(
+            'headless',
+            default_value='false',
+            description='Run Gazebo without GUI when true.',
+        ),
 
         gazebo_launch,   # Gazebo + robot_state_publisher + spawn + bridge
         slam_launch,     # SLAM → /map 발행

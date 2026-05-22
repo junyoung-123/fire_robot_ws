@@ -65,11 +65,13 @@
   <!-- 그리퍼 열림 -->
   <group_state name="open" group="piper_gripper">
     <joint name="gripper_left_joint" value="0.04"/>
+    <joint name="gripper_right_joint" value="0.04"/>
   </group_state>
 
   <!-- 그리퍼 닫힘 -->
   <group_state name="close" group="piper_gripper">
     <joint name="gripper_left_joint" value="0.003"/>
+    <joint name="gripper_right_joint" value="0.003"/>
   </group_state>
 
   <!-- ============ End Effector ============ -->
@@ -97,10 +99,10 @@
   <disable_collisions link1="gripper_base_link"  link2="gripper_finger_right" reason="Adjacent"/>
 
   <!-- 팔 베이스와 모바일 베이스 구성 요소들 간 충돌 비활성화 -->
-  <disable_collisions link1="arm_base_link" link2="lidar_link"   reason="Never"/>
+  <disable_collisions link1="arm_base_link" link2="radar_link"   reason="Never"/>
   <disable_collisions link1="arm_base_link" link2="camera_link"  reason="Never"/>
   <disable_collisions link1="arm_link1"     link2="base_link"    reason="Never"/>
-  <disable_collisions link1="arm_link1"     link2="lidar_link"   reason="Never"/>
+  <disable_collisions link1="arm_link1"     link2="radar_link"   reason="Never"/>
 
   <!-- 바퀴들 간 충돌 비활성화 -->
   <disable_collisions link1="front_left_wheel"  link2="front_right_wheel" reason="Never"/>

@@ -1,6 +1,7 @@
 from launch import LaunchDescription
 from launch.actions import (DeclareLaunchArgument, IncludeLaunchDescription,
                              RegisterEventHandler, TimerAction)
+from launch.conditions import IfCondition
 from launch.event_handlers import OnProcessStart
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import (Command, FindExecutable, LaunchConfiguration,
@@ -22,6 +23,14 @@ def generate_launch_description():
     use_sim_time     = LaunchConfiguration('use_sim_time',     default='false')
     radar_serial_port = LaunchConfiguration('radar_serial_port', default='/dev/ttyUSB0')
     piper_can_port   = LaunchConfiguration('piper_can_port',   default='can0')
+    enable_camera    = LaunchConfiguration('enable_camera',    default='true')
+    enable_radar     = LaunchConfiguration('enable_radar',     default='true')
+    enable_piper     = LaunchConfiguration('enable_piper',     default='true')
+    enable_base      = LaunchConfiguration('enable_base',      default='true')
+    enable_moveit    = LaunchConfiguration('enable_moveit',    default='true')
+    enable_slam      = LaunchConfiguration('enable_slam',      default='true')
+    enable_nav2      = LaunchConfiguration('enable_nav2',      default='true')
+    enable_app_nodes = LaunchConfiguration('enable_app_nodes', default='true')
     slam_params_file = LaunchConfiguration(
         'slam_params_file',
         default=PathJoinSubstitution([
@@ -62,6 +71,7 @@ def generate_launch_description():
             ('depth/camera_info',       '/camera/depth/camera_info'),
             ('depth/color/points',      '/camera/depth/points'),
         ],
+        condition=IfCondition(enable_camera),
         output='screen',
     )
 
@@ -81,20 +91,24 @@ def generate_launch_description():
             'frame_id':      'radar_link',
             'use_sim_time':  use_sim_time,
         }],
+        condition=IfCondition(enable_radar),
         output='screen',
     )
 
-    # 3) PIPER 6DoF 매니퓰레이터 드라이버 (AgileX piper_sdk)
-    #    piper_ros2 패키지가 설치되어 있어야 함:
-    #    https://github.com/agilexrobotics/piper_ros2
+    # 3) PIPER 6DoF 매니퓰레이터 드라이버 (AgileX piper_ros, humble branch)
+    #    piper_ros 패키지가 설치되어 있어야 함:
+    #    https://github.com/agilexrobotics/piper_ros
     piper_driver_node = Node(
-        package='piper_sdk',
-        executable='piper_ctrl_single_node',
+        package='piper',
+        executable='piper_single_ctrl',
         name='piper_driver',
         parameters=[{
-            'can_port':     piper_can_port,
-            'use_sim_time': use_sim_time,
+            'can_port':      piper_can_port,
+            'auto_enable':   True,
+            'gripper_exist': True,
+            'use_sim_time':  use_sim_time,
         }],
+        condition=IfCondition(enable_piper),
         output='screen',
     )
 
@@ -112,18 +126,21 @@ def generate_launch_description():
             robot_controllers_yaml,
             {'use_sim_time': use_sim_time},
         ],
+        condition=IfCondition(enable_base),
         output='screen',
     )
     diff_drive_spawner = Node(
         package='controller_manager',
         executable='spawner',
         arguments=['diff_drive_controller', '--controller-manager', '/controller_manager'],
+        condition=IfCondition(enable_base),
         output='screen',
     )
     joint_state_broadcaster_spawner = Node(
         package='controller_manager',
         executable='spawner',
         arguments=['joint_state_broadcaster', '--controller-manager', '/controller_manager'],
+        condition=IfCondition(enable_base),
         output='screen',
     )
     # controller_manager가 준비된 뒤에만 spawner 실행 (race condition 방지)
@@ -154,6 +171,7 @@ def generate_launch_description():
             ])
         ]),
         launch_arguments={'use_sim_time': use_sim_time}.items(),
+        condition=IfCondition(enable_moveit),
     )
 
     # ---------- SLAM (online async) ----------
@@ -167,6 +185,7 @@ def generate_launch_description():
             'use_sim_time':  use_sim_time,
             'slam_params_file': slam_params_file,
         }.items(),
+        condition=IfCondition(enable_slam),
     )
 
     # ---------- Nav2 ----------
@@ -182,12 +201,14 @@ def generate_launch_description():
                 FindPackageShare('fire_robot_navigation'), 'config', 'nav2_params.yaml'
             ]),
         }.items(),
+        condition=IfCondition(enable_nav2),
     )
 
     # ---------- 애플리케이션 노드 ----------
     # 드라이버가 완전히 준비된 뒤에 올라오도록 2초 지연
     app_nodes = TimerAction(
         period=2.0,
+        condition=IfCondition(enable_app_nodes),
         actions=[
             Node(package='fire_robot_perception', executable='sensor_fusion_node',
                  parameters=[{'use_sim_time': use_sim_time}], output='screen'),
@@ -205,6 +226,14 @@ def generate_launch_description():
         DeclareLaunchArgument('use_sim_time',       default_value='false'),
         DeclareLaunchArgument('radar_serial_port',  default_value='/dev/ttyUSB0'),
         DeclareLaunchArgument('piper_can_port',     default_value='can0'),
+        DeclareLaunchArgument('enable_camera',      default_value='true'),
+        DeclareLaunchArgument('enable_radar',       default_value='true'),
+        DeclareLaunchArgument('enable_piper',       default_value='true'),
+        DeclareLaunchArgument('enable_base',        default_value='true'),
+        DeclareLaunchArgument('enable_moveit',      default_value='true'),
+        DeclareLaunchArgument('enable_slam',        default_value='true'),
+        DeclareLaunchArgument('enable_nav2',        default_value='true'),
+        DeclareLaunchArgument('enable_app_nodes',   default_value='true'),
         DeclareLaunchArgument('slam_params_file',
             default_value=PathJoinSubstitution([
                 FindPackageShare('fire_robot_navigation'), 'config', 'slam_toolbox_params.yaml',

@@ -46,6 +46,8 @@ class StateMachineNode(Node):
         self.declare_parameter('nav_timeout_sec',     60.0)
         self.declare_parameter('max_nav_retries',     3)
         self.declare_parameter('explore_timeout_sec', 30.0)
+        self.declare_parameter('explore_linear_vel',  0.0)
+        self.declare_parameter('explore_angular_vel', 0.3)
         self.declare_parameter('exit_x',   10.0)
         self.declare_parameter('exit_y',    0.0)
         self.declare_parameter('exit_yaw',  0.0)
@@ -53,6 +55,8 @@ class StateMachineNode(Node):
         self._nav_timeout_sec     = self.get_parameter('nav_timeout_sec').value
         self._max_nav_retries     = self.get_parameter('max_nav_retries').value
         self._explore_timeout_sec = self.get_parameter('explore_timeout_sec').value
+        self._explore_linear_vel  = self.get_parameter('explore_linear_vel').value
+        self._explore_angular_vel = self.get_parameter('explore_angular_vel').value
         self._exit_x   = self.get_parameter('exit_x').value
         self._exit_y   = self.get_parameter('exit_y').value
         self._exit_yaw = self.get_parameter('exit_yaw').value
@@ -359,7 +363,8 @@ class StateMachineNode(Node):
     # ── 유틸 ─────────────────────────────────────────────
     def _rotate_to_scan(self):
         twist = Twist()
-        twist.angular.z = 0.3
+        twist.linear.x = float(self._explore_linear_vel)
+        twist.angular.z = float(self._explore_angular_vel)
         self.cmd_vel_pub.publish(twist)
 
     def _stop_rotation(self):
