@@ -48,6 +48,7 @@ class StateMachineNode(Node):
         self.declare_parameter('explore_timeout_sec', 30.0)
         self.declare_parameter('explore_linear_vel',  0.0)
         self.declare_parameter('explore_angular_vel', 0.3)
+        self.declare_parameter('start_without_fire',  False)
         self.declare_parameter('exit_x',   10.0)
         self.declare_parameter('exit_y',    0.0)
         self.declare_parameter('exit_yaw',  0.0)
@@ -57,6 +58,7 @@ class StateMachineNode(Node):
         self._explore_timeout_sec = self.get_parameter('explore_timeout_sec').value
         self._explore_linear_vel  = self.get_parameter('explore_linear_vel').value
         self._explore_angular_vel = self.get_parameter('explore_angular_vel').value
+        self._start_without_fire  = self.get_parameter('start_without_fire').value
         self._exit_x   = self.get_parameter('exit_x').value
         self._exit_y   = self.get_parameter('exit_y').value
         self._exit_yaw = self.get_parameter('exit_yaw').value
@@ -170,6 +172,16 @@ class StateMachineNode(Node):
 
     # ── 상태별 동작 ───────────────────────────────────────
     def _on_idle(self):
+        if self._start_without_fire:
+            self.get_logger().info(
+                'start_without_fire enabled. Starting corridor exploration.')
+            self._failed_door_ids.clear()
+            self._opened_door_ids.clear()
+            self._exit_door = None
+            self._nav_retry_count = 0
+            self._transition(State.EXPLORING)
+            return
+
         if self.fire_info and self.fire_info.detected:
             self.get_logger().info(
                 f'Fire detected ({self.fire_info.red_door_count} red door(s)). '

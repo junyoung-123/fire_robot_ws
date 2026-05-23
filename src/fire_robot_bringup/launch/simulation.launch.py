@@ -53,7 +53,8 @@ def generate_launch_description():
         launch_arguments={
             'use_sim_time': use_sim_time,
             'params_file':  PathJoinSubstitution([
-                FindPackageShare('fire_robot_navigation'), 'config', 'nav2_params.yaml'
+                FindPackageShare('fire_robot_navigation'), 'config',
+                'nav2_params.yaml'
             ]),
         }.items(),
     )
@@ -89,7 +90,8 @@ def generate_launch_description():
                 parameters=[{
                     'use_sim_time': use_sim_time,
                     'door_approach_offset_m': 1.0,
-                    'nav_goal_max_abs_y_m': 0.85,
+                    'nav_goal_max_abs_y_m': 0.45,
+                    'publish_map_frame': True,
                 }],
                 output='screen',
             ),
@@ -126,6 +128,7 @@ def generate_launch_description():
                     'explore_timeout_sec': 25.0,
                     'explore_linear_vel':   0.45,
                     'explore_angular_vel':  0.0,
+                    'start_without_fire':   True,
                 }],
                 output='screen',
             ),

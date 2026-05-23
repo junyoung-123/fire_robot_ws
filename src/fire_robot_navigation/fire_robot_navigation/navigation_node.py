@@ -1,7 +1,11 @@
 import rclpy
+from rclpy.duration import Duration
 from rclpy.node import Node
 from rclpy.action import ActionClient
 from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.time import Time
+from tf2_geometry_msgs import do_transform_pose_stamped
+from tf2_ros import Buffer, TransformException, TransformListener
 from nav2_msgs.action import NavigateToPose
 from geometry_msgs.msg import PoseStamped
 from std_msgs.msg import Bool
@@ -20,6 +24,9 @@ class NavigationNode(Node):
     def __init__(self):
         super().__init__('navigation_node')
 
+        self.declare_parameter('navigation_frame', 'map')
+        self._navigation_frame = self.get_parameter('navigation_frame').value
+
         cb_group = ReentrantCallbackGroup()
 
         self.nav2_client = ActionClient(
@@ -34,6 +41,8 @@ class NavigationNode(Node):
 
         self._current_goal_handle = None
         self._navigating = False
+        self._tf_buffer = Buffer()
+        self._tf_listener = TransformListener(self._tf_buffer, self)
 
         self.get_logger().info('NavigationNode started')
 
@@ -46,7 +55,10 @@ class NavigationNode(Node):
 
         self.get_logger().info(
             f'Navigation goal received: door {msg.door_id} '
-            f'(color={msg.door_color})'
+            f'(color={msg.door_color}, '
+            f'frame={msg.door_pose.header.frame_id}, '
+            f'x={msg.door_pose.pose.position.x:.2f}, '
+            f'y={msg.door_pose.pose.position.y:.2f})'
         )
         self._navigate_to_pose(msg.door_pose)
 
@@ -54,6 +66,11 @@ class NavigationNode(Node):
     def _navigate_to_pose(self, pose: PoseStamped):
         if not self.nav2_client.wait_for_server(timeout_sec=5.0):
             self.get_logger().error('Nav2 action server not available')
+            self._publish_done(success=False)
+            return
+
+        pose = self._fixed_map_goal(pose)
+        if pose is None:
             self._publish_done(success=False)
             return
 
@@ -66,6 +83,31 @@ class NavigationNode(Node):
         send_future = self.nav2_client.send_goal_async(
             goal, feedback_callback=self._feedback_callback)
         send_future.add_done_callback(self._goal_response_callback)
+
+    def _fixed_map_goal(self, pose: PoseStamped):
+        source_frame = pose.header.frame_id.strip()
+        if source_frame == self._navigation_frame:
+            return pose
+        if not source_frame:
+            self.get_logger().error('Navigation goal has no frame_id.')
+            return None
+
+        try:
+            transform = self._tf_buffer.lookup_transform(
+                self._navigation_frame, source_frame, Time(),
+                timeout=Duration(seconds=0.5))
+            fixed_pose = do_transform_pose_stamped(pose, transform)
+        except TransformException as e:
+            self.get_logger().error(
+                f'Failed to transform navigation goal from {source_frame} '
+                f'to {self._navigation_frame}: {e}')
+            return None
+
+        self.get_logger().info(
+            f'Fixed navigation goal in {self._navigation_frame}: '
+            f'x={fixed_pose.pose.position.x:.2f}, '
+            f'y={fixed_pose.pose.position.y:.2f}')
+        return fixed_pose
 
     def _goal_response_callback(self, future):
         goal_handle = future.result()

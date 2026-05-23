@@ -74,6 +74,7 @@ class DoorDetectionNode(Node):
         self.declare_parameter('door_approach_offset_m', 0.8)
         self.declare_parameter('nav_goal_max_abs_y_m', 0.0)
         self.declare_parameter('min_door_aspect_ratio', 1.3)
+        self.declare_parameter('publish_map_frame', True)
 
         model_path       = self.get_parameter('model_path').value
         self._conf       = self.get_parameter('confidence_threshold').value
@@ -90,6 +91,8 @@ class DoorDetectionNode(Node):
             self.get_parameter('nav_goal_max_abs_y_m').value)
         self._min_door_aspect_ratio = float(
             self.get_parameter('min_door_aspect_ratio').value)
+        self._publish_map_frame = bool(
+            self.get_parameter('publish_map_frame').value)
 
         self.bridge = CvBridge()
 
@@ -395,6 +398,18 @@ class DoorDetectionNode(Node):
         handle_base.point.x = handle_x
         handle_base.point.y = handle_y
         handle_base.point.z = 0.9
+
+        if not self._publish_map_frame:
+            self._clamp_navigation_pose(pose_base)
+            msg.door_pose = pose_base
+            msg.handle_position = handle_base
+            msg.door_id    = door_id
+            msg.door_color = color
+            msg.is_open    = False
+            msg.confidence = float(det_conf)
+            msg.distance_from_fire = 0.0
+            return msg
+
         try:
             pose_map = self._tf_buffer.transform(
                 pose_base, 'map',
