@@ -7,16 +7,20 @@
        - 로봇팔        : PIPER 6DoF (간략화 링크)
        - 센서          : RGB 카메라 (Intel RealSense D435 컬러)
                          Depth 카메라 (Intel RealSense D435 뎁스)
-                         Radar (mmWave 2D, 240° FOV, 80m 레인지)
+                         2D LiDAR (/scan, 240° FOV)
        =================================================== -->
 
-  <xacro:property name="base_length"  value="0.40"/>
-  <xacro:property name="base_width"   value="0.35"/>
-  <xacro:property name="base_height"  value="0.12"/>
-  <xacro:property name="wheel_radius" value="0.07"/>
-  <xacro:property name="wheel_width"  value="0.05"/>
-  <xacro:property name="base_mass"    value="15.0"/>
-  <xacro:property name="wheel_mass"   value="0.5"/>
+  <xacro:property name="base_length"  value="0.420"/>
+  <xacro:property name="base_width"   value="0.310"/>
+  <xacro:property name="base_height"  value="0.184"/>
+  <xacro:property name="wheel_radius" value="0.098"/>
+  <xacro:property name="wheel_width"  value="0.040"/>
+  <xacro:property name="wheelbase"   value="0.262"/>
+  <xacro:property name="track"       value="0.37559"/>
+  <xacro:property name="base_mass"    value="16.523"/>
+  <xacro:property name="wheel_mass"   value="0.477"/>
+  <xacro:property name="camera_z"     value="${base_height/2 + 0.30}"/>
+  <xacro:property name="camera_pitch" value="0.14"/>
 
   <xacro:macro name="box_inertia" params="m x y z">
     <inertial>
@@ -89,13 +93,13 @@
     </joint>
   </xacro:macro>
 
-  <xacro:wheel name="front_left"  x_pos="${base_length/2 - 0.05}" y_pos="${base_width/2 + wheel_width/2}"/>
-  <xacro:wheel name="front_right" x_pos="${base_length/2 - 0.05}" y_pos="${-(base_width/2 + wheel_width/2)}"/>
-  <xacro:wheel name="rear_left"   x_pos="${-(base_length/2 - 0.05)}" y_pos="${base_width/2 + wheel_width/2}"/>
-  <xacro:wheel name="rear_right"  x_pos="${-(base_length/2 - 0.05)}" y_pos="${-(base_width/2 + wheel_width/2)}"/>
+  <xacro:wheel name="front_left"  x_pos="${wheelbase/2}" y_pos="${track/2}"/>
+  <xacro:wheel name="front_right" x_pos="${wheelbase/2}" y_pos="${-track/2}"/>
+  <xacro:wheel name="rear_left"   x_pos="${-wheelbase/2}" y_pos="${track/2}"/>
+  <xacro:wheel name="rear_right"  x_pos="${-wheelbase/2}" y_pos="${-track/2}"/>
 
-  <!-- ============ Radar ============ -->
-  <link name="radar_link">
+  <!-- ============ 2D LiDAR ============ -->
+  <link name="lidar_link">
     <visual>
       <geometry><box size="0.06 0.04 0.02"/></geometry>
       <material name="dark_gray"><color rgba="0.2 0.2 0.2 1.0"/></material>
@@ -109,10 +113,10 @@
     </inertial>
   </link>
 
-  <joint name="radar_joint" type="fixed">
+  <joint name="lidar_joint" type="fixed">
     <parent link="base_link"/>
-    <child  link="radar_link"/>
-    <origin xyz="${base_length/2} 0 ${base_height/2 + 0.01}" rpy="0 0 0"/>
+    <child  link="lidar_link"/>
+    <origin xyz="${base_length/2} 0 ${base_height/2 + 0.04}" rpy="0 0 0"/>
   </joint>
 
   <!-- ============ RGB-D 카메라 마운트 ============ -->
@@ -134,7 +138,7 @@
     <parent link="base_link"/>
     <child  link="camera_link"/>
     <!-- 베이스 전방 상단에 전방 하향 8도 틸트 -->
-    <origin xyz="${base_length/2} 0 ${base_height/2 + 0.15}" rpy="0 0.14 0"/>
+    <origin xyz="${base_length/2} 0 ${camera_z}" rpy="0 ${camera_pitch} 0"/>
   </joint>
 
   <!-- 카메라 광학 프레임 (ROS 컨벤션: Z 앞, X 오른쪽) -->
@@ -142,6 +146,61 @@
   <joint name="camera_optical_joint" type="fixed">
     <parent link="camera_link"/>
     <child  link="camera_color_optical_frame"/>
+    <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}"/>
+  </joint>
+
+  <!-- 전방 좌/우 보조 카메라: 벽면 문을 주행 중 미리 보기 위한 45도 시야 -->
+  <link name="camera_front_left_link">
+    <visual>
+      <geometry><box size="0.025 0.080 0.025"/></geometry>
+      <material name="silver"><color rgba="0.8 0.8 0.8 1.0"/></material>
+    </visual>
+    <collision>
+      <geometry><box size="0.025 0.080 0.025"/></geometry>
+    </collision>
+    <inertial>
+      <mass value="0.060"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+    </inertial>
+  </link>
+
+  <joint name="camera_front_left_joint" type="fixed">
+    <parent link="base_link"/>
+    <child  link="camera_front_left_link"/>
+    <origin xyz="${base_length/2 - 0.02} 0.20 ${camera_z}" rpy="0 ${camera_pitch} 1.22173"/>
+  </joint>
+
+  <link name="camera_front_left_optical_frame"/>
+  <joint name="camera_front_left_optical_joint" type="fixed">
+    <parent link="camera_front_left_link"/>
+    <child  link="camera_front_left_optical_frame"/>
+    <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}"/>
+  </joint>
+
+  <link name="camera_front_right_link">
+    <visual>
+      <geometry><box size="0.025 0.080 0.025"/></geometry>
+      <material name="silver"><color rgba="0.8 0.8 0.8 1.0"/></material>
+    </visual>
+    <collision>
+      <geometry><box size="0.025 0.080 0.025"/></geometry>
+    </collision>
+    <inertial>
+      <mass value="0.060"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+    </inertial>
+  </link>
+
+  <joint name="camera_front_right_joint" type="fixed">
+    <parent link="base_link"/>
+    <child  link="camera_front_right_link"/>
+    <origin xyz="${base_length/2 - 0.02} -0.20 ${camera_z}" rpy="0 ${camera_pitch} -1.22173"/>
+  </joint>
+
+  <link name="camera_front_right_optical_frame"/>
+  <joint name="camera_front_right_optical_joint" type="fixed">
+    <parent link="camera_front_right_link"/>
+    <child  link="camera_front_right_optical_frame"/>
     <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}"/>
   </joint>
 
@@ -323,14 +382,14 @@
 
   <!-- ============ Gazebo Ignition 플러그인 ============ -->
 
-  <!-- Radar (Ignition gpu_lidar: 240° FOV, 80m, /scan 토픽 → Nav2 호환) -->
-  <gazebo reference="radar_link">
-    <sensor name="radar_sensor" type="gpu_lidar">
+  <!-- 2D LiDAR range sensor (Gazebo uses gpu_lidar internally) -->
+  <gazebo reference="lidar_link">
+    <sensor name="lidar_sensor" type="gpu_lidar">
       <always_on>true</always_on>
       <visualize>false</visualize>
       <update_rate>20</update_rate>
       <topic>scan</topic>
-      <gz_frame_id>radar_link</gz_frame_id>
+      <gz_frame_id>lidar_link</gz_frame_id>
       <lidar>
         <scan>
           <horizontal>
@@ -348,7 +407,7 @@
         </scan>
         <range>
           <min>0.5</min>
-          <max>80.0</max>
+          <max>12.0</max>
           <resolution>0.05</resolution>
         </range>
         <noise type="gaussian">
@@ -364,14 +423,70 @@
     <sensor name="rgb_camera" type="camera">
       <always_on>true</always_on>
       <visualize>true</visualize>
-      <update_rate>30</update_rate>
+      <update_rate>15</update_rate>
       <topic>camera_raw</topic>
       <gz_frame_id>camera_color_optical_frame</gz_frame_id>
       <camera name="rgb">
         <horizontal_fov>1.204</horizontal_fov>
         <image>
-          <width>640</width>
-          <height>480</height>
+          <width>320</width>
+          <height>240</height>
+          <format>R8G8B8</format>
+        </image>
+        <clip>
+          <near>0.1</near>
+          <far>10.0</far>
+        </clip>
+        <noise>
+          <type>gaussian</type>
+          <mean>0.0</mean>
+          <stddev>0.007</stddev>
+        </noise>
+      </camera>
+    </sensor>
+  </gazebo>
+
+  <!-- 전방 좌측 카메라 -->
+  <gazebo reference="camera_front_left_link">
+    <sensor name="rgb_camera_front_left" type="camera">
+      <always_on>true</always_on>
+      <visualize>false</visualize>
+      <update_rate>15</update_rate>
+      <topic>camera_front_left_raw</topic>
+      <gz_frame_id>camera_front_left_optical_frame</gz_frame_id>
+      <camera name="rgb_front_left">
+        <horizontal_fov>1.204</horizontal_fov>
+        <image>
+          <width>320</width>
+          <height>240</height>
+          <format>R8G8B8</format>
+        </image>
+        <clip>
+          <near>0.1</near>
+          <far>10.0</far>
+        </clip>
+        <noise>
+          <type>gaussian</type>
+          <mean>0.0</mean>
+          <stddev>0.007</stddev>
+        </noise>
+      </camera>
+    </sensor>
+  </gazebo>
+
+  <!-- 전방 우측 카메라 -->
+  <gazebo reference="camera_front_right_link">
+    <sensor name="rgb_camera_front_right" type="camera">
+      <always_on>true</always_on>
+      <visualize>false</visualize>
+      <update_rate>15</update_rate>
+      <topic>camera_front_right_raw</topic>
+      <gz_frame_id>camera_front_right_optical_frame</gz_frame_id>
+      <camera name="rgb_front_right">
+        <horizontal_fov>1.204</horizontal_fov>
+        <image>
+          <width>320</width>
+          <height>240</height>
           <format>R8G8B8</format>
         </image>
         <clip>
@@ -392,14 +507,14 @@
     <sensor name="depth_camera" type="rgbd_camera">
       <always_on>true</always_on>
       <visualize>false</visualize>
-      <update_rate>30</update_rate>
+      <update_rate>5</update_rate>
       <topic>depth_camera</topic>
       <gz_frame_id>depth_optical_frame</gz_frame_id>
       <camera name="depth">
         <horizontal_fov>1.204</horizontal_fov>
         <image>
-          <width>640</width>
-          <height>480</height>
+          <width>320</width>
+          <height>240</height>
           <format>R8G8B8</format>
         </image>
         <clip>
@@ -420,10 +535,12 @@
     <plugin filename="gz-sim-diff-drive-system"
             name="gz::sim::systems::DiffDrive">
       <left_joint>front_left_wheel_joint</left_joint>
+      <left_joint>rear_left_wheel_joint</left_joint>
       <right_joint>front_right_wheel_joint</right_joint>
-      <!-- wheel_separation = 2 × (base_width/2 + wheel_width/2) = 0.40 m -->
-      <wheel_separation>0.40</wheel_separation>
-      <wheel_radius>0.07</wheel_radius>
+      <right_joint>rear_right_wheel_joint</right_joint>
+      <!-- Clearpath j100 reference: track=0.37559 m, wheel_radius=0.098 m -->
+      <wheel_separation>0.37559</wheel_separation>
+      <wheel_radius>0.098</wheel_radius>
       <odom_publish_frequency>20</odom_publish_frequency>
       <topic>cmd_vel</topic>
       <odom_topic>odom</odom_topic>

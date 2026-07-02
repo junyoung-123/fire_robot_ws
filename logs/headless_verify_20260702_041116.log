@@ -1,0 +1,1121 @@
+[INFO] [launch]: All log files can be found below /home/junyoung/.ros/log/2026-07-02-04-11-16-165580-BOOK-9IO69NR1EM-371
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [ign-1]: process started with pid [375]
+[INFO] [robot_state_publisher-2]: process started with pid [377]
+[INFO] [static_transform_publisher-3]: process started with pid [379]
+[INFO] [cmd_vel_safety_node-4]: process started with pid [381]
+[INFO] [create-5]: process started with pid [383]
+[INFO] [parameter_bridge-6]: process started with pid [385]
+[static_transform_publisher-3] [WARN] [1782933076.319382556] []: Old-style arguments are deprecated; see --help for new-style arguments
+[static_transform_publisher-3] [INFO] [1782933076.332082306] [sim_lidar_sensor_tf]: Spinning until stopped - publishing transform
+[static_transform_publisher-3] translation: ('0.200000', '0.000000', '0.070000')
+[static_transform_publisher-3] rotation: ('0.000000', '0.000000', '0.000000', '1.000000')
+[static_transform_publisher-3] from 'base_link' to 'fire_robot/base_footprint/lidar_sensor'
+[create-5] [INFO] [1782933076.354365349] [spawn_fire_robot]: Requesting list of world names.
+[parameter_bridge-6] [INFO] [1782933076.376576016] [gz_bridge]: Creating GZ->ROS Bridge: [/clock (gz.msgs.Clock) -> /clock (rosgraph_msgs/msg/Clock)] (Lazy 0)
+[parameter_bridge-6] [INFO] [1782933076.377479159] [gz_bridge]: Creating GZ->ROS Bridge: [/scan (gz.msgs.LaserScan) -> /scan (sensor_msgs/msg/LaserScan)] (Lazy 0)
+[parameter_bridge-6] [INFO] [1782933076.379224245] [gz_bridge]: Creating GZ->ROS Bridge: [/camera_raw (gz.msgs.Image) -> /camera_raw (sensor_msgs/msg/Image)] (Lazy 0)
+[parameter_bridge-6] [INFO] [1782933076.379897368] [gz_bridge]: Creating GZ->ROS Bridge: [/camera_raw/camera_info (gz.msgs.CameraInfo) -> /camera_raw/camera_info (sensor_msgs/msg/CameraInfo)] (Lazy 0)
+[parameter_bridge-6] [INFO] [1782933076.380673803] [gz_bridge]: Creating GZ->ROS Bridge: [/camera_front_left_raw (gz.msgs.Image) -> /camera_front_left_raw (sensor_msgs/msg/Image)] (Lazy 0)
+[robot_state_publisher-2] [INFO] [1782933076.380781487] [robot_state_publisher]: got segment arm_base_link
+[robot_state_publisher-2] [INFO] [1782933076.380987784] [robot_state_publisher]: got segment arm_link1
+[robot_state_publisher-2] [INFO] [1782933076.381009509] [robot_state_publisher]: got segment arm_link2
+[robot_state_publisher-2] [INFO] [1782933076.381018939] [robot_state_publisher]: got segment arm_link3
+[robot_state_publisher-2] [INFO] [1782933076.381026713] [robot_state_publisher]: got segment arm_link4
+[robot_state_publisher-2] [INFO] [1782933076.381033250] [robot_state_publisher]: got segment arm_link5
+[robot_state_publisher-2] [INFO] [1782933076.381039693] [robot_state_publisher]: got segment arm_link6
+[robot_state_publisher-2] [INFO] [1782933076.381045988] [robot_state_publisher]: got segment base_footprint
+[robot_state_publisher-2] [INFO] [1782933076.381052569] [robot_state_publisher]: got segment base_link
+[robot_state_publisher-2] [INFO] [1782933076.381058891] [robot_state_publisher]: got segment camera_color_optical_frame
+[robot_state_publisher-2] [INFO] [1782933076.381065709] [robot_state_publisher]: got segment camera_front_left_link
+[robot_state_publisher-2] [INFO] [1782933076.381072415] [robot_state_publisher]: got segment camera_front_left_optical_frame
+[robot_state_publisher-2] [INFO] [1782933076.381079226] [robot_state_publisher]: got segment camera_front_right_link
+[robot_state_publisher-2] [INFO] [1782933076.381085664] [robot_state_publisher]: got segment camera_front_right_optical_frame
+[robot_state_publisher-2] [INFO] [1782933076.381092428] [robot_state_publisher]: got segment camera_link
+[robot_state_publisher-2] [INFO] [1782933076.381099008] [robot_state_publisher]: got segment depth_camera_link
+[robot_state_publisher-2] [INFO] [1782933076.381105578] [robot_state_publisher]: got segment depth_optical_frame
+[robot_state_publisher-2] [INFO] [1782933076.381112378] [robot_state_publisher]: got segment front_left_wheel
+[robot_state_publisher-2] [INFO] [1782933076.381118780] [robot_state_publisher]: got segment front_right_wheel
+[robot_state_publisher-2] [INFO] [1782933076.381125408] [robot_state_publisher]: got segment gripper_base_link
+[robot_state_publisher-2] [INFO] [1782933076.381131993] [robot_state_publisher]: got segment gripper_finger_left
+[robot_state_publisher-2] [INFO] [1782933076.381138462] [robot_state_publisher]: got segment gripper_finger_right
+[robot_state_publisher-2] [INFO] [1782933076.381145483] [robot_state_publisher]: got segment lidar_link
+[robot_state_publisher-2] [INFO] [1782933076.381152200] [robot_state_publisher]: got segment rear_left_wheel
+[robot_state_publisher-2] [INFO] [1782933076.381158974] [robot_state_publisher]: got segment rear_right_wheel
+[parameter_bridge-6] [INFO] [1782933076.381248004] [gz_bridge]: Creating GZ->ROS Bridge: [/camera_front_left_raw/camera_info (gz.msgs.CameraInfo) -> /camera_front_left_raw/camera_info (sensor_msgs/msg/CameraInfo)] (Lazy 0)
+[parameter_bridge-6] [INFO] [1782933076.382815070] [gz_bridge]: Creating GZ->ROS Bridge: [/camera_front_right_raw (gz.msgs.Image) -> /camera_front_right_raw (sensor_msgs/msg/Image)] (Lazy 0)
+[parameter_bridge-6] [INFO] [1782933076.383414228] [gz_bridge]: Creating GZ->ROS Bridge: [/camera_front_right_raw/camera_info (gz.msgs.CameraInfo) -> /camera_front_right_raw/camera_info (sensor_msgs/msg/CameraInfo)] (Lazy 0)
+[parameter_bridge-6] [INFO] [1782933076.384000639] [gz_bridge]: Creating GZ->ROS Bridge: [/depth_camera/image (gz.msgs.Image) -> /depth_camera/image (sensor_msgs/msg/Image)] (Lazy 0)
+[parameter_bridge-6] [INFO] [1782933076.384967589] [gz_bridge]: Creating GZ->ROS Bridge: [/depth_camera/depth_image (gz.msgs.Image) -> /depth_camera/depth_image (sensor_msgs/msg/Image)] (Lazy 0)
+[parameter_bridge-6] [INFO] [1782933076.385464412] [gz_bridge]: Creating GZ->ROS Bridge: [/depth_camera/points (gz.msgs.PointCloudPacked) -> /depth_camera/points (sensor_msgs/msg/PointCloud2)] (Lazy 0)
+[parameter_bridge-6] [INFO] [1782933076.386217097] [gz_bridge]: Creating GZ->ROS Bridge: [/depth_camera/camera_info (gz.msgs.CameraInfo) -> /depth_camera/camera_info (sensor_msgs/msg/CameraInfo)] (Lazy 0)
+[parameter_bridge-6] [INFO] [1782933076.386754661] [gz_bridge]: Creating ROS->GZ Bridge: [/cmd_vel (geometry_msgs/msg/Twist) -> /cmd_vel (gz.msgs.Twist)] (Lazy 0)
+[parameter_bridge-6] [INFO] [1782933076.387836177] [gz_bridge]: Creating GZ->ROS Bridge: [/odom (gz.msgs.Odometry) -> /odom (nav_msgs/msg/Odometry)] (Lazy 0)
+[parameter_bridge-6] [INFO] [1782933076.389347517] [gz_bridge]: Creating GZ->ROS Bridge: [/tf (gz.msgs.Pose_V) -> /tf (tf2_msgs/msg/TFMessage)] (Lazy 0)
+[parameter_bridge-6] [INFO] [1782933076.391009394] [gz_bridge]: Creating GZ->ROS Bridge: [/joint_states (gz.msgs.Model) -> /joint_states (sensor_msgs/msg/JointState)] (Lazy 0)
+[cmd_vel_safety_node-4] [INFO] [1782933076.534954688] [cmd_vel_safety_node]: CmdVelSafetyNode started | /cmd_vel -> /cmd_vel_safe allow_reverse=False
+[create-5] [INFO] [1782933076.795786708] [spawn_fire_robot]: Waiting messages on topic [/robot_description].
+[create-5] [INFO] [1782933076.808357022] [spawn_fire_robot]: Requested creation of entity.
+[create-5] [INFO] [1782933076.808413013] [spawn_fire_robot]: OK creation of entity.
+[INFO] [create-5]: process has finished cleanly [pid 383]
+[ign-1] [1;33mWarning [Utils.cc:129][0m [/sdf/model[@name="fire_robot"]/link[@name="base_footprint"]/sensor[@name="lidar_sensor"]/lidar/noise[@type="gaussian"]:<urdf-string>:L0]: XML Attribute[type] in element[noise] not defined in SDF.
+[INFO] [map_server-7]: process started with pid [598]
+[INFO] [amcl-8]: process started with pid [600]
+[INFO] [lifecycle_manager-9]: process started with pid [602]
+[lifecycle_manager-9] [INFO] [1782933084.565514378] [lifecycle_manager_localization]: Creating
+[lifecycle_manager-9] [INFO] [1782933084.569739330] [lifecycle_manager_localization]: [34m[1mCreating and initializing lifecycle service clients[0m[0m
+[amcl-8] [INFO] [1782933084.574031452] [amcl]:
+[amcl-8] 	amcl lifecycle node launched.
+[amcl-8] 	Waiting on external lifecycle transitions to activate
+[amcl-8] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[amcl-8] [INFO] [1782933084.574993034] [amcl]: Creating
+[map_server-7] [INFO] [1782933084.575605561] [map_server]:
+[map_server-7] 	map_server lifecycle node launched.
+[map_server-7] 	Waiting on external lifecycle transitions to activate
+[map_server-7] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[map_server-7] [INFO] [1782933084.575964073] [map_server]: Creating
+[lifecycle_manager-9] [INFO] [1782933084.576847992] [lifecycle_manager_localization]: [34m[1mStarting managed nodes bringup...[0m[0m
+[lifecycle_manager-9] [INFO] [1782933084.576906239] [lifecycle_manager_localization]: [34m[1mConfiguring map_server[0m[0m
+[map_server-7] [INFO] [1782933084.708558458] [map_server]: Configuring
+[map_server-7] [INFO] [1782933084.708722974] [map_io]: Loading yaml file: /home/junyoung/fire_robot_ws_test/install/fire_robot_navigation/share/fire_robot_navigation/maps/obstacle_wall_doors_v5_static.yaml
+[map_server-7] [INFO] [1782933084.709442598] [map_io]: resolution: 0.05
+[map_server-7] [INFO] [1782933084.709499204] [map_io]: origin[0]: -6
+[map_server-7] [INFO] [1782933084.709509332] [map_io]: origin[1]: -3
+[map_server-7] [INFO] [1782933084.709516352] [map_io]: origin[2]: 0
+[map_server-7] [INFO] [1782933084.709523663] [map_io]: free_thresh: 0.25
+[map_server-7] [INFO] [1782933084.709530283] [map_io]: occupied_thresh: 0.65
+[map_server-7] [INFO] [1782933084.709537538] [map_io]: mode: trinary
+[map_server-7] [INFO] [1782933084.709545095] [map_io]: negate: 0
+[map_server-7] [INFO] [1782933084.709984904] [map_io]: Loading image_file: /home/junyoung/fire_robot_ws_test/install/fire_robot_navigation/share/fire_robot_navigation/maps/obstacle_wall_doors_v5_static.pgm
+[map_server-7] [INFO] [1782933084.716069270] [map_io]: Read map /home/junyoung/fire_robot_ws_test/install/fire_robot_navigation/share/fire_robot_navigation/maps/obstacle_wall_doors_v5_static.pgm: 500 X 120 map @ 0.05 m/cell
+[lifecycle_manager-9] [INFO] [1782933084.724065651] [lifecycle_manager_localization]: [34m[1mConfiguring amcl[0m[0m
+[amcl-8] [INFO] [1782933084.724534411] [amcl]: Configuring
+[amcl-8] [INFO] [1782933084.724622949] [amcl]: initTransforms
+[amcl-8] [INFO] [1782933084.738052569] [amcl]: initPubSub
+[amcl-8] [INFO] [1782933084.744998697] [amcl]: Subscribed to map topic.
+[lifecycle_manager-9] [INFO] [1782933084.749610882] [lifecycle_manager_localization]: [34m[1mActivating map_server[0m[0m
+[map_server-7] [INFO] [1782933084.749868050] [map_server]: Activating
+[map_server-7] [INFO] [1782933084.750526347] [map_server]: Creating bond (map_server) to lifecycle manager.
+[amcl-8] [INFO] [1782933084.750856234] [amcl]: Received a 500 X 120 map @ 0.050 m/pix
+[lifecycle_manager-9] [INFO] [1782933084.856292786] [lifecycle_manager_localization]: Server map_server connected with bond.
+[lifecycle_manager-9] [INFO] [1782933084.856359489] [lifecycle_manager_localization]: [34m[1mActivating amcl[0m[0m
+[amcl-8] [INFO] [1782933084.856597969] [amcl]: Activating
+[amcl-8] [INFO] [1782933084.856636416] [amcl]: initialPoseReceived
+[amcl-8] [INFO] [1782933084.856657565] [amcl]: Setting pose (3.900000): -3.000 0.000 0.000
+[amcl-8] [INFO] [1782933084.856915169] [amcl]: Creating bond (amcl) to lifecycle manager.
+[amcl-8] [INFO] [1782933084.904903879] [amcl]: createLaserObject
+[lifecycle_manager-9] [INFO] [1782933084.960777362] [lifecycle_manager_localization]: Server amcl connected with bond.
+[lifecycle_manager-9] [INFO] [1782933084.960876922] [lifecycle_manager_localization]: [34m[1mManaged nodes are active[0m[0m
+[lifecycle_manager-9] [INFO] [1782933084.960898378] [lifecycle_manager_localization]: [34m[1mCreating bond timer...[0m[0m
+[amcl-8] [INFO] [1782933086.229281464] [amcl]: Message Filter dropping message: frame 'lidar_link' at time 3.800 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[INFO] [controller_server-10]: process started with pid [643]
+[INFO] [smoother_server-11]: process started with pid [645]
+[INFO] [planner_server-12]: process started with pid [647]
+[INFO] [behavior_server-13]: process started with pid [649]
+[INFO] [bt_navigator-14]: process started with pid [651]
+[INFO] [waypoint_follower-15]: process started with pid [653]
+[INFO] [velocity_smoother-16]: process started with pid [655]
+[INFO] [lifecycle_manager-17]: process started with pid [657]
+[waypoint_follower-15] [INFO] [1782933090.474709309] [waypoint_follower]:
+[waypoint_follower-15] 	waypoint_follower lifecycle node launched.
+[waypoint_follower-15] 	Waiting on external lifecycle transitions to activate
+[waypoint_follower-15] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[waypoint_follower-15] [INFO] [1782933090.475560065] [waypoint_follower]: Creating
+[behavior_server-13] [INFO] [1782933090.493616687] [behavior_server]:
+[behavior_server-13] 	behavior_server lifecycle node launched.
+[behavior_server-13] 	Waiting on external lifecycle transitions to activate
+[behavior_server-13] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[smoother_server-11] [INFO] [1782933090.496315484] [smoother_server]:
+[smoother_server-11] 	smoother_server lifecycle node launched.
+[smoother_server-11] 	Waiting on external lifecycle transitions to activate
+[smoother_server-11] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[planner_server-12] [INFO] [1782933090.499562860] [planner_server]:
+[planner_server-12] 	planner_server lifecycle node launched.
+[planner_server-12] 	Waiting on external lifecycle transitions to activate
+[planner_server-12] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[smoother_server-11] [INFO] [1782933090.501387711] [smoother_server]: Creating smoother server
+[planner_server-12] [INFO] [1782933090.501913916] [planner_server]: Creating
+[controller_server-10] [INFO] [1782933090.505872109] [controller_server]:
+[controller_server-10] 	controller_server lifecycle node launched.
+[controller_server-10] 	Waiting on external lifecycle transitions to activate
+[controller_server-10] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[lifecycle_manager-17] [INFO] [1782933090.507916584] [lifecycle_manager_navigation]: Creating
+[bt_navigator-14] [INFO] [1782933090.510271030] [bt_navigator]:
+[bt_navigator-14] 	bt_navigator lifecycle node launched.
+[bt_navigator-14] 	Waiting on external lifecycle transitions to activate
+[bt_navigator-14] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[bt_navigator-14] [INFO] [1782933090.510543059] [bt_navigator]: Creating
+[lifecycle_manager-17] [INFO] [1782933090.515593905] [lifecycle_manager_navigation]: [34m[1mCreating and initializing lifecycle service clients[0m[0m
+[controller_server-10] [INFO] [1782933090.518489973] [controller_server]: Creating controller server
+[velocity_smoother-16] [INFO] [1782933090.519012336] [velocity_smoother]:
+[velocity_smoother-16] 	velocity_smoother lifecycle node launched.
+[velocity_smoother-16] 	Waiting on external lifecycle transitions to activate
+[velocity_smoother-16] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[planner_server-12] [INFO] [1782933090.550893392] [global_costmap.global_costmap]:
+[planner_server-12] 	global_costmap lifecycle node launched.
+[planner_server-12] 	Waiting on external lifecycle transitions to activate
+[planner_server-12] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[planner_server-12] [INFO] [1782933090.551892617] [global_costmap.global_costmap]: Creating Costmap
+[controller_server-10] [INFO] [1782933090.560208108] [local_costmap.local_costmap]:
+[controller_server-10] 	local_costmap lifecycle node launched.
+[controller_server-10] 	Waiting on external lifecycle transitions to activate
+[controller_server-10] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[controller_server-10] [INFO] [1782933090.560793732] [local_costmap.local_costmap]: Creating Costmap
+[lifecycle_manager-17] [INFO] [1782933091.549136428] [lifecycle_manager_navigation]: [34m[1mStarting managed nodes bringup...[0m[0m
+[lifecycle_manager-17] [INFO] [1782933091.549216919] [lifecycle_manager_navigation]: [34m[1mConfiguring controller_server[0m[0m
+[controller_server-10] [INFO] [1782933091.549588438] [controller_server]: Configuring controller interface
+[controller_server-10] [INFO] [1782933091.549937244] [controller_server]: getting goal checker plugins..
+[controller_server-10] [INFO] [1782933091.550328995] [controller_server]: Controller frequency set to 10.0000Hz
+[controller_server-10] [INFO] [1782933091.550378047] [local_costmap.local_costmap]: Configuring
+[controller_server-10] [INFO] [1782933091.561102193] [local_costmap.local_costmap]: Using plugin "obstacle_layer"
+[controller_server-10] [INFO] [1782933091.567771363] [local_costmap.local_costmap]: Subscribed to Topics: scan segmentation_points
+[controller_server-10] [INFO] [1782933091.583115574] [local_costmap.local_costmap]: Initialized plugin "obstacle_layer"
+[controller_server-10] [INFO] [1782933091.583206064] [local_costmap.local_costmap]: Using plugin "inflation_layer"
+[controller_server-10] [INFO] [1782933091.586246195] [local_costmap.local_costmap]: Initialized plugin "inflation_layer"
+[controller_server-10] [INFO] [1782933091.598647660] [controller_server]: Created progress_checker : progress_checker of type nav2_controller::SimpleProgressChecker
+[controller_server-10] [INFO] [1782933091.600171377] [controller_server]: Created goal checker : general_goal_checker of type nav2_controller::SimpleGoalChecker
+[controller_server-10] [INFO] [1782933091.600669880] [controller_server]: Controller Server has general_goal_checker  goal checkers available.
+[controller_server-10] [INFO] [1782933091.603092462] [controller_server]: Created controller : FollowPath of type nav2_rotation_shim_controller::RotationShimController
+[controller_server-10] [INFO] [1782933091.606615192] [controller_server]: Created internal controller for rotation shimming: FollowPath of type nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController
+[controller_server-10] [INFO] [1782933091.614265425] [controller_server]: Controller Server has FollowPath  controllers available.
+[lifecycle_manager-17] [INFO] [1782933091.627741719] [lifecycle_manager_navigation]: [34m[1mConfiguring smoother_server[0m[0m
+[smoother_server-11] [INFO] [1782933091.628108264] [smoother_server]: Configuring smoother server
+[smoother_server-11] [INFO] [1782933091.645157268] [smoother_server]: Created smoother : simple_smoother of type nav2_smoother::SimpleSmoother
+[smoother_server-11] [INFO] [1782933091.646508768] [smoother_server]: Smoother Server has simple_smoother  smoothers available.
+[lifecycle_manager-17] [INFO] [1782933091.658130654] [lifecycle_manager_navigation]: [34m[1mConfiguring planner_server[0m[0m
+[planner_server-12] [INFO] [1782933091.658519668] [planner_server]: Configuring
+[planner_server-12] [INFO] [1782933091.658583412] [global_costmap.global_costmap]: Configuring
+[planner_server-12] [INFO] [1782933091.667310171] [global_costmap.global_costmap]: Using plugin "static_layer"
+[planner_server-12] [INFO] [1782933091.672004530] [global_costmap.global_costmap]: Subscribing to the map topic (/map) with transient local durability
+[planner_server-12] [INFO] [1782933091.674260513] [global_costmap.global_costmap]: Initialized plugin "static_layer"
+[planner_server-12] [INFO] [1782933091.674310254] [global_costmap.global_costmap]: Using plugin "obstacle_layer"
+[planner_server-12] [INFO] [1782933091.676022775] [global_costmap.global_costmap]: Subscribed to Topics: scan
+[planner_server-12] [INFO] [1782933091.680818081] [global_costmap.global_costmap]: Initialized plugin "obstacle_layer"
+[planner_server-12] [INFO] [1782933091.680876143] [global_costmap.global_costmap]: Using plugin "inflation_layer"
+[planner_server-12] [INFO] [1782933091.683405802] [global_costmap.global_costmap]: Initialized plugin "inflation_layer"
+[planner_server-12] [INFO] [1782933091.701687139] [global_costmap.global_costmap]: StaticLayer: Resizing costmap to 500 X 120 at 0.050000 m/pix
+[planner_server-12] [INFO] [1782933091.709613292] [planner_server]: Created global planner plugin GridBased of type nav2_smac_planner/SmacPlanner2D
+[planner_server-12] [INFO] [1782933091.709691160] [planner_server]: Configuring GridBased of type SmacPlanner2D
+[planner_server-12] [INFO] [1782933091.714258319] [planner_server]: Configured plugin GridBased of type SmacPlanner2D with tolerance 0.35, maximum iterations 1000000, max on approach iterations 1000, and allowing unknown traversal.
+[planner_server-12] [INFO] [1782933091.714359481] [planner_server]: Planner Server has GridBased  planners available.
+[lifecycle_manager-17] [INFO] [1782933091.737291694] [lifecycle_manager_navigation]: [34m[1mConfiguring behavior_server[0m[0m
+[behavior_server-13] [INFO] [1782933091.737800272] [behavior_server]: Configuring
+[behavior_server-13] [INFO] [1782933091.750278600] [behavior_server]: Creating behavior plugin spin of type nav2_behaviors/Spin
+[behavior_server-13] [INFO] [1782933091.752396997] [behavior_server]: Configuring spin
+[behavior_server-13] [INFO] [1782933091.764913271] [behavior_server]: Creating behavior plugin drive_on_heading of type nav2_behaviors/DriveOnHeading
+[behavior_server-13] [INFO] [1782933091.766253158] [behavior_server]: Configuring drive_on_heading
+[behavior_server-13] [INFO] [1782933091.777251629] [behavior_server]: Creating behavior plugin assisted_teleop of type nav2_behaviors/AssistedTeleop
+[behavior_server-13] [INFO] [1782933091.779117178] [behavior_server]: Configuring assisted_teleop
+[behavior_server-13] [INFO] [1782933091.790165412] [behavior_server]: Creating behavior plugin wait of type nav2_behaviors/Wait
+[behavior_server-13] [INFO] [1782933091.791078333] [behavior_server]: Configuring wait
+[lifecycle_manager-17] [INFO] [1782933091.803579909] [lifecycle_manager_navigation]: [34m[1mConfiguring bt_navigator[0m[0m
+[bt_navigator-14] [INFO] [1782933091.803999882] [bt_navigator]: Configuring
+[lifecycle_manager-17] [INFO] [1782933091.921749591] [lifecycle_manager_navigation]: [34m[1mConfiguring waypoint_follower[0m[0m
+[waypoint_follower-15] [INFO] [1782933091.922138847] [waypoint_follower]: Configuring
+[waypoint_follower-15] [INFO] [1782933091.941432417] [waypoint_follower]: Created waypoint_task_executor : wait_at_waypoint of type nav2_waypoint_follower::WaitAtWaypoint
+[lifecycle_manager-17] [INFO] [1782933091.943143373] [lifecycle_manager_navigation]: [34m[1mConfiguring velocity_smoother[0m[0m
+[velocity_smoother-16] [INFO] [1782933091.943467426] [velocity_smoother]: Configuring velocity smoother
+[lifecycle_manager-17] [INFO] [1782933091.951628052] [lifecycle_manager_navigation]: [34m[1mActivating controller_server[0m[0m
+[controller_server-10] [INFO] [1782933091.951950901] [controller_server]: Activating
+[controller_server-10] [INFO] [1782933091.951986231] [local_costmap.local_costmap]: Activating
+[controller_server-10] [INFO] [1782933091.951995419] [local_costmap.local_costmap]: Checking transform
+[controller_server-10] [INFO] [1782933091.952135568] [local_costmap.local_costmap]: start
+[controller_server-10] [INFO] [1782933092.154642321] [controller_server]: Activating controller: FollowPath of type nav2_rotation_shim_controller::RotationShimController
+[controller_server-10] [INFO] [1782933092.154736093] [controller_server]: Activating controller: FollowPath of type regulated_pure_pursuit_controller::RegulatedPurePursuitController
+[controller_server-10] [INFO] [1782933092.154774221] [controller_server]: Creating bond (controller_server) to lifecycle manager.
+[lifecycle_manager-17] [INFO] [1782933092.264008082] [lifecycle_manager_navigation]: Server controller_server connected with bond.
+[lifecycle_manager-17] [INFO] [1782933092.264074191] [lifecycle_manager_navigation]: [34m[1mActivating smoother_server[0m[0m
+[smoother_server-11] [INFO] [1782933092.264366157] [smoother_server]: Activating
+[smoother_server-11] [INFO] [1782933092.264404316] [smoother_server]: Creating bond (smoother_server) to lifecycle manager.
+[lifecycle_manager-17] [INFO] [1782933092.373521897] [lifecycle_manager_navigation]: Server smoother_server connected with bond.
+[lifecycle_manager-17] [INFO] [1782933092.373629973] [lifecycle_manager_navigation]: [34m[1mActivating planner_server[0m[0m
+[planner_server-12] [INFO] [1782933092.374145403] [planner_server]: Activating
+[planner_server-12] [INFO] [1782933092.374211496] [global_costmap.global_costmap]: Activating
+[planner_server-12] [INFO] [1782933092.374226196] [global_costmap.global_costmap]: Checking transform
+[planner_server-12] [INFO] [1782933092.374300431] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Lookup would require extrapolation into the past.  Requested time 8.950000 but the earliest data is at time 9.500000, when looking up transform from frame [base_link] to frame [map]
+[planner_server-12] [INFO] [1782933092.874356584] [global_costmap.global_costmap]: Timed out waiting for transform from base_link to map to become available, tf error: Lookup would require extrapolation into the past.  Requested time 9.250000 but the earliest data is at time 9.500000, when looking up transform from frame [base_link] to frame [map]
+[planner_server-12] [INFO] [1782933093.374476604] [global_costmap.global_costmap]: start
+[planner_server-12] [INFO] [1782933093.425471147] [planner_server]: Activating plugin GridBased of type SmacPlanner2D
+[planner_server-12] [INFO] [1782933093.427592147] [planner_server]: Creating bond (planner_server) to lifecycle manager.
+[lifecycle_manager-17] [INFO] [1782933093.534730633] [lifecycle_manager_navigation]: Server planner_server connected with bond.
+[lifecycle_manager-17] [INFO] [1782933093.534806129] [lifecycle_manager_navigation]: [34m[1mActivating behavior_server[0m[0m
+[behavior_server-13] [INFO] [1782933093.535267433] [behavior_server]: Activating
+[behavior_server-13] [INFO] [1782933093.535301364] [behavior_server]: Activating spin
+[behavior_server-13] [INFO] [1782933093.535314107] [behavior_server]: Activating drive_on_heading
+[behavior_server-13] [INFO] [1782933093.535323105] [behavior_server]: Activating assisted_teleop
+[behavior_server-13] [INFO] [1782933093.535331813] [behavior_server]: Activating wait
+[behavior_server-13] [INFO] [1782933093.535345228] [behavior_server]: Creating bond (behavior_server) to lifecycle manager.
+[lifecycle_manager-17] [INFO] [1782933093.645041888] [lifecycle_manager_navigation]: Server behavior_server connected with bond.
+[lifecycle_manager-17] [INFO] [1782933093.645151997] [lifecycle_manager_navigation]: [34m[1mActivating bt_navigator[0m[0m
+[bt_navigator-14] [INFO] [1782933093.645868689] [bt_navigator]: Activating
+[bt_navigator-14] [INFO] [1782933093.757013057] [bt_navigator]: Creating bond (bt_navigator) to lifecycle manager.
+[lifecycle_manager-17] [INFO] [1782933093.865194403] [lifecycle_manager_navigation]: Server bt_navigator connected with bond.
+[lifecycle_manager-17] [INFO] [1782933093.865270678] [lifecycle_manager_navigation]: [34m[1mActivating waypoint_follower[0m[0m
+[waypoint_follower-15] [INFO] [1782933093.865606079] [waypoint_follower]: Activating
+[waypoint_follower-15] [INFO] [1782933093.865659262] [waypoint_follower]: Creating bond (waypoint_follower) to lifecycle manager.
+[lifecycle_manager-17] [INFO] [1782933093.974098973] [lifecycle_manager_navigation]: Server waypoint_follower connected with bond.
+[lifecycle_manager-17] [INFO] [1782933093.974197702] [lifecycle_manager_navigation]: [34m[1mActivating velocity_smoother[0m[0m
+[velocity_smoother-16] [INFO] [1782933093.974695736] [velocity_smoother]: Activating
+[velocity_smoother-16] [INFO] [1782933093.974756366] [velocity_smoother]: Creating bond (velocity_smoother) to lifecycle manager.
+[lifecycle_manager-17] [INFO] [1782933094.083514799] [lifecycle_manager_navigation]: Server velocity_smoother connected with bond.
+[lifecycle_manager-17] [INFO] [1782933094.083583186] [lifecycle_manager_navigation]: [34m[1mManaged nodes are active[0m[0m
+[lifecycle_manager-17] [INFO] [1782933094.083595757] [lifecycle_manager_navigation]: [34m[1mCreating bond timer...[0m[0m
+[INFO] [sensor_fusion_node-18]: process started with pid [769]
+[INFO] [door_detection_node-19]: process started with pid [771]
+[INFO] [navigation_node-20]: process started with pid [773]
+[INFO] [manipulation_node-21]: process started with pid [775]
+[manipulation_node-21] [INFO] [1782933098.843388759] [manipulation_node]: ManipulationNode started [SIMULATION, backend=moveit]
+[navigation_node-20] [INFO] [1782933099.024793259] [navigation_node]: NavigationNode started
+[door_detection_node-19] [WARN] [1782933099.171084819] [door_detection_node]: ultralytics not installed. Using HSV-only detection.
+[door_detection_node-19] [INFO] [1782933099.171550090] [door_detection_node]: DoorDetectionNode started | YOLO=FALLBACK_HSV | depth=OFF | cameras=front,front_left,front_right
+[sensor_fusion_node-18] [INFO] [1782933103.994423337] [sensor_fusion_node]: SegFormer disabled by parameter. LiDAR-only map mode.
+[sensor_fusion_node-18] [INFO] [1782933104.028404704] [sensor_fusion_node]: SensorFusionNode started | lidar=lidar_link map=map origin=(-10.0, -10.0) size=40.0x20.0m depth=OFF cameras=front,front_left,front_right
+[sensor_fusion_node-18] [WARN] [1782933105.142682343] [sensor_fusion_node]: No TF from radar frame candidates ['base_link', 'lidar_link'] to map
+[INFO] [state_machine_node-22]: process started with pid [830]
+[state_machine_node-22] [INFO] [1782933124.017270296] [state_machine_node]: StateMachineNode started | nav_timeout=120.0s  max_retries=3  explore_timeout=60.0s  exit=(17.2, 0.0)
+[state_machine_node-22] [INFO] [1782933124.854510635] [state_machine_node]: start_without_fire enabled. Starting corridor exploration.
+[state_machine_node-22] [INFO] [1782933124.854954110] [state_machine_node]: State: IDLE → EXPLORING
+[parameter_bridge-6] [INFO] [1782933124.931830241] [gz_bridge]: Passing message from ROS geometry_msgs/msg/Twist to Gazebo gz.msgs.Twist (showing msg only once per type)
+[state_machine_node-22] [INFO] [1782933125.830667001] [state_machine_node]: 회피 차선 선호: 빨간 문 door_red_7fcc9e 반대쪽 차선
+[state_machine_node-22] [INFO] [1782933126.643405211] [state_machine_node]: 탐색 waypoint 계획 요청: explore_waypoint_-1.5 (-1.50, -0.35) | 우측 차선 선택 | 빨간 문 door_red_7fcc9e 반대쪽 차선 | LiDAR lane scores: C:y=0.00/clear=3.00/score=2.72, R:y=-0.35/clear=3.00/score=4.01, L:y=0.35/clear=3.00/score=2.98
+[state_machine_node-22] [INFO] [1782933126.644193950] [state_machine_node]: State: EXPLORING → EXPLORING_NAVIGATING
+[navigation_node-20] [INFO] [1782933126.646030478] [navigation_node]: Navigation goal received: door explore_waypoint_-1.5 (color=explore, frame=map, x=-1.50, y=-0.35)
+[navigation_node-20] [INFO] [1782933126.647311611] [navigation_node]: Long goal split: final=(-1.50, -0.35), intermediate=(-1.83, -0.35), remaining=1.54m
+[bt_navigator-14] [INFO] [1782933126.649235406] [bt_navigator]: Begin navigating from current location (-3.00, 0.00) to (-1.83, -0.35)
+[navigation_node-20] [INFO] [1782933126.649302663] [navigation_node]: Navigation goal accepted by Nav2
+[smoother_server-11] [INFO] [1782933126.751185325] [smoother_server]: Received a path to smooth.
+[controller_server-10] [INFO] [1782933126.850684896] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-10] [WARN] [1782933126.850824441] [controller_server]: No goal checker was specified in parameter 'current_goal_checker'. Server will use only plugin loaded general_goal_checker . This warning will appear once.
+[controller_server-10] [INFO] [1782933135.451616669] [controller_server]: Reached the goal!
+[bt_navigator-14] [INFO] [1782933135.650167258] [bt_navigator]: Goal succeeded
+[navigation_node-20] [INFO] [1782933135.651128283] [navigation_node]: Intermediate navigation goal reached. Continuing to final goal.
+[bt_navigator-14] [INFO] [1782933135.652209850] [bt_navigator]: Begin navigating from current location (-2.12, -0.23) to (-1.50, -0.35)
+[navigation_node-20] [INFO] [1782933135.653564963] [navigation_node]: Navigation goal accepted by Nav2
+[smoother_server-11] [INFO] [1782933135.753010124] [smoother_server]: Received a path to smooth.
+[controller_server-10] [INFO] [1782933135.853360125] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-10] [INFO] [1782933139.454177322] [controller_server]: Reached the goal!
+[bt_navigator-14] [INFO] [1782933139.652807603] [bt_navigator]: Goal succeeded
+[navigation_node-20] [INFO] [1782933139.654428608] [navigation_node]: Navigation succeeded.
+[state_machine_node-22] [INFO] [1782933139.655278325] [state_machine_node]: Navigation succeeded.
+[state_machine_node-22] [INFO] [1782933139.721776752] [state_machine_node]: 탐색 waypoint 도착. LiDAR+camera 재스캔을 계속합니다.
+[state_machine_node-22] [INFO] [1782933139.722503981] [state_machine_node]: State: EXPLORING_NAVIGATING → EXPLORING
+[state_machine_node-22] [INFO] [1782933140.644983694] [state_machine_node]: 탐색 waypoint 계획 요청: explore_waypoint_-0.3 (-0.35, 0.35) | 좌측 차선 선택 | 빨간 문 door_red_26967e 반대쪽 차선 | LiDAR lane scores: C:y=0.00/clear=3.00/score=2.70, R:y=-0.35/clear=2.27/score=3.00, L:y=0.35/clear=3.00/score=3.26
+[state_machine_node-22] [INFO] [1782933140.645630336] [state_machine_node]: State: EXPLORING → EXPLORING_NAVIGATING
+[navigation_node-20] [INFO] [1782933140.647119942] [navigation_node]: Navigation goal received: door explore_waypoint_-0.3 (color=explore, frame=map, x=-0.35, y=0.35)
+[navigation_node-20] [INFO] [1782933140.648387684] [navigation_node]: Long goal split: final=(-0.35, 0.35), intermediate=(-0.74, 0.35), remaining=1.63m
+[bt_navigator-14] [INFO] [1782933140.649275917] [bt_navigator]: Begin navigating from current location (-1.85, -0.29) to (-0.74, 0.35)
+[navigation_node-20] [INFO] [1782933140.651279832] [navigation_node]: Navigation goal accepted by Nav2
+[smoother_server-11] [INFO] [1782933140.750421335] [smoother_server]: Received a path to smooth.
+[controller_server-10] [INFO] [1782933140.850160546] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-10] [INFO] [1782933157.751275426] [controller_server]: Reached the goal!
+[bt_navigator-14] [INFO] [1782933157.949667139] [bt_navigator]: Goal succeeded
+[navigation_node-20] [INFO] [1782933157.951230637] [navigation_node]: Intermediate navigation goal reached. Continuing to final goal.
+[bt_navigator-14] [INFO] [1782933157.952408060] [bt_navigator]: Begin navigating from current location (-0.86, 0.25) to (-0.35, 0.35)
+[navigation_node-20] [INFO] [1782933157.953615321] [navigation_node]: Navigation goal accepted by Nav2
+[smoother_server-11] [INFO] [1782933158.053232421] [smoother_server]: Received a path to smooth.
+[controller_server-10] [INFO] [1782933158.153343588] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-10] [INFO] [1782933162.153824745] [controller_server]: Reached the goal!
+[bt_navigator-14] [INFO] [1782933162.353453791] [bt_navigator]: Goal succeeded
+[navigation_node-20] [INFO] [1782933162.354499719] [navigation_node]: Navigation succeeded.
+[state_machine_node-22] [INFO] [1782933162.355968739] [state_machine_node]: Navigation succeeded.
+[state_machine_node-22] [INFO] [1782933163.193799209] [state_machine_node]: 탐색 waypoint 도착. LiDAR+camera 재스캔을 계속합니다.
+[state_machine_node-22] [INFO] [1782933163.194412876] [state_machine_node]: State: EXPLORING_NAVIGATING → EXPLORING
+[state_machine_node-22] [INFO] [1782933164.088859218] [state_machine_node]: 목표 문 door_blue_d32b5f까지 2.5m. 먼 문 직접 접근 대신 LiDAR+camera 재스캔 waypoint로 먼저 접근합니다.
+[state_machine_node-22] [INFO] [1782933164.093352909] [state_machine_node]: 탐색 waypoint 계획 요청: explore_waypoint_0.8 (0.84, -0.35) | 우측 차선 선택 | 전방 중앙 장애물 1.66m, LiDAR 우측 여유 공간 우선 (1.57m) | LiDAR lane scores: R:y=-0.35/clear=1.66/score=9.11, L:y=0.35/clear=1.04/score=0.40, C:y=0.00/clear=1.66/score=0.81 | 가까운 장애물 감지, 우회 차선 우선
+[state_machine_node-22] [INFO] [1782933164.094261728] [state_machine_node]: State: EXPLORING → EXPLORING_NAVIGATING
+[navigation_node-20] [INFO] [1782933164.094805532] [navigation_node]: Navigation goal received: door explore_waypoint_0.8 (color=explore, frame=map, x=0.84, y=-0.35)
+[navigation_node-20] [INFO] [1782933164.096059135] [navigation_node]: Long goal split: final=(0.84, -0.35), intermediate=(0.44, -0.35), remaining=1.64m
+[bt_navigator-14] [INFO] [1782933164.097406453] [bt_navigator]: Begin navigating from current location (-0.66, 0.31) to (0.44, -0.35)
+[navigation_node-20] [INFO] [1782933164.098439779] [navigation_node]: Navigation goal accepted by Nav2
+[smoother_server-11] [INFO] [1782933164.198282986] [smoother_server]: Received a path to smooth.
+[controller_server-10] [INFO] [1782933164.298289221] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-10] [INFO] [1782933181.998934010] [controller_server]: Reached the goal!
+[bt_navigator-14] [INFO] [1782933182.197888561] [bt_navigator]: Goal succeeded
+[navigation_node-20] [INFO] [1782933182.199363293] [navigation_node]: Intermediate navigation goal reached. Continuing to final goal.
+[bt_navigator-14] [INFO] [1782933182.200569521] [bt_navigator]: Begin navigating from current location (0.31, -0.32) to (0.84, -0.35)
+[navigation_node-20] [INFO] [1782933182.201410784] [navigation_node]: Navigation goal accepted by Nav2
+[smoother_server-11] [INFO] [1782933182.301576088] [smoother_server]: Received a path to smooth.
+[controller_server-10] [INFO] [1782933182.401733729] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-10] [INFO] [1782933186.302183301] [controller_server]: Reached the goal!
+[bt_navigator-14] [INFO] [1782933186.501100452] [bt_navigator]: Goal succeeded
+[navigation_node-20] [INFO] [1782933186.502601243] [navigation_node]: Navigation succeeded.
+[state_machine_node-22] [INFO] [1782933186.505319153] [state_machine_node]: Navigation succeeded.
+[state_machine_node-22] [INFO] [1782933186.524951731] [state_machine_node]: 탐색 waypoint 도착. LiDAR+camera 재스캔을 계속합니다.
+[state_machine_node-22] [INFO] [1782933186.525662597] [state_machine_node]: State: EXPLORING_NAVIGATING → EXPLORING
+[state_machine_node-22] [INFO] [1782933187.509531195] [state_machine_node]: LiDAR+camera segment map 사전 스캔 시작: door_blue_d32b5f
+[state_machine_node-22] [INFO] [1782933190.469775446] [state_machine_node]: 사전 스캔 완료. Nav2가 segment map 기반 경로를 계획합니다: door_blue_d32b5f
+[state_machine_node-22] [INFO] [1782933190.470266645] [state_machine_node]: 목표 문: door_blue_d32b5f  개방 완료: 0개  재시도: 0/3
+[state_machine_node-22] [INFO] [1782933190.470898214] [state_machine_node]: State: EXPLORING → NAVIGATING
+[navigation_node-20] [INFO] [1782933190.474635616] [navigation_node]: Navigation goal received: door door_blue_d32b5f (color=blue, frame=map, x=1.55, y=-0.40)
+[bt_navigator-14] [INFO] [1782933190.476262524] [bt_navigator]: Begin navigating from current location (0.44, -0.37) to (1.55, -0.40)
+[navigation_node-20] [INFO] [1782933190.476390217] [navigation_node]: Navigation goal accepted by Nav2
+[smoother_server-11] [INFO] [1782933190.576987417] [smoother_server]: Received a path to smooth.
+[controller_server-10] [INFO] [1782933190.677274628] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-10] [INFO] [1782933199.278078708] [controller_server]: Reached the goal!
+[bt_navigator-14] [INFO] [1782933199.476999345] [bt_navigator]: Goal succeeded
+[navigation_node-20] [INFO] [1782933199.478377020] [navigation_node]: Navigation succeeded.
+[state_machine_node-22] [INFO] [1782933199.479947652] [state_machine_node]: Navigation succeeded.
+[state_machine_node-22] [INFO] [1782933200.010981939] [state_machine_node]: State: NAVIGATING → OPENING_DOOR
+[manipulation_node-21] [INFO] [1782933200.926088014] [manipulation_node]: Open door request: id=door_blue_d32b5f
+[manipulation_node-21] [INFO] [1782933200.926695592] [manipulation_node]: Step 1/4: Moving to pre-grasp position
+[manipulation_node-21] [INFO] [1782933200.927218337] [manipulation_node]:   [SIM] Pre-grasp at (2.747, -1.708, 0.998)
+[manipulation_node-21] [INFO] [1782933201.929018689] [manipulation_node]: Step 2/4: Grasping handle
+[manipulation_node-21] [INFO] [1782933201.929690773] [manipulation_node]:   [SIM] Gripper closing
+[manipulation_node-21] [INFO] [1782933202.430762897] [manipulation_node]: Step 3/4: Pulling door open
+[manipulation_node-21] [INFO] [1782933202.431295462] [manipulation_node]:   [SIM] Pulling door 0.35m
+[manipulation_node-21] [INFO] [1782933203.933507362] [manipulation_node]: Step 4/4: Returning to home position
+[manipulation_node-21] [INFO] [1782933203.934320126] [manipulation_node]:   [SIM] Returning to home position
+[state_machine_node-22] [INFO] [1782933204.935866152] [state_machine_node]: 문 개방 성공: door_blue_d32b5f  누적 개방: 2개
+[state_machine_node-22] [INFO] [1782933204.936380530] [state_machine_node]: State: OPENING_DOOR → DOOR_OPENED
+[state_machine_node-22] [INFO] [1782933205.588675266] [state_machine_node]: 다음 파란 문 탐색 시작 (개방 완료: 2개)
+[state_machine_node-22] [INFO] [1782933205.589111107] [state_machine_node]: State: DOOR_OPENED → EXPLORING
+[state_machine_node-22] [INFO] [1782933206.511302668] [state_machine_node]: 목표 문 door_blue_e98a69까지 4.2m. 먼 문 직접 접근 대신 LiDAR+camera 재스캔 waypoint로 먼저 접근합니다.
+[state_machine_node-22] [INFO] [1782933206.515557663] [state_machine_node]: 탐색 waypoint 계획 요청: explore_waypoint_2.7 (2.75, -0.35) | 우측 차선 선택 | LiDAR 우측 여유 공간 우선 (1.45m) | LiDAR lane scores: C:y=0.00/clear=2.71/score=2.41, R:y=-0.35/clear=2.71/score=3.19, L:y=0.35/clear=3.00/score=2.95
+[state_machine_node-22] [INFO] [1782933206.516596358] [state_machine_node]: State: EXPLORING → EXPLORING_NAVIGATING
+[navigation_node-20] [INFO] [1782933206.517310124] [navigation_node]: Navigation goal received: door explore_waypoint_2.7 (color=explore, frame=map, x=2.75, y=-0.35)
+[navigation_node-20] [INFO] [1782933206.518920537] [navigation_node]: Long goal split: final=(2.75, -0.35), intermediate=(2.45, -0.36), remaining=1.50m
+[bt_navigator-14] [INFO] [1782933206.520294262] [bt_navigator]: Begin navigating from current location (1.25, -0.42) to (2.45, -0.36)
+[navigation_node-20] [INFO] [1782933206.521837763] [navigation_node]: Navigation goal accepted by Nav2
+[smoother_server-11] [INFO] [1782933206.621342777] [smoother_server]: Received a path to smooth.
+[controller_server-10] [INFO] [1782933206.721534609] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-10] [INFO] [1782933215.022021049] [controller_server]: Reached the goal!
+[bt_navigator-14] [INFO] [1782933215.221064166] [bt_navigator]: Goal succeeded
+[navigation_node-20] [INFO] [1782933215.222063303] [navigation_node]: Intermediate navigation goal reached. Continuing to final goal.
+[bt_navigator-14] [INFO] [1782933215.223470186] [bt_navigator]: Begin navigating from current location (2.09, -0.43) to (2.75, -0.35)
+[navigation_node-20] [INFO] [1782933215.225441840] [navigation_node]: Navigation goal accepted by Nav2
+[smoother_server-11] [INFO] [1782933215.324553648] [smoother_server]: Received a path to smooth.
+[controller_server-10] [INFO] [1782933215.424721240] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-10] [INFO] [1782933219.625372681] [controller_server]: Reached the goal!
+[bt_navigator-14] [INFO] [1782933219.824109013] [bt_navigator]: Goal succeeded
+[navigation_node-20] [INFO] [1782933219.825572074] [navigation_node]: Navigation succeeded.
+[state_machine_node-22] [INFO] [1782933219.828563976] [state_machine_node]: Navigation succeeded.
+[state_machine_node-22] [INFO] [1782933220.275449196] [state_machine_node]: 탐색 waypoint 도착. LiDAR+camera 재스캔을 계속합니다.
+[state_machine_node-22] [INFO] [1782933220.276191742] [state_machine_node]: State: EXPLORING_NAVIGATING → EXPLORING
+[state_machine_node-22] [INFO] [1782933221.245680441] [state_machine_node]: 목표 문 door_blue_e98a69까지 3.1m. 먼 문 직접 접근 대신 LiDAR+camera 재스캔 waypoint로 먼저 접근합니다.
+[state_machine_node-22] [INFO] [1782933221.249312836] [state_machine_node]: 탐색 waypoint 계획 요청: explore_waypoint_3.9 (3.87, 0.35) | 좌측 차선 선택 | 전방 우측 장애물 1.54m (lateral=-0.18m) → 좌측 차선 우선 | LiDAR lane scores: L:y=0.35/clear=3.00/score=6.26, C:y=0.00/clear=1.54/score=0.69, R:y=-0.35/clear=1.54/score=1.17
+[state_machine_node-22] [INFO] [1782933221.249796084] [state_machine_node]: State: EXPLORING → EXPLORING_NAVIGATING
+[navigation_node-20] [INFO] [1782933221.250675637] [navigation_node]: Navigation goal received: door explore_waypoint_3.9 (color=explore, frame=map, x=3.87, y=0.35)
+[navigation_node-20] [INFO] [1782933221.252191230] [navigation_node]: Long goal split: final=(3.87, 0.35), intermediate=(3.44, 0.35), remaining=1.68m
+[bt_navigator-14] [INFO] [1782933221.254644671] [bt_navigator]: Begin navigating from current location (2.37, -0.42) to (3.44, 0.35)
+[navigation_node-20] [INFO] [1782933221.255230512] [navigation_node]: Navigation goal accepted by Nav2
+[smoother_server-11] [INFO] [1782933221.355884384] [smoother_server]: Received a path to smooth.
+[controller_server-10] [INFO] [1782933221.455530866] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-10] [WARN] [1782933221.567618876] [controller_server]: Control loop missed its desired rate of 10.0000Hz
+[controller_server-10] [INFO] [1782933281.456089725] [controller_server]: Reached the goal!
+[bt_navigator-14] [INFO] [1782933281.655253500] [bt_navigator]: Goal succeeded
+[navigation_node-20] [INFO] [1782933281.658257702] [navigation_node]: Intermediate navigation goal reached. Continuing to final goal.
+[bt_navigator-14] [INFO] [1782933281.660788803] [bt_navigator]: Begin navigating from current location (2.93, 0.04) to (3.87, 0.35)
+[navigation_node-20] [INFO] [1782933281.662591675] [navigation_node]: Navigation goal accepted by Nav2
+[smoother_server-11] [INFO] [1782933281.761962354] [smoother_server]: Received a path to smooth.
+[controller_server-10] [INFO] [1782933281.861841867] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-10] [INFO] [1782933337.663522084] [controller_server]: Reached the goal!
+[bt_navigator-14] [INFO] [1782933337.861687860] [bt_navigator]: Goal succeeded
+[navigation_node-20] [INFO] [1782933337.863239498] [navigation_node]: Navigation succeeded.
+[state_machine_node-22] [INFO] [1782933337.865935889] [state_machine_node]: Navigation succeeded.
+[state_machine_node-22] [INFO] [1782933338.584651150] [state_machine_node]: 탐색 waypoint 도착. LiDAR+camera 재스캔을 계속합니다.
+[state_machine_node-22] [INFO] [1782933338.585554068] [state_machine_node]: State: EXPLORING_NAVIGATING → EXPLORING
+[state_machine_node-22] [INFO] [1782933339.718451442] [state_machine_node]: 목표 문 door_blue_a64dd5까지 7.6m. 먼 문 직접 접근 대신 LiDAR+camera 재스캔 waypoint로 먼저 접근합니다.
+[state_machine_node-22] [INFO] [1782933339.722971701] [state_machine_node]: 탐색 waypoint 계획 요청: explore_waypoint_5.0 (5.04, 0.35) | 좌측 차선 선택 | 전방 우측 장애물 0.81m (lateral=-0.26m) → 좌측 차선 우선 | LiDAR lane scores: L:y=0.35/clear=3.00/score=6.47, C:y=0.00/clear=0.81/score=-0.03, R:y=-0.35/clear=0.61/score=-1.43
+[state_machine_node-22] [INFO] [1782933339.724131608] [state_machine_node]: State: EXPLORING → EXPLORING_NAVIGATING
+[navigation_node-20] [INFO] [1782933339.725185841] [navigation_node]: Navigation goal received: door explore_waypoint_5.0 (color=explore, frame=map, x=5.04, y=0.35)
+[navigation_node-20] [INFO] [1782933339.726571790] [navigation_node]: Long goal split: final=(5.04, 0.35), intermediate=(4.74, 0.35), remaining=1.51m
+[bt_navigator-14] [INFO] [1782933339.727920562] [bt_navigator]: Begin navigating from current location (3.54, 0.16) to (4.74, 0.35)
+[navigation_node-20] [INFO] [1782933339.729138542] [navigation_node]: Navigation goal accepted by Nav2
+[smoother_server-11] [INFO] [1782933339.829081309] [smoother_server]: Received a path to smooth.
+[controller_server-10] [INFO] [1782933339.929493888] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-10] [INFO] [1782933359.530237347] [controller_server]: Reached the goal!
+[bt_navigator-14] [INFO] [1782933359.728546109] [bt_navigator]: Goal succeeded
+[navigation_node-20] [INFO] [1782933359.729500316] [navigation_node]: Intermediate navigation goal reached. Continuing to final goal.
+[bt_navigator-14] [INFO] [1782933359.731434567] [bt_navigator]: Begin navigating from current location (4.62, 0.21) to (5.04, 0.35)
+[navigation_node-20] [INFO] [1782933359.733030419] [navigation_node]: Navigation goal accepted by Nav2
+[smoother_server-11] [INFO] [1782933359.832737327] [smoother_server]: Received a path to smooth.
+[controller_server-10] [INFO] [1782933359.932449860] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-10] [INFO] [1782933361.633106860] [controller_server]: Reached the goal!
+[bt_navigator-14] [INFO] [1782933361.832188077] [bt_navigator]: Goal succeeded
+[navigation_node-20] [INFO] [1782933361.833681140] [navigation_node]: Navigation succeeded.
+[state_machine_node-22] [INFO] [1782933361.835638344] [state_machine_node]: Navigation succeeded.
+[state_machine_node-22] [INFO] [1782933362.259664374] [state_machine_node]: 탐색 waypoint 도착. LiDAR+camera 재스캔을 계속합니다.
+[state_machine_node-22] [INFO] [1782933362.260720321] [state_machine_node]: State: EXPLORING_NAVIGATING → EXPLORING
+[state_machine_node-22] [INFO] [1782933363.395236393] [state_machine_node]: 목표 문 door_blue_a64dd5까지 6.5m. 먼 문 직접 접근 대신 LiDAR+camera 재스캔 waypoint로 먼저 접근합니다.
+[state_machine_node-22] [INFO] [1782933363.400075418] [state_machine_node]: 탐색 waypoint 계획 요청: explore_waypoint_6.2 (6.19, -0.35) | 우측 차선 선택 | LiDAR 우측 여유 공간 우선 (2.03m) | LiDAR lane scores: C:y=0.00/clear=3.00/score=2.71, R:y=-0.35/clear=3.00/score=3.27, L:y=0.35/clear=1.68/score=1.30
+[state_machine_node-22] [INFO] [1782933363.400788997] [state_machine_node]: State: EXPLORING → EXPLORING_NAVIGATING
+[navigation_node-20] [INFO] [1782933363.402366242] [navigation_node]: Navigation goal received: door explore_waypoint_6.2 (color=explore, frame=map, x=6.19, y=-0.35)
+[navigation_node-20] [INFO] [1782933363.404896478] [navigation_node]: Long goal split: final=(6.19, -0.35), intermediate=(5.82, -0.35), remaining=1.59m
+[bt_navigator-14] [INFO] [1782933363.406733226] [bt_navigator]: Begin navigating from current location (4.69, 0.18) to (5.82, -0.35)
+[navigation_node-20] [INFO] [1782933363.409151026] [navigation_node]: Navigation goal accepted by Nav2
+[smoother_server-11] [INFO] [1782933363.507639584] [smoother_server]: Received a path to smooth.
+[controller_server-10] [INFO] [1782933363.608897612] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-10] [INFO] [1782933378.409588680] [controller_server]: Reached the goal!
+[bt_navigator-14] [INFO] [1782933378.607764329] [bt_navigator]: Goal succeeded
+[navigation_node-20] [INFO] [1782933378.608369005] [navigation_node]: Intermediate navigation goal reached. Continuing to final goal.
+[bt_navigator-14] [INFO] [1782933378.610204849] [bt_navigator]: Begin navigating from current location (5.63, -0.27) to (6.19, -0.35)
+[navigation_node-20] [INFO] [1782933378.612167961] [navigation_node]: Navigation goal accepted by Nav2
+[smoother_server-11] [INFO] [1782933378.711157378] [smoother_server]: Received a path to smooth.
+[controller_server-10] [INFO] [1782933378.761416740] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-10] [INFO] [1782933382.762009556] [controller_server]: Reached the goal!
+[bt_navigator-14] [INFO] [1782933382.961032662] [bt_navigator]: Goal succeeded
+[navigation_node-20] [INFO] [1782933382.961975369] [navigation_node]: Navigation succeeded.
+[state_machine_node-22] [INFO] [1782933382.963370861] [state_machine_node]: Navigation succeeded.
+[state_machine_node-22] [INFO] [1782933383.379777453] [state_machine_node]: 탐색 waypoint 도착. LiDAR+camera 재스캔을 계속합니다.
+[state_machine_node-22] [INFO] [1782933383.380680816] [state_machine_node]: State: EXPLORING_NAVIGATING → EXPLORING
+[state_machine_node-22] [INFO] [1782933384.497994641] [state_machine_node]: 목표 문 door_blue_a64dd5까지 5.4m. 먼 문 직접 접근 대신 LiDAR+camera 재스캔 waypoint로 먼저 접근합니다.
+[state_machine_node-22] [INFO] [1782933384.503350614] [state_machine_node]: 탐색 waypoint 계획 요청: explore_waypoint_7.3 (7.33, -0.35) | 우측 차선 선택 | LiDAR 우측 여유 공간 우선 (1.44m) | LiDAR lane scores: C:y=0.00/clear=3.00/score=2.70, R:y=-0.35/clear=3.00/score=3.48, L:y=0.35/clear=3.00/score=2.96
+[state_machine_node-22] [INFO] [1782933384.505099486] [state_machine_node]: State: EXPLORING → EXPLORING_NAVIGATING
+[navigation_node-20] [INFO] [1782933384.505116859] [navigation_node]: Navigation goal received: door explore_waypoint_7.3 (color=explore, frame=map, x=7.33, y=-0.35)
+[navigation_node-20] [INFO] [1782933384.507328936] [navigation_node]: Long goal split: final=(7.33, -0.35), intermediate=(7.03, -0.35), remaining=1.50m
+[bt_navigator-14] [INFO] [1782933384.509650409] [bt_navigator]: Begin navigating from current location (5.83, -0.32) to (7.03, -0.35)
+[navigation_node-20] [INFO] [1782933384.509927192] [navigation_node]: Navigation goal accepted by Nav2
+[smoother_server-11] [INFO] [1782933384.560444302] [smoother_server]: Received a path to smooth.
+[controller_server-10] [INFO] [1782933384.660533092] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-10] [INFO] [1782933394.061325289] [controller_server]: Reached the goal!
+[bt_navigator-14] [INFO] [1782933394.260132615] [bt_navigator]: Goal succeeded
+[navigation_node-20] [INFO] [1782933394.261862406] [navigation_node]: Intermediate navigation goal reached. Continuing to final goal.
+[bt_navigator-14] [INFO] [1782933394.263725280] [bt_navigator]: Begin navigating from current location (6.67, -0.36) to (7.33, -0.35)
+[navigation_node-20] [INFO] [1782933394.265757436] [navigation_node]: Navigation goal accepted by Nav2
+[smoother_server-11] [INFO] [1782933394.364682441] [smoother_server]: Received a path to smooth.
+[controller_server-10] [INFO] [1782933394.415076078] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-10] [INFO] [1782933399.615958449] [controller_server]: Reached the goal!
+[bt_navigator-14] [INFO] [1782933399.814623429] [bt_navigator]: Goal succeeded
+[navigation_node-20] [INFO] [1782933399.815784899] [navigation_node]: Navigation succeeded.
+[state_machine_node-22] [INFO] [1782933399.816751993] [state_machine_node]: Navigation succeeded.
+[state_machine_node-22] [INFO] [1782933399.906934670] [state_machine_node]: 탐색 waypoint 도착. LiDAR+camera 재스캔을 계속합니다.
+[state_machine_node-22] [INFO] [1782933399.907619303] [state_machine_node]: State: EXPLORING_NAVIGATING → EXPLORING
+[state_machine_node-22] [INFO] [1782933401.011413609] [state_machine_node]: 목표 문 door_blue_a64dd5까지 4.2m. 먼 문 직접 접근 대신 LiDAR+camera 재스캔 waypoint로 먼저 접근합니다.
+[state_machine_node-22] [INFO] [1782933401.015808618] [state_machine_node]: 탐색 waypoint 계획 요청: explore_waypoint_8.5 (8.52, -0.35) | 우측 차선 선택 | LiDAR 우측 여유 공간 우선 (1.55m) | LiDAR lane scores: C:y=0.00/clear=2.76/score=2.45, R:y=-0.35/clear=2.68/score=3.16, L:y=0.35/clear=3.00/score=2.95
+[state_machine_node-22] [INFO] [1782933401.017223549] [state_machine_node]: State: EXPLORING → EXPLORING_NAVIGATING
+[navigation_node-20] [INFO] [1782933401.018709539] [navigation_node]: Navigation goal received: door explore_waypoint_8.5 (color=explore, frame=map, x=8.52, y=-0.35)
+[navigation_node-20] [INFO] [1782933401.020663304] [navigation_node]: Long goal split: final=(8.52, -0.35), intermediate=(8.22, -0.36), remaining=1.50m
+[bt_navigator-14] [INFO] [1782933401.021843298] [bt_navigator]: Begin navigating from current location (7.02, -0.41) to (8.22, -0.36)
+[navigation_node-20] [INFO] [1782933401.023582742] [navigation_node]: Navigation goal accepted by Nav2
+[smoother_server-11] [INFO] [1782933401.123088816] [smoother_server]: Received a path to smooth.
+[controller_server-10] [INFO] [1782933401.223115954] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-10] [INFO] [1782933410.223917775] [controller_server]: Reached the goal!
+[bt_navigator-14] [INFO] [1782933410.422480980] [bt_navigator]: Goal succeeded
+[navigation_node-20] [INFO] [1782933410.424197913] [navigation_node]: Intermediate navigation goal reached. Continuing to final goal.
+[bt_navigator-14] [INFO] [1782933410.425569864] [bt_navigator]: Begin navigating from current location (7.87, -0.40) to (8.52, -0.35)
+[navigation_node-20] [INFO] [1782933410.429712768] [navigation_node]: Navigation goal accepted by Nav2
+[smoother_server-11] [INFO] [1782933410.526994955] [smoother_server]: Received a path to smooth.
+[controller_server-10] [INFO] [1782933410.626461037] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-10] [INFO] [1782933415.027051921] [controller_server]: Reached the goal!
+[bt_navigator-14] [INFO] [1782933415.226126331] [bt_navigator]: Goal succeeded
+[navigation_node-20] [INFO] [1782933415.229093877] [navigation_node]: Navigation succeeded.
+[state_machine_node-22] [INFO] [1782933415.230374561] [state_machine_node]: Navigation succeeded.
+[state_machine_node-22] [INFO] [1782933415.848967631] [state_machine_node]: 탐색 waypoint 도착. LiDAR+camera 재스캔을 계속합니다.
+[state_machine_node-22] [INFO] [1782933415.849607247] [state_machine_node]: State: EXPLORING_NAVIGATING → EXPLORING
+[state_machine_node-22] [INFO] [1782933416.880796278] [state_machine_node]: 목표 문 door_blue_a64dd5까지 3.1m. 먼 문 직접 접근 대신 LiDAR+camera 재스캔 waypoint로 먼저 접근합니다.
+[state_machine_node-22] [INFO] [1782933416.884535506] [state_machine_node]: 탐색 waypoint 계획 요청: explore_waypoint_9.7 (9.65, 0.35) | 좌측 차선 선택 | 전방 우측 장애물 1.56m (lateral=-0.46m) → 좌측 차선 우선 | LiDAR lane scores: L:y=0.35/clear=3.00/score=6.26, C:y=0.00/clear=1.57/score=0.71, R:y=-0.35/clear=1.56/score=1.19
+[state_machine_node-22] [INFO] [1782933416.885482447] [state_machine_node]: State: EXPLORING → EXPLORING_NAVIGATING
+[navigation_node-20] [INFO] [1782933416.885661066] [navigation_node]: Navigation goal received: door explore_waypoint_9.7 (color=explore, frame=map, x=9.65, y=0.35)
+[navigation_node-20] [INFO] [1782933416.886687647] [navigation_node]: Long goal split: final=(9.65, 0.35), intermediate=(9.23, 0.35), remaining=1.67m
+[bt_navigator-14] [INFO] [1782933416.888314610] [bt_navigator]: Begin navigating from current location (8.15, -0.39) to (9.23, 0.35)
+[navigation_node-20] [INFO] [1782933416.891028302] [navigation_node]: Navigation goal accepted by Nav2
+[smoother_server-11] [INFO] [1782933416.989480841] [smoother_server]: Received a path to smooth.
+[controller_server-10] [INFO] [1782933417.089184382] [controller_server]: Received a goal, begin computing control effort.
+[state_machine_node-22] [INFO] [1782933421.376800059] [state_machine_node]: 비상구 탐지: door_green_91ac0d (10.4, 0.3)
+[controller_server-10] [INFO] [1782933470.789990215] [controller_server]: Reached the goal!
+[bt_navigator-14] [INFO] [1782933470.989019725] [bt_navigator]: Goal succeeded
+[navigation_node-20] [INFO] [1782933470.990517616] [navigation_node]: Intermediate navigation goal reached. Continuing to final goal.
+[bt_navigator-14] [INFO] [1782933470.992220098] [bt_navigator]: Begin navigating from current location (8.68, -0.31) to (9.65, 0.35)
+[navigation_node-20] [INFO] [1782933470.993549123] [navigation_node]: Navigation goal accepted by Nav2
+[smoother_server-11] [INFO] [1782933471.093820964] [smoother_server]: Received a path to smooth.
+[controller_server-10] [INFO] [1782933471.193565746] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-10] [INFO] [1782933496.594447854] [controller_server]: Reached the goal!
+[bt_navigator-14] [INFO] [1782933496.792739246] [bt_navigator]: Goal succeeded
+[navigation_node-20] [INFO] [1782933496.794676726] [navigation_node]: Navigation succeeded.
+[state_machine_node-22] [INFO] [1782933496.796618113] [state_machine_node]: Navigation succeeded.
+[state_machine_node-22] [INFO] [1782933497.499992568] [state_machine_node]: 탐색 waypoint 도착. LiDAR+camera 재스캔을 계속합니다.
+[state_machine_node-22] [INFO] [1782933497.500398222] [state_machine_node]: State: EXPLORING_NAVIGATING → EXPLORING
+[state_machine_node-22] [INFO] [1782933498.498165012] [state_machine_node]: LiDAR+camera segment map 사전 스캔 시작: door_blue_b59ef3
+[state_machine_node-22] [INFO] [1782933501.356672721] [state_machine_node]: 사전 스캔 완료. Nav2가 segment map 기반 경로를 계획합니다: door_blue_b59ef3
+[state_machine_node-22] [INFO] [1782933501.357137625] [state_machine_node]: 목표 문: door_blue_b59ef3  개방 완료: 2개  재시도: 0/3
+[state_machine_node-22] [INFO] [1782933501.357640880] [state_machine_node]: State: EXPLORING → NAVIGATING
+[navigation_node-20] [INFO] [1782933501.360034119] [navigation_node]: Navigation goal received: door door_blue_b59ef3 (color=blue, frame=map, x=9.35, y=0.40)
+[bt_navigator-14] [INFO] [1782933501.363071132] [bt_navigator]: Begin navigating from current location (9.76, 0.34) to (9.35, 0.40)
+[navigation_node-20] [INFO] [1782933501.363285254] [navigation_node]: Navigation goal accepted by Nav2
+[smoother_server-11] [INFO] [1782933501.464512618] [smoother_server]: Received a path to smooth.
+[controller_server-10] [INFO] [1782933501.564843869] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-10] [INFO] [1782933556.665614412] [controller_server]: Reached the goal!
+[bt_navigator-14] [INFO] [1782933556.863575914] [bt_navigator]: Goal succeeded
+[navigation_node-20] [INFO] [1782933556.865186495] [navigation_node]: Navigation succeeded.
+[state_machine_node-22] [INFO] [1782933556.866822890] [state_machine_node]: Navigation succeeded.
+[state_machine_node-22] [INFO] [1782933557.534618500] [state_machine_node]: State: NAVIGATING → OPENING_DOOR
+[manipulation_node-21] [INFO] [1782933558.527278248] [manipulation_node]: Open door request: id=door_blue_b59ef3
+[manipulation_node-21] [INFO] [1782933558.527804961] [manipulation_node]: Step 1/4: Moving to pre-grasp position
+[manipulation_node-21] [INFO] [1782933558.528132863] [manipulation_node]:   [SIM] Pre-grasp at (10.301, 0.365, 0.998)
+[manipulation_node-21] [INFO] [1782933559.529745910] [manipulation_node]: Step 2/4: Grasping handle
+[manipulation_node-21] [INFO] [1782933559.530332913] [manipulation_node]:   [SIM] Gripper closing
+[manipulation_node-21] [INFO] [1782933560.031686141] [manipulation_node]: Step 3/4: Pulling door open
+[manipulation_node-21] [INFO] [1782933560.032407344] [manipulation_node]:   [SIM] Pulling door 0.35m
+[manipulation_node-21] [INFO] [1782933561.534573228] [manipulation_node]: Step 4/4: Returning to home position
+[manipulation_node-21] [INFO] [1782933561.535061542] [manipulation_node]:   [SIM] Returning to home position
+[state_machine_node-22] [INFO] [1782933562.538188492] [state_machine_node]: 문 개방 성공: door_blue_b59ef3  누적 개방: 7개
+[state_machine_node-22] [INFO] [1782933562.538928300] [state_machine_node]: State: OPENING_DOOR → DOOR_OPENED
+[state_machine_node-22] [INFO] [1782933563.303198165] [state_machine_node]: 다음 파란 문 탐색 시작 (개방 완료: 7개)
+[state_machine_node-22] [INFO] [1782933563.303994157] [state_machine_node]: State: DOOR_OPENED → EXPLORING
+[state_machine_node-22] [INFO] [1782933564.258217743] [state_machine_node]: 뒤쪽/중복 파란 문 후보 3개 무시 (다음 목표 x > 12.92 대기)
+[state_machine_node-22] [INFO] [1782933564.263929342] [state_machine_node]: 탐색 waypoint 계획 요청: explore_waypoint_10.8 (10.84, -0.35) | 우측 차선 선택 | 전방 좌측 장애물 1.85m (lateral=0.47m) → 우측 차선 우선 | LiDAR lane scores: R:y=-0.35/clear=3.00/score=6.79, L:y=0.35/clear=1.49/score=1.10, C:y=0.00/clear=2.30/score=1.97
+[state_machine_node-22] [INFO] [1782933564.264465167] [state_machine_node]: State: EXPLORING → EXPLORING_NAVIGATING
+[navigation_node-20] [INFO] [1782933564.265606787] [navigation_node]: Navigation goal received: door explore_waypoint_10.8 (color=explore, frame=map, x=10.84, y=-0.35)
+[navigation_node-20] [INFO] [1782933564.268904649] [navigation_node]: Long goal split: final=(10.84, -0.35), intermediate=(10.31, -0.35), remaining=1.85m
+[bt_navigator-14] [INFO] [1782933564.270824470] [bt_navigator]: Begin navigating from current location (9.34, 0.73) to (10.31, -0.35)
+[navigation_node-20] [INFO] [1782933564.271269314] [navigation_node]: Navigation goal accepted by Nav2
+[smoother_server-11] [INFO] [1782933564.372682568] [smoother_server]: Received a path to smooth.
+[controller_server-10] [INFO] [1782933564.472124195] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-10] [INFO] [1782933601.572761724] [controller_server]: Reached the goal!
+[bt_navigator-14] [INFO] [1782933601.771312482] [bt_navigator]: Goal succeeded
+[navigation_node-20] [INFO] [1782933601.774117080] [navigation_node]: Intermediate navigation goal reached. Continuing to final goal.
+[bt_navigator-14] [INFO] [1782933601.775728727] [bt_navigator]: Begin navigating from current location (10.51, -0.60) to (10.84, -0.35)
+[navigation_node-20] [INFO] [1782933601.776839612] [navigation_node]: Navigation goal accepted by Nav2
+[smoother_server-11] [INFO] [1782933601.877034860] [smoother_server]: Received a path to smooth.
+[controller_server-10] [INFO] [1782933601.977999232] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-10] [INFO] [1782933604.578624688] [controller_server]: Reached the goal!
+[bt_navigator-14] [INFO] [1782933604.776721615] [bt_navigator]: Goal succeeded
+[navigation_node-20] [INFO] [1782933604.777894528] [navigation_node]: Navigation succeeded.
+[state_machine_node-22] [INFO] [1782933604.780288086] [state_machine_node]: Navigation succeeded.
+[state_machine_node-22] [INFO] [1782933604.930620842] [state_machine_node]: 탐색 waypoint 도착. LiDAR+camera 재스캔을 계속합니다.
+[state_machine_node-22] [INFO] [1782933604.931618813] [state_machine_node]: State: EXPLORING_NAVIGATING → EXPLORING
+[state_machine_node-22] [INFO] [1782933605.965007159] [state_machine_node]: 탐색 waypoint 계획 요청: explore_waypoint_12.1 (12.07, 0.35) | 좌측 차선 선택 | 전방 우측 장애물 0.85m (lateral=-0.14m) → 좌측 차선 우선 | LiDAR lane scores: L:y=0.35/clear=0.85/score=3.55, R:y=-0.35/clear=0.85/score=1.01, C:y=0.00/clear=0.85/score=-0.02 | 가까운 장애물 감지, 우회 차선 우선
+[state_machine_node-22] [INFO] [1782933605.965954404] [state_machine_node]: State: EXPLORING → EXPLORING_NAVIGATING
+[navigation_node-20] [INFO] [1782933605.966621282] [navigation_node]: Navigation goal received: door explore_waypoint_12.1 (color=explore, frame=map, x=12.07, y=0.35)
+[navigation_node-20] [INFO] [1782933605.967645362] [navigation_node]: Long goal split: final=(12.07, 0.35), intermediate=(11.57, 0.35), remaining=1.78m
+[bt_navigator-14] [INFO] [1782933605.968723776] [bt_navigator]: Begin navigating from current location (10.53, -0.55) to (11.57, 0.35)
+[navigation_node-20] [INFO] [1782933605.968946863] [navigation_node]: Navigation goal accepted by Nav2
+[smoother_server-11] [INFO] [1782933606.069743839] [smoother_server]: Received a path to smooth.
+[controller_server-10] [INFO] [1782933606.169901697] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-10] [WARN] [1782933650.470405592] [controller_server]: Resulting plan has 0 poses in it.
+[controller_server-10] [WARN] [1782933650.570426873] [controller_server]: Resulting plan has 0 poses in it.
+[controller_server-10] [WARN] [1782933650.670386561] [controller_server]: Resulting plan has 0 poses in it.
+[controller_server-10] [WARN] [1782933650.770336823] [controller_server]: Resulting plan has 0 poses in it.
+[controller_server-10] [WARN] [1782933650.870296624] [controller_server]: Resulting plan has 0 poses in it.
+[controller_server-10] [WARN] [1782933650.970347078] [controller_server]: Resulting plan has 0 poses in it.
+[controller_server-10] [WARN] [1782933651.070344492] [controller_server]: Resulting plan has 0 poses in it.
+[controller_server-10] [WARN] [1782933651.170367270] [controller_server]: Resulting plan has 0 poses in it.
+[controller_server-10] [WARN] [1782933651.270329318] [controller_server]: Resulting plan has 0 poses in it.
+[controller_server-10] [WARN] [1782933651.370335781] [controller_server]: Resulting plan has 0 poses in it.
+[controller_server-10] [WARN] [1782933651.470318573] [controller_server]: Resulting plan has 0 poses in it.
+[controller_server-10] [WARN] [1782933651.570399103] [controller_server]: Resulting plan has 0 poses in it.
+[controller_server-10] [WARN] [1782933651.670344856] [controller_server]: Resulting plan has 0 poses in it.
+[controller_server-10] [WARN] [1782933651.770372265] [controller_server]: Resulting plan has 0 poses in it.
+[controller_server-10] [WARN] [1782933651.870332315] [controller_server]: Resulting plan has 0 poses in it.
+[controller_server-10] [WARN] [1782933651.970363089] [controller_server]: Resulting plan has 0 poses in it.
+[controller_server-10] [WARN] [1782933652.070343747] [controller_server]: Resulting plan has 0 poses in it.
+[controller_server-10] [WARN] [1782933652.170351889] [controller_server]: Resulting plan has 0 poses in it.
+[controller_server-10] [WARN] [1782933652.270279956] [controller_server]: Resulting plan has 0 poses in it.
+[controller_server-10] [WARN] [1782933652.370304852] [controller_server]: Resulting plan has 0 poses in it.
+[controller_server-10] [WARN] [1782933652.470412894] [controller_server]: Resulting plan has 0 poses in it.
+[controller_server-10] [WARN] [1782933652.570278606] [controller_server]: Resulting plan has 0 poses in it.
+[controller_server-10] [ERROR] [1782933652.570429358] [controller_server]: Controller patience exceeded
+[controller_server-10] [WARN] [1782933652.570703167] [controller_server]: [follow_path] [ActionServer] Aborting handle.
+[controller_server-10] [INFO] [1782933652.669382865] [local_costmap.local_costmap]: Received request to clear entirely the local_costmap
+[controller_server-10] [INFO] [1782933652.670779493] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-10] [WARN] [1782933652.771617018] [controller_server]: Control loop missed its desired rate of 10.0000Hz
+[controller_server-10] [WARN] [1782933652.894525448] [controller_server]: Control loop missed its desired rate of 10.0000Hz
+[controller_server-10] [WARN] [1782933654.203873616] [controller_server]: Control loop missed its desired rate of 10.0000Hz
+[controller_server-10] [WARN] [1782933654.296058243] [controller_server]: Control loop missed its desired rate of 10.0000Hz
+[controller_server-10] [INFO] [1782933721.371422678] [controller_server]: Reached the goal!
+[bt_navigator-14] [INFO] [1782933721.569669465] [bt_navigator]: Goal succeeded
+[navigation_node-20] [INFO] [1782933721.570216085] [navigation_node]: Intermediate navigation goal reached. Continuing to final goal.
+[bt_navigator-14] [INFO] [1782933721.572025167] [bt_navigator]: Begin navigating from current location (11.34, 0.17) to (12.07, 0.35)
+[navigation_node-20] [INFO] [1782933721.576250928] [navigation_node]: Navigation goal accepted by Nav2
+[smoother_server-11] [INFO] [1782933721.673181425] [smoother_server]: Received a path to smooth.
+[controller_server-10] [INFO] [1782933721.773564643] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-10] [INFO] [1782933727.774483188] [controller_server]: Reached the goal!
+[bt_navigator-14] [INFO] [1782933727.973068221] [bt_navigator]: Goal succeeded
+[navigation_node-20] [INFO] [1782933727.973807532] [navigation_node]: Navigation succeeded.
+[state_machine_node-22] [INFO] [1782933727.975537657] [state_machine_node]: Navigation succeeded.
+[state_machine_node-22] [INFO] [1782933728.947061317] [state_machine_node]: 탐색 waypoint 도착. LiDAR+camera 재스캔을 계속합니다.
+[state_machine_node-22] [INFO] [1782933728.947920805] [state_machine_node]: State: EXPLORING_NAVIGATING → EXPLORING
+[state_machine_node-22] [INFO] [1782933729.973986720] [state_machine_node]: 목표 문 door_blue_45fbff까지 5.3m. 먼 문 직접 접근 대신 LiDAR+camera 재스캔 waypoint로 먼저 접근합니다.
+[state_machine_node-22] [INFO] [1782933729.978796874] [state_machine_node]: 탐색 waypoint 계획 요청: explore_waypoint_13.3 (13.26, -0.35) | 우측 차선 선택 | LiDAR 우측 여유 공간 우선 (2.55m) | LiDAR lane scores: C:y=0.00/clear=2.64/score=2.35, R:y=-0.35/clear=2.68/score=2.95, L:y=0.35/clear=2.64/score=2.82
+[state_machine_node-22] [INFO] [1782933729.979631325] [state_machine_node]: State: EXPLORING → EXPLORING_NAVIGATING
+[navigation_node-20] [INFO] [1782933729.980287502] [navigation_node]: Navigation goal received: door explore_waypoint_13.3 (color=explore, frame=map, x=13.26, y=-0.35)
+[navigation_node-20] [INFO] [1782933729.981880577] [navigation_node]: Long goal split: final=(13.26, -0.35), intermediate=(12.87, -0.35), remaining=1.61m
+[bt_navigator-14] [INFO] [1782933729.983176303] [bt_navigator]: Begin navigating from current location (11.76, 0.24) to (12.87, -0.35)
+[navigation_node-20] [INFO] [1782933729.985376651] [navigation_node]: Navigation goal accepted by Nav2
+[smoother_server-11] [INFO] [1782933730.083929420] [smoother_server]: Received a path to smooth.
+[controller_server-10] [INFO] [1782933730.184035359] [controller_server]: Received a goal, begin computing control effort.
+[controller_server-10] [INFO] [1782933822.384703534] [controller_server]: Reached the goal!
+[bt_navigator-14] [INFO] [1782933822.583852813] [bt_navigator]: Goal succeeded
+[navigation_node-20] [INFO] [1782933822.586678338] [navigation_node]: Intermediate navigation goal reached. Continuing to final goal.
+[bt_navigator-14] [INFO] [1782933822.588888788] [bt_navigator]: Begin navigating from current location (12.81, -0.46) to (13.26, -0.35)
+[navigation_node-20] [INFO] [1782933822.589220898] [navigation_node]: Navigation goal accepted by Nav2
+[smoother_server-11] [INFO] [1782933822.690200913] [smoother_server]: Received a path to smooth.
+[controller_server-10] [INFO] [1782933822.790082796] [controller_server]: Received a goal, begin computing control effort.
+[state_machine_node-22] [WARN] [1782933856.864538348] [state_machine_node]: 탐색 waypoint 이동 timeout (60.5s). 반대 차선으로 다시 스캔합니다.
+[state_machine_node-22] [INFO] [1782933856.865956150] [state_machine_node]: 다음 탐색 waypoint는 좌측 차선을 우선합니다.
+[state_machine_node-22] [INFO] [1782933856.866695837] [state_machine_node]: State: EXPLORING_NAVIGATING → EXPLORING
+[state_machine_node-22] [INFO] [1782933857.905930533] [state_machine_node]: Nav2 목표 대기: 진행 방향 정렬 중 (heading_error=87deg)
+[state_machine_node-22] [INFO] [1782933857.907950960] [state_machine_node]: 회피 차선 선호: 가장 가까운 파란 문 door_blue_3be043 쪽 차선 고정
+[state_machine_node-22] [INFO] [1782933884.622473409] [state_machine_node]: LiDAR+camera segment map 사전 스캔 시작: door_blue_3be043
+[state_machine_node-22] [INFO] [1782933887.689143317] [state_machine_node]: 사전 스캔 완료. Nav2가 segment map 기반 경로를 계획합니다: door_blue_3be043
+[state_machine_node-22] [INFO] [1782933887.689564743] [state_machine_node]: 목표 문: door_blue_3be043  개방 완료: 7개  재시도: 0/3
+[state_machine_node-22] [INFO] [1782933887.690386167] [state_machine_node]: State: EXPLORING → NAVIGATING
+[navigation_node-20] [WARN] [1782933887.690916549] [navigation_node]: Already navigating. Cancelling current goal to go to: door_blue_3be043
+[navigation_node-20] [INFO] [1782933887.691627450] [navigation_node]: Navigation goal received: door door_blue_3be043 (color=blue, frame=map, x=13.61, y=-0.40)
+[navigation_node-20] [INFO] [1782933887.694235883] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933887.739228678] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933887.739882035] [bt_navigator]: Begin navigating from current location (13.51, -0.60) to (13.61, -0.40)
+[navigation_node-20] [WARN] [1782933887.744096424] [navigation_node]: Nav2 failed with status 6, but robot is 0.22m from final goal. Treating navigation as succeeded.
+[state_machine_node-22] [INFO] [1782933887.745427600] [state_machine_node]: Navigation succeeded.
+[state_machine_node-22] [INFO] [1782933888.662525374] [state_machine_node]: State: NAVIGATING → OPENING_DOOR
+[manipulation_node-21] [INFO] [1782933889.677440251] [manipulation_node]: Open door request: id=door_blue_3be043
+[manipulation_node-21] [INFO] [1782933889.678282587] [manipulation_node]: Step 1/4: Moving to pre-grasp position
+[manipulation_node-21] [INFO] [1782933889.678990225] [manipulation_node]:   [SIM] Pre-grasp at (13.641, -2.932, 0.998)
+[manipulation_node-21] [INFO] [1782933890.680530786] [manipulation_node]: Step 2/4: Grasping handle
+[manipulation_node-21] [INFO] [1782933890.681245307] [manipulation_node]:   [SIM] Gripper closing
+[manipulation_node-21] [INFO] [1782933891.182397697] [manipulation_node]: Step 3/4: Pulling door open
+[manipulation_node-21] [INFO] [1782933891.182818618] [manipulation_node]:   [SIM] Pulling door 0.35m
+[manipulation_node-21] [INFO] [1782933892.683397411] [manipulation_node]: Step 4/4: Returning to home position
+[manipulation_node-21] [INFO] [1782933892.684294993] [manipulation_node]:   [SIM] Returning to home position
+[state_machine_node-22] [INFO] [1782933893.687525473] [state_machine_node]: 문 개방 성공: door_blue_3be043  누적 개방: 8개
+[state_machine_node-22] [INFO] [1782933893.688037789] [state_machine_node]: State: OPENING_DOOR → DOOR_OPENED
+[state_machine_node-22] [INFO] [1782933894.478571445] [state_machine_node]: 다음 파란 문 탐색 시작 (개방 완료: 8개)
+[state_machine_node-22] [INFO] [1782933894.479276273] [state_machine_node]: State: DOOR_OPENED → EXPLORING
+[state_machine_node-22] [INFO] [1782933895.494956238] [state_machine_node]: 탐색 waypoint 계획 요청: explore_waypoint_14.9 (14.94, -0.35) | 우측 차선 선택 | 빨간 문 door_red_7fcc9e 반대쪽 차선 | LiDAR lane scores: C:y=0.00/clear=3.00/score=2.68, R:y=-0.35/clear=3.00/score=3.71, L:y=0.35/clear=3.00/score=3.24
+[state_machine_node-22] [INFO] [1782933895.495932180] [state_machine_node]: State: EXPLORING → EXPLORING_NAVIGATING
+[navigation_node-20] [INFO] [1782933895.496864879] [navigation_node]: Navigation goal received: door explore_waypoint_14.9 (color=explore, frame=map, x=14.94, y=-0.35)
+[navigation_node-20] [INFO] [1782933895.497974714] [navigation_node]: Long goal split: final=(14.94, -0.35), intermediate=(14.62, -0.41), remaining=1.53m
+[navigation_node-20] [INFO] [1782933895.499970797] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933895.539156907] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933895.540032474] [bt_navigator]: Begin navigating from current location (13.44, -0.61) to (14.62, -0.41)
+[navigation_node-20] [WARN] [1782933895.540981791] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933895.542392767] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [INFO] [1782933896.510302817] [state_machine_node]: 다음 탐색 waypoint는 좌측 차선을 우선합니다.
+[state_machine_node-22] [WARN] [1782933896.511043502] [state_machine_node]: 탐색 waypoint 이동 실패. 반대 차선 우선으로 재스캔합니다.
+[state_machine_node-22] [INFO] [1782933896.511592477] [state_machine_node]: State: EXPLORING_NAVIGATING → EXPLORING
+[state_machine_node-22] [INFO] [1782933897.524978344] [state_machine_node]: 탐색 waypoint 계획 요청: explore_waypoint_14.9 (14.87, -0.35) | 우측 차선 선택 | 빨간 문 door_red_7fcc9e 반대쪽 차선 | LiDAR lane scores: C:y=0.00/clear=2.78/score=2.46, R:y=-0.35/clear=3.00/score=3.84, L:y=0.35/clear=2.84/score=2.97
+[state_machine_node-22] [INFO] [1782933897.525508176] [state_machine_node]: State: EXPLORING → EXPLORING_NAVIGATING
+[navigation_node-20] [INFO] [1782933897.526279371] [navigation_node]: Navigation goal received: door explore_waypoint_14.9 (color=explore, frame=map, x=14.87, y=-0.35)
+[navigation_node-20] [INFO] [1782933897.527435610] [navigation_node]: Long goal split: final=(14.87, -0.35), intermediate=(14.56, -0.40), remaining=1.52m
+[navigation_node-20] [INFO] [1782933897.529891752] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933897.539185449] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933897.540122066] [bt_navigator]: Begin navigating from current location (13.37, -0.57) to (14.56, -0.40)
+[navigation_node-20] [WARN] [1782933897.541695281] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933897.543108697] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [INFO] [1782933898.549209270] [state_machine_node]: 다음 탐색 waypoint는 좌측 차선을 우선합니다.
+[state_machine_node-22] [WARN] [1782933898.550244465] [state_machine_node]: 탐색 waypoint 이동 실패. 반대 차선 우선으로 재스캔합니다.
+[state_machine_node-22] [INFO] [1782933898.550800620] [state_machine_node]: State: EXPLORING_NAVIGATING → EXPLORING
+[state_machine_node-22] [INFO] [1782933899.567607668] [state_machine_node]: 탐색 waypoint 계획 요청: explore_waypoint_14.8 (14.84, 0.35) | 좌측 차선 선택 | 빨간 문 door_red_7fcc9e 반대쪽 차선 | LiDAR lane scores: C:y=0.00/clear=2.75/score=2.44, R:y=-0.35/clear=2.75/score=3.29, L:y=0.35/clear=3.00/score=3.43
+[state_machine_node-22] [INFO] [1782933899.568333300] [state_machine_node]: State: EXPLORING → EXPLORING_NAVIGATING
+[navigation_node-20] [INFO] [1782933899.568741390] [navigation_node]: Navigation goal received: door explore_waypoint_14.8 (color=explore, frame=map, x=14.84, y=0.35)
+[navigation_node-20] [INFO] [1782933899.570085469] [navigation_node]: Long goal split: final=(14.84, 0.35), intermediate=(14.38, 0.35), remaining=1.73m
+[navigation_node-20] [INFO] [1782933899.572257487] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933899.589148525] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933899.589503338] [bt_navigator]: Begin navigating from current location (13.34, -0.51) to (14.38, 0.35)
+[navigation_node-20] [WARN] [1782933899.592131755] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933899.593097105] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [INFO] [1782933900.567512412] [state_machine_node]: 다음 탐색 waypoint는 우측 차선을 우선합니다.
+[state_machine_node-22] [WARN] [1782933900.568051539] [state_machine_node]: 탐색 waypoint 이동 실패. 반대 차선 우선으로 재스캔합니다.
+[state_machine_node-22] [INFO] [1782933900.568741946] [state_machine_node]: State: EXPLORING_NAVIGATING → EXPLORING
+[state_machine_node-22] [INFO] [1782933901.563828203] [state_machine_node]: 탐색 waypoint 계획 요청: explore_waypoint_14.8 (14.81, -0.35) | 우측 차선 선택 | 빨간 문 door_red_7fcc9e 반대쪽 차선 | LiDAR lane scores: C:y=0.00/clear=2.77/score=2.46, R:y=-0.35/clear=2.77/score=3.49, L:y=0.35/clear=3.00/score=3.25
+[state_machine_node-22] [INFO] [1782933901.564997638] [state_machine_node]: State: EXPLORING → EXPLORING_NAVIGATING
+[navigation_node-20] [INFO] [1782933901.565153489] [navigation_node]: Navigation goal received: door explore_waypoint_14.8 (color=explore, frame=map, x=14.81, y=-0.35)
+[navigation_node-20] [INFO] [1782933901.566335874] [navigation_node]: Long goal split: final=(14.81, -0.35), intermediate=(14.50, -0.37), remaining=1.50m
+[navigation_node-20] [INFO] [1782933901.568413087] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933901.589844297] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933901.590503147] [bt_navigator]: Begin navigating from current location (13.31, -0.45) to (14.50, -0.37)
+[navigation_node-20] [WARN] [1782933901.591674112] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933901.592838696] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [INFO] [1782933902.546428709] [state_machine_node]: 다음 탐색 waypoint는 좌측 차선을 우선합니다.
+[state_machine_node-22] [WARN] [1782933902.547573962] [state_machine_node]: 탐색 waypoint 이동 실패. 반대 차선 우선으로 재스캔합니다.
+[state_machine_node-22] [INFO] [1782933902.548266073] [state_machine_node]: State: EXPLORING_NAVIGATING → EXPLORING
+[state_machine_node-22] [INFO] [1782933903.533934918] [state_machine_node]: 탐색 waypoint 계획 요청: explore_waypoint_14.8 (14.79, 0.35) | 좌측 차선 선택 | 빨간 문 door_red_7fcc9e 반대쪽 차선 | LiDAR lane scores: C:y=0.00/clear=3.00/score=2.69, R:y=-0.35/clear=2.64/score=3.18, L:y=0.35/clear=3.00/score=3.44
+[state_machine_node-22] [INFO] [1782933903.534586935] [state_machine_node]: State: EXPLORING → EXPLORING_NAVIGATING
+[navigation_node-20] [INFO] [1782933903.535141680] [navigation_node]: Navigation goal received: door explore_waypoint_14.8 (color=explore, frame=map, x=14.79, y=0.35)
+[navigation_node-20] [INFO] [1782933903.536301796] [navigation_node]: Long goal split: final=(14.79, 0.35), intermediate=(14.35, 0.35), remaining=1.70m
+[bt_navigator-14] [INFO] [1782933903.539163356] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933903.539641617] [bt_navigator]: Begin navigating from current location (13.29, -0.44) to (14.35, 0.35)
+[navigation_node-20] [INFO] [1782933903.540711428] [navigation_node]: Navigation goal accepted by Nav2
+[navigation_node-20] [WARN] [1782933903.545075191] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933903.546779401] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [INFO] [1782933904.472316445] [state_machine_node]: 다음 탐색 waypoint는 우측 차선을 우선합니다.
+[state_machine_node-22] [WARN] [1782933904.472948460] [state_machine_node]: 탐색 waypoint 이동 실패. 반대 차선 우선으로 재스캔합니다.
+[state_machine_node-22] [INFO] [1782933904.473281457] [state_machine_node]: State: EXPLORING_NAVIGATING → EXPLORING
+[state_machine_node-22] [INFO] [1782933905.501628368] [state_machine_node]: 탐색 waypoint 계획 요청: explore_waypoint_14.7 (14.73, -0.35) | 우측 차선 선택 | 빨간 문 door_red_7fcc9e 반대쪽 차선 | LiDAR lane scores: C:y=0.00/clear=3.00/score=2.69, R:y=-0.35/clear=3.00/score=3.73, L:y=0.35/clear=3.00/score=3.26
+[state_machine_node-22] [INFO] [1782933905.503044331] [state_machine_node]: State: EXPLORING → EXPLORING_NAVIGATING
+[navigation_node-20] [INFO] [1782933905.503187099] [navigation_node]: Navigation goal received: door explore_waypoint_14.7 (color=explore, frame=map, x=14.73, y=-0.35)
+[navigation_node-20] [INFO] [1782933905.504586688] [navigation_node]: Long goal split: final=(14.73, -0.35), intermediate=(14.43, -0.36), remaining=1.50m
+[navigation_node-20] [INFO] [1782933905.506815049] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933905.539178121] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933905.539488816] [bt_navigator]: Begin navigating from current location (13.23, -0.41) to (14.43, -0.36)
+[navigation_node-20] [WARN] [1782933905.545442725] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933905.546996643] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [INFO] [1782933906.449536591] [state_machine_node]: 다음 탐색 waypoint는 좌측 차선을 우선합니다.
+[state_machine_node-22] [WARN] [1782933906.450493919] [state_machine_node]: 탐색 waypoint 이동 실패. 반대 차선 우선으로 재스캔합니다.
+[state_machine_node-22] [INFO] [1782933906.451142332] [state_machine_node]: State: EXPLORING_NAVIGATING → EXPLORING
+[state_machine_node-22] [INFO] [1782933907.535832441] [state_machine_node]: 탐색 waypoint 계획 요청: explore_waypoint_14.7 (14.74, -0.35) | 우측 차선 선택 | 빨간 문 door_red_7fcc9e 반대쪽 차선 | LiDAR lane scores: C:y=0.00/clear=2.58/score=2.28, R:y=-0.35/clear=2.83/score=3.38, L:y=0.35/clear=2.58/score=3.02
+[state_machine_node-22] [INFO] [1782933907.537257530] [state_machine_node]: State: EXPLORING → EXPLORING_NAVIGATING
+[navigation_node-20] [INFO] [1782933907.537816900] [navigation_node]: Navigation goal received: door explore_waypoint_14.7 (color=explore, frame=map, x=14.74, y=-0.35)
+[navigation_node-20] [INFO] [1782933907.539822755] [navigation_node]: Long goal split: final=(14.74, -0.35), intermediate=(14.44, -0.35), remaining=1.50m
+[navigation_node-20] [INFO] [1782933907.545443411] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933907.589183074] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933907.590384180] [bt_navigator]: Begin navigating from current location (13.24, -0.35) to (14.44, -0.35)
+[navigation_node-20] [WARN] [1782933907.591565595] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933907.592850493] [state_machine_node]: Navigation failed.
+[controller_server-10] [INFO] [1782933908.490657714] [controller_server]: Reached the goal!
+[state_machine_node-22] [WARN] [1782933908.633560826] [state_machine_node]: 탐색 waypoint 실패 8회 누적. 남은 문 후보 탐색을 중단하고 비상구로 전환합니다.
+[state_machine_node-22] [INFO] [1782933908.634292018] [state_machine_node]: State: EXPLORING_NAVIGATING → EXITING
+[state_machine_node-22] [WARN] [1782933908.635681317] [state_machine_node]: 비상구 후보 door_green_d6fe7c 좌표가 예상 출구 영역 밖입니다 (6.8, -0.4); 하드코딩 출구를 사용합니다.
+[state_machine_node-22] [WARN] [1782933908.636233870] [state_machine_node]: 비상구 미탐지 → 하드코딩 좌표 (17.2, 0.0) 사용
+[navigation_node-20] [INFO] [1782933908.637934315] [navigation_node]: Navigation goal received: door emergency_exit (color=green, frame=map, x=17.20, y=0.00)
+[navigation_node-20] [INFO] [1782933908.639912032] [navigation_node]: Long goal split: final=(17.20, 0.00), intermediate=(14.55, -0.12), remaining=3.85m
+[navigation_node-20] [INFO] [1782933908.642715842] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933908.689318076] [bt_navigator]: Goal succeeded
+[bt_navigator-14] [INFO] [1782933908.689457723] [bt_navigator]: Begin navigating from current location (13.36, -0.18) to (14.55, -0.12)
+[navigation_node-20] [INFO] [1782933908.693233251] [navigation_node]: Intermediate navigation goal reached. Continuing to final goal.
+[navigation_node-20] [INFO] [1782933908.694427349] [navigation_node]: Long goal split: final=(17.20, 0.00), intermediate=(14.55, -0.12), remaining=3.85m
+[navigation_node-20] [INFO] [1782933908.696838921] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933908.739830725] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933908.740110198] [bt_navigator]: Begin navigating from current location (13.36, -0.18) to (14.55, -0.12)
+[navigation_node-20] [WARN] [1782933908.743710203] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933908.744804196] [state_machine_node]: Navigation failed.
+[smoother_server-11] [INFO] [1782933908.790465628] [smoother_server]: Received a path to smooth.
+[controller_server-10] [INFO] [1782933908.890464068] [controller_server]: Received a goal, begin computing control effort.
+[state_machine_node-22] [WARN] [1782933909.711566207] [state_machine_node]: 비상구 이동 실패. 재시도...
+[state_machine_node-22] [WARN] [1782933909.712352928] [state_machine_node]: 비상구 미탐지 → 하드코딩 좌표 (17.2, 0.0) 사용
+[navigation_node-20] [INFO] [1782933909.714393335] [navigation_node]: Navigation goal received: door emergency_exit (color=green, frame=map, x=17.20, y=0.00)
+[navigation_node-20] [INFO] [1782933909.715708727] [navigation_node]: Long goal split: final=(17.20, 0.00), intermediate=(14.62, -0.13), remaining=3.78m
+[navigation_node-20] [INFO] [1782933909.717402453] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933909.739716800] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933909.740258706] [bt_navigator]: Begin navigating from current location (13.43, -0.19) to (14.62, -0.13)
+[navigation_node-20] [WARN] [1782933909.742777640] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933909.743946426] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [WARN] [1782933910.729438181] [state_machine_node]: 비상구 이동 실패. 재시도...
+[state_machine_node-22] [WARN] [1782933910.730297435] [state_machine_node]: 비상구 미탐지 → 하드코딩 좌표 (17.2, 0.0) 사용
+[navigation_node-20] [INFO] [1782933910.732122499] [navigation_node]: Navigation goal received: door emergency_exit (color=green, frame=map, x=17.20, y=0.00)
+[navigation_node-20] [INFO] [1782933910.733206876] [navigation_node]: Long goal split: final=(17.20, 0.00), intermediate=(14.89, -0.14), remaining=3.51m
+[navigation_node-20] [INFO] [1782933910.734710646] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933910.739834829] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933910.740449710] [bt_navigator]: Begin navigating from current location (13.69, -0.21) to (14.89, -0.14)
+[navigation_node-20] [WARN] [1782933910.742085487] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933910.743446684] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [WARN] [1782933911.751832685] [state_machine_node]: 비상구 이동 실패. 재시도...
+[state_machine_node-22] [WARN] [1782933911.752664892] [state_machine_node]: 비상구 미탐지 → 하드코딩 좌표 (17.2, 0.0) 사용
+[navigation_node-20] [INFO] [1782933911.754136246] [navigation_node]: Navigation goal received: door emergency_exit (color=green, frame=map, x=17.20, y=0.00)
+[navigation_node-20] [INFO] [1782933911.756154455] [navigation_node]: Long goal split: final=(17.20, 0.00), intermediate=(15.11, -0.14), remaining=3.29m
+[navigation_node-20] [INFO] [1782933911.758954855] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933911.789718020] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933911.790257845] [bt_navigator]: Begin navigating from current location (13.91, -0.22) to (15.11, -0.14)
+[navigation_node-20] [WARN] [1782933911.792387514] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933911.793971584] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [WARN] [1782933912.793111973] [state_machine_node]: 비상구 이동 실패. 재시도...
+[state_machine_node-22] [WARN] [1782933912.793959968] [state_machine_node]: 비상구 미탐지 → 하드코딩 좌표 (17.2, 0.0) 사용
+[navigation_node-20] [INFO] [1782933912.795870096] [navigation_node]: Navigation goal received: door emergency_exit (color=green, frame=map, x=17.20, y=0.00)
+[navigation_node-20] [INFO] [1782933912.797464630] [navigation_node]: Long goal split: final=(17.20, 0.00), intermediate=(15.51, -0.20), remaining=2.90m
+[navigation_node-20] [INFO] [1782933912.799031171] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933912.839683232] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933912.840100658] [bt_navigator]: Begin navigating from current location (14.32, -0.35) to (15.51, -0.20)
+[navigation_node-20] [WARN] [1782933912.842916507] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933912.844356189] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [WARN] [1782933913.801427032] [state_machine_node]: 비상구 이동 실패. 재시도...
+[state_machine_node-22] [WARN] [1782933913.801953096] [state_machine_node]: 비상구 미탐지 → 하드코딩 좌표 (17.2, 0.0) 사용
+[navigation_node-20] [INFO] [1782933913.805662099] [navigation_node]: Navigation goal received: door emergency_exit (color=green, frame=map, x=17.20, y=0.00)
+[navigation_node-20] [INFO] [1782933913.807220688] [navigation_node]: Long goal split: final=(17.20, 0.00), intermediate=(15.55, -0.19), remaining=2.86m
+[navigation_node-20] [INFO] [1782933913.808703188] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933913.839705344] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933913.840057962] [bt_navigator]: Begin navigating from current location (14.35, -0.33) to (15.55, -0.19)
+[navigation_node-20] [WARN] [1782933913.843712471] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933913.845283390] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [WARN] [1782933914.809383314] [state_machine_node]: 비상구 이동 실패. 재시도...
+[state_machine_node-22] [WARN] [1782933914.810214787] [state_machine_node]: 비상구 미탐지 → 하드코딩 좌표 (17.2, 0.0) 사용
+[navigation_node-20] [INFO] [1782933914.812004425] [navigation_node]: Navigation goal received: door emergency_exit (color=green, frame=map, x=17.20, y=0.00)
+[navigation_node-20] [INFO] [1782933914.812860660] [navigation_node]: Long goal split: final=(17.20, 0.00), intermediate=(15.57, -0.18), remaining=2.84m
+[navigation_node-20] [INFO] [1782933914.814172652] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933914.839745106] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933914.840423724] [bt_navigator]: Begin navigating from current location (14.38, -0.31) to (15.57, -0.18)
+[navigation_node-20] [WARN] [1782933914.841368603] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933914.842709488] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [WARN] [1782933915.847293080] [state_machine_node]: 비상구 이동 실패. 재시도...
+[state_machine_node-22] [WARN] [1782933915.848090760] [state_machine_node]: 비상구 미탐지 → 하드코딩 좌표 (17.2, 0.0) 사용
+[navigation_node-20] [INFO] [1782933915.851426691] [navigation_node]: Navigation goal received: door emergency_exit (color=green, frame=map, x=17.20, y=0.00)
+[navigation_node-20] [INFO] [1782933915.853240199] [navigation_node]: Long goal split: final=(17.20, 0.00), intermediate=(15.94, -0.14), remaining=2.47m
+[navigation_node-20] [INFO] [1782933915.856960659] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933915.889721471] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933915.890264483] [bt_navigator]: Begin navigating from current location (14.75, -0.28) to (15.94, -0.14)
+[navigation_node-20] [WARN] [1782933915.893630751] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933915.894600421] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [WARN] [1782933916.819784979] [state_machine_node]: 비상구 이동 실패. 재시도...
+[state_machine_node-22] [WARN] [1782933916.820568466] [state_machine_node]: 비상구 미탐지 → 하드코딩 좌표 (17.2, 0.0) 사용
+[navigation_node-20] [INFO] [1782933916.821981685] [navigation_node]: Navigation goal received: door emergency_exit (color=green, frame=map, x=17.20, y=0.00)
+[navigation_node-20] [INFO] [1782933916.823216680] [navigation_node]: Long goal split: final=(17.20, 0.00), intermediate=(15.96, -0.13), remaining=2.45m
+[navigation_node-20] [INFO] [1782933916.827431764] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933916.839811996] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933916.840650215] [bt_navigator]: Begin navigating from current location (14.77, -0.25) to (15.96, -0.13)
+[navigation_node-20] [WARN] [1782933916.842926478] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933916.843875423] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [WARN] [1782933917.781380947] [state_machine_node]: 비상구 이동 실패. 재시도...
+[state_machine_node-22] [WARN] [1782933917.782247807] [state_machine_node]: 비상구 미탐지 → 하드코딩 좌표 (17.2, 0.0) 사용
+[navigation_node-20] [INFO] [1782933917.783688846] [navigation_node]: Navigation goal received: door emergency_exit (color=green, frame=map, x=17.20, y=0.00)
+[navigation_node-20] [INFO] [1782933917.785304402] [navigation_node]: Long goal split: final=(17.20, 0.00), intermediate=(16.14, -0.11), remaining=2.26m
+[navigation_node-20] [INFO] [1782933917.786437868] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933917.790338036] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933917.791085564] [bt_navigator]: Begin navigating from current location (14.95, -0.23) to (16.14, -0.11)
+[navigation_node-20] [WARN] [1782933917.791689512] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933917.792621472] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [WARN] [1782933918.761728858] [state_machine_node]: 비상구 이동 실패. 재시도...
+[state_machine_node-22] [WARN] [1782933918.762627677] [state_machine_node]: 비상구 미탐지 → 하드코딩 좌표 (17.2, 0.0) 사용
+[navigation_node-20] [INFO] [1782933918.764306645] [navigation_node]: Navigation goal received: door emergency_exit (color=green, frame=map, x=17.20, y=0.00)
+[navigation_node-20] [INFO] [1782933918.765628046] [navigation_node]: Long goal split: final=(17.20, 0.00), intermediate=(16.26, -0.10), remaining=2.14m
+[navigation_node-20] [INFO] [1782933918.769454494] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933918.789720257] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933918.790268224] [bt_navigator]: Begin navigating from current location (15.07, -0.22) to (16.26, -0.10)
+[navigation_node-20] [WARN] [1782933918.795973335] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933918.797093927] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [WARN] [1782933919.793896318] [state_machine_node]: 비상구 이동 실패. 재시도...
+[state_machine_node-22] [WARN] [1782933919.794708185] [state_machine_node]: 비상구 미탐지 → 하드코딩 좌표 (17.2, 0.0) 사용
+[navigation_node-20] [INFO] [1782933919.796006690] [navigation_node]: Navigation goal received: door emergency_exit (color=green, frame=map, x=17.20, y=0.00)
+[navigation_node-20] [INFO] [1782933919.797681175] [navigation_node]: Long goal split: final=(17.20, 0.00), intermediate=(16.29, -0.09), remaining=2.11m
+[navigation_node-20] [INFO] [1782933919.800253724] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933919.839724713] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933919.840207503] [bt_navigator]: Begin navigating from current location (15.10, -0.21) to (16.29, -0.09)
+[navigation_node-20] [WARN] [1782933919.842196055] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933919.843634007] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [WARN] [1782933920.757772539] [state_machine_node]: 비상구 이동 실패. 재시도...
+[state_machine_node-22] [WARN] [1782933920.758257080] [state_machine_node]: 비상구 미탐지 → 하드코딩 좌표 (17.2, 0.0) 사용
+[navigation_node-20] [INFO] [1782933920.759865099] [navigation_node]: Navigation goal received: door emergency_exit (color=green, frame=map, x=17.20, y=0.00)
+[navigation_node-20] [INFO] [1782933920.761144921] [navigation_node]: Long goal split: final=(17.20, 0.00), intermediate=(16.25, -0.09), remaining=2.15m
+[navigation_node-20] [INFO] [1782933920.764301067] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933920.789736689] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933920.790500430] [bt_navigator]: Begin navigating from current location (15.06, -0.20) to (16.25, -0.09)
+[navigation_node-20] [WARN] [1782933920.791928548] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933920.793127642] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [WARN] [1782933921.783213923] [state_machine_node]: 비상구 이동 실패. 재시도...
+[state_machine_node-22] [WARN] [1782933921.783904970] [state_machine_node]: 비상구 미탐지 → 하드코딩 좌표 (17.2, 0.0) 사용
+[navigation_node-20] [INFO] [1782933921.785657688] [navigation_node]: Navigation goal received: door emergency_exit (color=green, frame=map, x=17.20, y=0.00)
+[navigation_node-20] [INFO] [1782933921.786837546] [navigation_node]: Long goal split: final=(17.20, 0.00), intermediate=(16.25, -0.07), remaining=2.15m
+[bt_navigator-14] [INFO] [1782933921.789747628] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933921.790438515] [bt_navigator]: Begin navigating from current location (15.05, -0.16) to (16.25, -0.07)
+[navigation_node-20] [INFO] [1782933921.790474104] [navigation_node]: Navigation goal accepted by Nav2
+[navigation_node-20] [WARN] [1782933921.793956333] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933921.795150272] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [WARN] [1782933922.804546299] [state_machine_node]: 비상구 이동 실패. 재시도...
+[state_machine_node-22] [WARN] [1782933922.805181632] [state_machine_node]: 비상구 미탐지 → 하드코딩 좌표 (17.2, 0.0) 사용
+[navigation_node-20] [INFO] [1782933922.808804052] [navigation_node]: Navigation goal received: door emergency_exit (color=green, frame=map, x=17.20, y=0.00)
+[navigation_node-20] [INFO] [1782933922.810100603] [navigation_node]: Long goal split: final=(17.20, 0.00), intermediate=(16.21, -0.07), remaining=2.20m
+[navigation_node-20] [INFO] [1782933922.812649846] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933922.839747023] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933922.840002185] [bt_navigator]: Begin navigating from current location (15.01, -0.15) to (16.21, -0.07)
+[navigation_node-20] [WARN] [1782933922.841687061] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933922.843158345] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [WARN] [1782933923.834468344] [state_machine_node]: 비상구 이동 실패. 재시도...
+[state_machine_node-22] [WARN] [1782933923.835358127] [state_machine_node]: 비상구 미탐지 → 하드코딩 좌표 (17.2, 0.0) 사용
+[navigation_node-20] [INFO] [1782933923.836750929] [navigation_node]: Navigation goal received: door emergency_exit (color=green, frame=map, x=17.20, y=0.00)
+[navigation_node-20] [INFO] [1782933923.837934806] [navigation_node]: Long goal split: final=(17.20, 0.00), intermediate=(16.16, -0.07), remaining=2.24m
+[bt_navigator-14] [INFO] [1782933923.839696400] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933923.840376209] [bt_navigator]: Begin navigating from current location (14.96, -0.15) to (16.16, -0.07)
+[navigation_node-20] [INFO] [1782933923.842319349] [navigation_node]: Navigation goal accepted by Nav2
+[navigation_node-20] [WARN] [1782933923.845782387] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933923.847216461] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [WARN] [1782933924.868299073] [state_machine_node]: 비상구 이동 실패. 재시도...
+[state_machine_node-22] [WARN] [1782933924.869322403] [state_machine_node]: 비상구 미탐지 → 하드코딩 좌표 (17.2, 0.0) 사용
+[navigation_node-20] [INFO] [1782933924.871490548] [navigation_node]: Navigation goal received: door emergency_exit (color=green, frame=map, x=17.20, y=0.00)
+[navigation_node-20] [INFO] [1782933924.873232917] [navigation_node]: Long goal split: final=(17.20, 0.00), intermediate=(16.15, -0.06), remaining=2.26m
+[navigation_node-20] [INFO] [1782933924.878337611] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933924.889730884] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933924.890508575] [bt_navigator]: Begin navigating from current location (14.95, -0.12) to (16.15, -0.06)
+[navigation_node-20] [WARN] [1782933924.891516890] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933924.892422476] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [WARN] [1782933925.901957395] [state_machine_node]: 비상구 이동 실패. 재시도...
+[state_machine_node-22] [WARN] [1782933925.902930139] [state_machine_node]: 비상구 미탐지 → 하드코딩 좌표 (17.2, 0.0) 사용
+[navigation_node-20] [INFO] [1782933925.904792290] [navigation_node]: Navigation goal received: door emergency_exit (color=green, frame=map, x=17.20, y=0.00)
+[navigation_node-20] [INFO] [1782933925.906323082] [navigation_node]: Long goal split: final=(17.20, 0.00), intermediate=(16.10, -0.07), remaining=2.31m
+[navigation_node-20] [INFO] [1782933925.908808391] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933925.939741883] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933925.940003158] [bt_navigator]: Begin navigating from current location (14.90, -0.15) to (16.10, -0.07)
+[navigation_node-20] [WARN] [1782933925.941773149] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933925.943331487] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [WARN] [1782933926.933007069] [state_machine_node]: 비상구 이동 실패. 재시도...
+[state_machine_node-22] [WARN] [1782933926.933998401] [state_machine_node]: 비상구 미탐지 → 하드코딩 좌표 (17.2, 0.0) 사용
+[navigation_node-20] [INFO] [1782933926.935403579] [navigation_node]: Navigation goal received: door emergency_exit (color=green, frame=map, x=17.20, y=0.00)
+[navigation_node-20] [INFO] [1782933926.936537320] [navigation_node]: Long goal split: final=(17.20, 0.00), intermediate=(16.04, -0.10), remaining=2.36m
+[bt_navigator-14] [INFO] [1782933926.939655417] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933926.940133400] [bt_navigator]: Begin navigating from current location (14.85, -0.21) to (16.04, -0.10)
+[navigation_node-20] [INFO] [1782933926.940480196] [navigation_node]: Navigation goal accepted by Nav2
+[navigation_node-20] [WARN] [1782933926.943561598] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933926.944507919] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [WARN] [1782933927.958677128] [state_machine_node]: 비상구 이동 실패. 재시도...
+[state_machine_node-22] [WARN] [1782933927.959266694] [state_machine_node]: 비상구 미탐지 → 하드코딩 좌표 (17.2, 0.0) 사용
+[navigation_node-20] [INFO] [1782933927.961198979] [navigation_node]: Navigation goal received: door emergency_exit (color=green, frame=map, x=17.20, y=0.00)
+[navigation_node-20] [INFO] [1782933927.962676808] [navigation_node]: Long goal split: final=(17.20, 0.00), intermediate=(16.02, -0.09), remaining=2.39m
+[navigation_node-20] [INFO] [1782933927.964145157] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933927.989688432] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933927.990403360] [bt_navigator]: Begin navigating from current location (14.82, -0.19) to (16.02, -0.09)
+[navigation_node-20] [WARN] [1782933927.992174002] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933927.993508056] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [WARN] [1782933928.960118788] [state_machine_node]: 비상구 이동 실패. 재시도...
+[state_machine_node-22] [WARN] [1782933928.960645699] [state_machine_node]: 비상구 미탐지 → 하드코딩 좌표 (17.2, 0.0) 사용
+[navigation_node-20] [INFO] [1782933928.962717669] [navigation_node]: Navigation goal received: door emergency_exit (color=green, frame=map, x=17.20, y=0.00)
+[navigation_node-20] [INFO] [1782933928.963936784] [navigation_node]: Long goal split: final=(17.20, 0.00), intermediate=(16.00, -0.11), remaining=2.40m
+[navigation_node-20] [INFO] [1782933928.968840289] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933928.989681991] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933928.990132635] [bt_navigator]: Begin navigating from current location (14.81, -0.21) to (16.00, -0.11)
+[navigation_node-20] [WARN] [1782933928.993447178] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933928.994438647] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [WARN] [1782933929.993836609] [state_machine_node]: 비상구 이동 실패. 재시도...
+[state_machine_node-22] [WARN] [1782933929.994494233] [state_machine_node]: 비상구 미탐지 → 하드코딩 좌표 (17.2, 0.0) 사용
+[navigation_node-20] [INFO] [1782933929.996948844] [navigation_node]: Navigation goal received: door emergency_exit (color=green, frame=map, x=17.20, y=0.00)
+[navigation_node-20] [INFO] [1782933930.000663693] [navigation_node]: Long goal split: final=(17.20, 0.00), intermediate=(15.97, -0.10), remaining=2.43m
+[navigation_node-20] [INFO] [1782933930.006773062] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933930.039745115] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933930.040599018] [bt_navigator]: Begin navigating from current location (14.77, -0.19) to (15.97, -0.10)
+[navigation_node-20] [WARN] [1782933930.042089437] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933930.043742399] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [WARN] [1782933930.980808658] [state_machine_node]: 비상구 이동 실패. 재시도...
+[state_machine_node-22] [WARN] [1782933930.981201040] [state_machine_node]: 비상구 미탐지 → 하드코딩 좌표 (17.2, 0.0) 사용
+[navigation_node-20] [INFO] [1782933930.983212708] [navigation_node]: Navigation goal received: door emergency_exit (color=green, frame=map, x=17.20, y=0.00)
+[navigation_node-20] [INFO] [1782933930.984741604] [navigation_node]: Long goal split: final=(17.20, 0.00), intermediate=(15.95, -0.11), remaining=2.46m
+[navigation_node-20] [INFO] [1782933930.986255601] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933930.989658761] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933930.990085985] [bt_navigator]: Begin navigating from current location (14.75, -0.21) to (15.95, -0.11)
+[navigation_node-20] [WARN] [1782933930.993471987] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933930.994887048] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [WARN] [1782933932.017204297] [state_machine_node]: 비상구 이동 실패. 재시도...
+[state_machine_node-22] [WARN] [1782933932.017771496] [state_machine_node]: 비상구 미탐지 → 하드코딩 좌표 (17.2, 0.0) 사용
+[navigation_node-20] [INFO] [1782933932.020793469] [navigation_node]: Navigation goal received: door emergency_exit (color=green, frame=map, x=17.20, y=0.00)
+[navigation_node-20] [INFO] [1782933932.022626178] [navigation_node]: Long goal split: final=(17.20, 0.00), intermediate=(15.92, -0.10), remaining=2.49m
+[navigation_node-20] [INFO] [1782933932.026515523] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933932.039772482] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933932.040439954] [bt_navigator]: Begin navigating from current location (14.72, -0.19) to (15.92, -0.10)
+[navigation_node-20] [WARN] [1782933932.042486522] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933932.044009330] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [WARN] [1782933932.999428580] [state_machine_node]: 비상구 이동 실패. 재시도...
+[state_machine_node-22] [WARN] [1782933933.000238820] [state_machine_node]: 비상구 미탐지 → 하드코딩 좌표 (17.2, 0.0) 사용
+[navigation_node-20] [INFO] [1782933933.001866287] [navigation_node]: Navigation goal received: door emergency_exit (color=green, frame=map, x=17.20, y=0.00)
+[navigation_node-20] [INFO] [1782933933.003358780] [navigation_node]: Long goal split: final=(17.20, 0.00), intermediate=(15.88, -0.09), remaining=2.52m
+[navigation_node-20] [INFO] [1782933933.007458335] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933933.039692309] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933933.040123054] [bt_navigator]: Begin navigating from current location (14.69, -0.18) to (15.88, -0.09)
+[navigation_node-20] [WARN] [1782933933.046659165] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933933.047790786] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [WARN] [1782933934.018638894] [state_machine_node]: 비상구 이동 실패. 재시도...
+[state_machine_node-22] [WARN] [1782933934.020581270] [state_machine_node]: 비상구 미탐지 → 하드코딩 좌표 (17.2, 0.0) 사용
+[navigation_node-20] [INFO] [1782933934.022316639] [navigation_node]: Navigation goal received: door emergency_exit (color=green, frame=map, x=17.20, y=0.00)
+[navigation_node-20] [INFO] [1782933934.023503744] [navigation_node]: Long goal split: final=(17.20, 0.00), intermediate=(15.85, -0.09), remaining=2.55m
+[navigation_node-20] [INFO] [1782933934.024948291] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933934.039746321] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933934.040106431] [bt_navigator]: Begin navigating from current location (14.66, -0.16) to (15.85, -0.09)
+[navigation_node-20] [WARN] [1782933934.044106315] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933934.046834001] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [WARN] [1782933935.015750133] [state_machine_node]: 비상구 이동 실패. 재시도...
+[state_machine_node-22] [WARN] [1782933935.016602471] [state_machine_node]: 비상구 미탐지 → 하드코딩 좌표 (17.2, 0.0) 사용
+[navigation_node-20] [INFO] [1782933935.019205142] [navigation_node]: Navigation goal received: door emergency_exit (color=green, frame=map, x=17.20, y=0.00)
+[navigation_node-20] [INFO] [1782933935.020299804] [navigation_node]: Long goal split: final=(17.20, 0.00), intermediate=(15.82, -0.08), remaining=2.58m
+[navigation_node-20] [INFO] [1782933935.024380594] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933935.040558169] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933935.041160667] [bt_navigator]: Begin navigating from current location (14.62, -0.15) to (15.82, -0.08)
+[navigation_node-20] [WARN] [1782933935.042674632] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933935.044231074] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [WARN] [1782933936.067125050] [state_machine_node]: 비상구 이동 실패. 재시도...
+[state_machine_node-22] [WARN] [1782933936.068125241] [state_machine_node]: 비상구 미탐지 → 하드코딩 좌표 (17.2, 0.0) 사용
+[navigation_node-20] [INFO] [1782933936.070106264] [navigation_node]: Navigation goal received: door emergency_exit (color=green, frame=map, x=17.20, y=0.00)
+[navigation_node-20] [INFO] [1782933936.072544428] [navigation_node]: Long goal split: final=(17.20, 0.00), intermediate=(15.79, -0.07), remaining=2.61m
+[navigation_node-20] [INFO] [1782933936.074702355] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933936.089751069] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933936.090353490] [bt_navigator]: Begin navigating from current location (14.59, -0.13) to (15.79, -0.07)
+[navigation_node-20] [WARN] [1782933936.091363575] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933936.092843299] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [WARN] [1782933937.126481350] [state_machine_node]: 비상구 이동 실패. 재시도...
+[state_machine_node-22] [WARN] [1782933937.127459557] [state_machine_node]: 비상구 미탐지 → 하드코딩 좌표 (17.2, 0.0) 사용
+[navigation_node-20] [INFO] [1782933937.129110054] [navigation_node]: Navigation goal received: door emergency_exit (color=green, frame=map, x=17.20, y=0.00)
+[navigation_node-20] [INFO] [1782933937.130240431] [navigation_node]: Long goal split: final=(17.20, 0.00), intermediate=(15.76, -0.06), remaining=2.64m
+[navigation_node-20] [INFO] [1782933937.132013821] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933937.139735214] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933937.140610549] [bt_navigator]: Begin navigating from current location (14.56, -0.12) to (15.76, -0.06)
+[navigation_node-20] [WARN] [1782933937.142773347] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933937.144865265] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [WARN] [1782933938.231985462] [state_machine_node]: 비상구 이동 실패. 재시도...
+[state_machine_node-22] [WARN] [1782933938.233070813] [state_machine_node]: 비상구 미탐지 → 하드코딩 좌표 (17.2, 0.0) 사용
+[navigation_node-20] [INFO] [1782933938.234806013] [navigation_node]: Navigation goal received: door emergency_exit (color=green, frame=map, x=17.20, y=0.00)
+[navigation_node-20] [INFO] [1782933938.236763638] [navigation_node]: Long goal split: final=(17.20, 0.00), intermediate=(15.73, -0.06), remaining=2.67m
+[navigation_node-20] [INFO] [1782933938.238947487] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933938.239669154] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933938.239978766] [bt_navigator]: Begin navigating from current location (14.53, -0.10) to (15.73, -0.06)
+[navigation_node-20] [WARN] [1782933938.245778490] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933938.247133435] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [WARN] [1782933939.391327929] [state_machine_node]: 비상구 이동 실패. 재시도...
+[state_machine_node-22] [WARN] [1782933939.391749359] [state_machine_node]: 비상구 미탐지 → 하드코딩 좌표 (17.2, 0.0) 사용
+[navigation_node-20] [INFO] [1782933939.393494760] [navigation_node]: Navigation goal received: door emergency_exit (color=green, frame=map, x=17.20, y=0.00)
+[navigation_node-20] [INFO] [1782933939.395034040] [navigation_node]: Long goal split: final=(17.20, 0.00), intermediate=(15.70, -0.05), remaining=2.70m
+[navigation_node-20] [INFO] [1782933939.403168265] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933939.439697520] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933939.440190759] [bt_navigator]: Begin navigating from current location (14.50, -0.09) to (15.70, -0.05)
+[navigation_node-20] [WARN] [1782933939.443479014] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933939.445155131] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [WARN] [1782933940.466384759] [state_machine_node]: 비상구 이동 실패. 재시도...
+[state_machine_node-22] [WARN] [1782933940.467178415] [state_machine_node]: 비상구 미탐지 → 하드코딩 좌표 (17.2, 0.0) 사용
+[navigation_node-20] [INFO] [1782933940.468393185] [navigation_node]: Navigation goal received: door emergency_exit (color=green, frame=map, x=17.20, y=0.00)
+[navigation_node-20] [INFO] [1782933940.469712883] [navigation_node]: Long goal split: final=(17.20, 0.00), intermediate=(15.65, -0.07), remaining=2.75m
+[navigation_node-20] [INFO] [1782933940.471974232] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933940.489711225] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933940.490546135] [bt_navigator]: Begin navigating from current location (14.46, -0.13) to (15.65, -0.07)
+[navigation_node-20] [WARN] [1782933940.491478749] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933940.492854353] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [WARN] [1782933941.517636792] [state_machine_node]: 비상구 이동 실패. 재시도...
+[state_machine_node-22] [WARN] [1782933941.518305489] [state_machine_node]: 비상구 미탐지 → 하드코딩 좌표 (17.2, 0.0) 사용
+[navigation_node-20] [INFO] [1782933941.520378670] [navigation_node]: Navigation goal received: door emergency_exit (color=green, frame=map, x=17.20, y=0.00)
+[navigation_node-20] [INFO] [1782933941.521682019] [navigation_node]: Long goal split: final=(17.20, 0.00), intermediate=(15.63, -0.06), remaining=2.77m
+[navigation_node-20] [INFO] [1782933941.525304979] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933941.539694694] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933941.540125834] [bt_navigator]: Begin navigating from current location (14.43, -0.11) to (15.63, -0.06)
+[navigation_node-20] [WARN] [1782933941.546205482] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933941.547347279] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [WARN] [1782933942.569041271] [state_machine_node]: 비상구 이동 실패. 재시도...
+[state_machine_node-22] [WARN] [1782933942.569927051] [state_machine_node]: 비상구 미탐지 → 하드코딩 좌표 (17.2, 0.0) 사용
+[navigation_node-20] [INFO] [1782933942.573004078] [navigation_node]: Navigation goal received: door emergency_exit (color=green, frame=map, x=17.20, y=0.00)
+[navigation_node-20] [INFO] [1782933942.574181689] [navigation_node]: Long goal split: final=(17.20, 0.00), intermediate=(15.60, -0.05), remaining=2.80m
+[navigation_node-20] [INFO] [1782933942.576082404] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933942.589704179] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933942.590298766] [bt_navigator]: Begin navigating from current location (14.40, -0.08) to (15.60, -0.05)
+[navigation_node-20] [WARN] [1782933942.593788951] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933942.594813458] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [WARN] [1782933943.562352736] [state_machine_node]: 비상구 이동 실패. 재시도...
+[state_machine_node-22] [WARN] [1782933943.563340620] [state_machine_node]: 비상구 미탐지 → 하드코딩 좌표 (17.2, 0.0) 사용
+[navigation_node-20] [INFO] [1782933943.564611099] [navigation_node]: Navigation goal received: door emergency_exit (color=green, frame=map, x=17.20, y=0.00)
+[navigation_node-20] [INFO] [1782933943.565918540] [navigation_node]: Long goal split: final=(17.20, 0.00), intermediate=(15.55, -0.04), remaining=2.85m
+[navigation_node-20] [INFO] [1782933943.571702956] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933943.589674270] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933943.590383259] [bt_navigator]: Begin navigating from current location (14.35, -0.07) to (15.55, -0.04)
+[navigation_node-20] [WARN] [1782933943.592598484] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933943.593855891] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [WARN] [1782933944.577247871] [state_machine_node]: 비상구 이동 실패. 재시도...
+[state_machine_node-22] [WARN] [1782933944.577781156] [state_machine_node]: 비상구 미탐지 → 하드코딩 좌표 (17.2, 0.0) 사용
+[navigation_node-20] [INFO] [1782933944.580204593] [navigation_node]: Navigation goal received: door emergency_exit (color=green, frame=map, x=17.20, y=0.00)
+[navigation_node-20] [INFO] [1782933944.581309633] [navigation_node]: Long goal split: final=(17.20, 0.00), intermediate=(15.54, -0.06), remaining=2.86m
+[navigation_node-20] [INFO] [1782933944.588314236] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933944.589682346] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933944.590441156] [bt_navigator]: Begin navigating from current location (14.34, -0.11) to (15.54, -0.06)
+[navigation_node-20] [WARN] [1782933944.591970905] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933944.593804526] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [WARN] [1782933945.563065641] [state_machine_node]: 비상구 이동 실패. 재시도...
+[state_machine_node-22] [WARN] [1782933945.563905209] [state_machine_node]: 비상구 미탐지 → 하드코딩 좌표 (17.2, 0.0) 사용
+[navigation_node-20] [INFO] [1782933945.566169133] [navigation_node]: Navigation goal received: door emergency_exit (color=green, frame=map, x=17.20, y=0.00)
+[navigation_node-20] [INFO] [1782933945.567326365] [navigation_node]: Long goal split: final=(17.20, 0.00), intermediate=(15.46, -0.05), remaining=2.94m
+[navigation_node-20] [INFO] [1782933945.571871277] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933945.589678891] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933945.590176004] [bt_navigator]: Begin navigating from current location (14.26, -0.09) to (15.46, -0.05)
+[navigation_node-20] [WARN] [1782933945.594511860] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933945.595897372] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [WARN] [1782933946.629380572] [state_machine_node]: 비상구 이동 실패. 재시도...
+[state_machine_node-22] [WARN] [1782933946.630245425] [state_machine_node]: 비상구 미탐지 → 하드코딩 좌표 (17.2, 0.0) 사용
+[navigation_node-20] [INFO] [1782933946.633306121] [navigation_node]: Navigation goal received: door emergency_exit (color=green, frame=map, x=17.20, y=0.00)
+[navigation_node-20] [INFO] [1782933946.634610584] [navigation_node]: Long goal split: final=(17.20, 0.00), intermediate=(15.46, -0.09), remaining=2.94m
+[bt_navigator-14] [INFO] [1782933946.639723171] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933946.640489717] [bt_navigator]: Begin navigating from current location (14.26, -0.16) to (15.46, -0.09)
+[navigation_node-20] [INFO] [1782933946.641114630] [navigation_node]: Navigation goal accepted by Nav2
+[navigation_node-20] [WARN] [1782933946.644061626] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933946.644988483] [state_machine_node]: Navigation failed.
+[state_machine_node-22] [WARN] [1782933947.636822322] [state_machine_node]: 비상구 이동 실패. 재시도...
+[state_machine_node-22] [WARN] [1782933947.638800794] [state_machine_node]: 비상구 미탐지 → 하드코딩 좌표 (17.2, 0.0) 사용
+[navigation_node-20] [INFO] [1782933947.640883987] [navigation_node]: Navigation goal received: door emergency_exit (color=green, frame=map, x=17.20, y=0.00)
+[navigation_node-20] [INFO] [1782933947.642740434] [navigation_node]: Long goal split: final=(17.20, 0.00), intermediate=(15.48, -0.06), remaining=2.93m
+[navigation_node-20] [INFO] [1782933947.644578810] [navigation_node]: Navigation goal accepted by Nav2
+[bt_navigator-14] [INFO] [1782933947.689793656] [bt_navigator]: Received goal preemption request
+[bt_navigator-14] [INFO] [1782933947.690123891] [bt_navigator]: Begin navigating from current location (14.28, -0.10) to (15.48, -0.06)
+[controller_server-10] [INFO] [1782933947.691286829] [controller_server]: Reached the goal!
+[navigation_node-20] [WARN] [1782933947.694980223] [navigation_node]: Navigation failed with status: 6
+[state_machine_node-22] [WARN] [1782933947.696454728] [state_machine_node]: Navigation failed.
+[bt_navigator-14] [INFO] [1782933947.890020064] [bt_navigator]: Goal succeeded
+[navigation_node-20] [INFO] [1782933947.890906814] [navigation_node]: Navigation succeeded.
+[state_machine_node-22] [INFO] [1782933947.892963643] [state_machine_node]: Navigation succeeded.
+[state_machine_node-22] [INFO] [1782933948.667855824] [state_machine_node]: State: EXITING → MISSION_COMPLETE
+[state_machine_node-22] [INFO] [1782933949.706768775] [state_machine_node]: 미션 완료! 개방한 문: 8개. 로봇이 비상구에 도착했습니다.

@@ -28,7 +28,7 @@ segformer:
 # ── 센서 파라미터 ─────────────────────���───────────────────
 sensor:
   camera_hfov_deg: 69.0        # 수평 시야각 (RealSense D435 기준)
-  lidar_max_range: 8.0         # LiDAR 최대 유효 거리 (m)
+  radar_max_range: 8.0         # Radar 최대 유효 거리 (m)
 
 # ── 색상 분류 파라미터 ────────────────────────────────────
 color:

@@ -1,0 +1,305 @@
+<?xml version="1.0" ?>
+<sdf version="1.6">
+  <world name="fire_corridor">
+    <physics name="default_physics" type="ode">
+      <max_step_size>0.001</max_step_size>
+      <real_time_update_rate>1000</real_time_update_rate>
+    </physics>
+    <plugin name="gz::sim::systems::Physics" filename="gz-sim-physics-system"/>
+    <plugin name="gz::sim::systems::UserCommands" filename="gz-sim-user-commands-system"/>
+    <plugin name="gz::sim::systems::SceneBroadcaster" filename="gz-sim-scene-broadcaster-system"/>
+    <plugin name="gz::sim::systems::Sensors" filename="gz-sim-sensors-system"><render_engine>ogre2</render_engine></plugin>
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>6 0 10 0 0 0</pose>
+      <diffuse>0.9 0.9 0.9 1</diffuse>
+      <specular>0.3 0.3 0.3 1</specular>
+      <direction>-0.5 0.1 -1</direction>
+    </light>
+    <light type="point" name="light_mid">
+      <pose>8 0 2.8 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.1 0.1 0.1 1</specular>
+      <attenuation><range>16</range><linear>0.05</linear></attenuation>
+    </light>
+
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="col"><geometry><plane><normal>0 0 1</normal><size>30 10</size></plane></geometry></collision>
+        <visual name="vis"><geometry><plane><normal>0 0 1</normal><size>30 10</size></plane></geometry>
+          <material><ambient>0.72 0.72 0.68 1</ambient><diffuse>0.72 0.72 0.68 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="wall_south"><static>true</static><pose>6.5 -2 1.25 0 0 0</pose><link name="link">
+      <collision name="col"><geometry><box><size>23 0.2 2.5</size></box></geometry></collision>
+      <visual name="vis"><geometry><box><size>23 0.2 2.5</size></box></geometry><material><ambient>0.85 0.85 0.80 1</ambient><diffuse>0.85 0.85 0.80 1</diffuse></material></visual>
+    </link></model>
+    <model name="wall_north"><static>true</static><pose>6.5 2 1.25 0 0 0</pose><link name="link">
+      <collision name="col"><geometry><box><size>23 0.2 2.5</size></box></geometry></collision>
+      <visual name="vis"><geometry><box><size>23 0.2 2.5</size></box></geometry><material><ambient>0.85 0.85 0.80 1</ambient><diffuse>0.85 0.85 0.80 1</diffuse></material></visual>
+    </link></model>
+    <model name="wall_west"><static>true</static><pose>-5 0 1.25 0 0 0</pose><link name="link">
+      <collision name="col"><geometry><box><size>0.2 4 2.5</size></box></geometry></collision>
+      <visual name="vis"><geometry><box><size>0.2 4 2.5</size></box></geometry><material><ambient>0.85 0.85 0.80 1</ambient><diffuse>0.85 0.85 0.80 1</diffuse></material></visual>
+    </link></model>
+    <model name="wall_east"><static>true</static><pose>18 0 1.25 0 0 0</pose><link name="link">
+      <collision name="col"><geometry><box><size>0.2 4 2.5</size></box></geometry></collision>
+      <visual name="vis"><geometry><box><size>0.2 4 2.5</size></box></geometry><material><ambient>0.85 0.85 0.80 1</ambient><diffuse>0.85 0.85 0.80 1</diffuse></material></visual>
+    </link></model>
+
+    <model name="door_red1">
+      <static>true</static>
+      <pose>0.00 1.86 1.0 0 0 0</pose>
+      <link name="link">
+        <visual name="panel">
+          <geometry><box><size>0.85 0.045 2.0</size></box></geometry>
+          <material><ambient>0.92 0.04 0.04 1</ambient><diffuse>0.92 0.04 0.04 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="handle_red1">
+      <static>true</static>
+      <pose>0.24 1.82 0.95 1.5708 0 0</pose>
+      <link name="link">
+        <visual name="handle"><geometry><cylinder><radius>0.018</radius><length>0.13</length></cylinder></geometry><material><ambient>0.75 0.60 0.05 1</ambient><diffuse>0.75 0.60 0.05 1</diffuse></material></visual>
+      </link>
+    </model>
+    <model name="door_blue1">
+      <static>true</static>
+      <pose>3.00 -1.86 1.0 0 0 0</pose>
+      <link name="link">
+        <visual name="panel">
+          <geometry><box><size>0.85 0.045 2.0</size></box></geometry>
+          <material><ambient>0.04 0.14 0.92 1</ambient><diffuse>0.04 0.14 0.92 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="handle_blue1">
+      <static>true</static>
+      <pose>3.24 -1.82 0.95 1.5708 0 0</pose>
+      <link name="link">
+        <visual name="handle"><geometry><cylinder><radius>0.018</radius><length>0.13</length></cylinder></geometry><material><ambient>0.75 0.60 0.05 1</ambient><diffuse>0.75 0.60 0.05 1</diffuse></material></visual>
+      </link>
+    </model>
+    <model name="door_red2">
+      <static>true</static>
+      <pose>6.00 1.86 1.0 0 0 0</pose>
+      <link name="link">
+        <visual name="panel">
+          <geometry><box><size>0.85 0.045 2.0</size></box></geometry>
+          <material><ambient>0.92 0.04 0.04 1</ambient><diffuse>0.92 0.04 0.04 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="handle_red2">
+      <static>true</static>
+      <pose>6.24 1.82 0.95 1.5708 0 0</pose>
+      <link name="link">
+        <visual name="handle"><geometry><cylinder><radius>0.018</radius><length>0.13</length></cylinder></geometry><material><ambient>0.75 0.60 0.05 1</ambient><diffuse>0.75 0.60 0.05 1</diffuse></material></visual>
+      </link>
+    </model>
+    <model name="door_blue2">
+      <static>true</static>
+      <pose>9.00 -1.86 1.0 0 0 0</pose>
+      <link name="link">
+        <visual name="panel">
+          <geometry><box><size>0.85 0.045 2.0</size></box></geometry>
+          <material><ambient>0.04 0.14 0.92 1</ambient><diffuse>0.04 0.14 0.92 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="handle_blue2">
+      <static>true</static>
+      <pose>9.24 -1.82 0.95 1.5708 0 0</pose>
+      <link name="link">
+        <visual name="handle"><geometry><cylinder><radius>0.018</radius><length>0.13</length></cylinder></geometry><material><ambient>0.75 0.60 0.05 1</ambient><diffuse>0.75 0.60 0.05 1</diffuse></material></visual>
+      </link>
+    </model>
+    <model name="door_blue3">
+      <static>true</static>
+      <pose>12.00 1.86 1.0 0 0 0</pose>
+      <link name="link">
+        <visual name="panel">
+          <geometry><box><size>0.85 0.045 2.0</size></box></geometry>
+          <material><ambient>0.04 0.14 0.92 1</ambient><diffuse>0.04 0.14 0.92 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="handle_blue3">
+      <static>true</static>
+      <pose>12.24 1.82 0.95 1.5708 0 0</pose>
+      <link name="link">
+        <visual name="handle"><geometry><cylinder><radius>0.018</radius><length>0.13</length></cylinder></geometry><material><ambient>0.75 0.60 0.05 1</ambient><diffuse>0.75 0.60 0.05 1</diffuse></material></visual>
+      </link>
+    </model>
+    <model name="door_red3">
+      <static>true</static>
+      <pose>15.00 -1.86 1.0 0 0 0</pose>
+      <link name="link">
+        <visual name="panel">
+          <geometry><box><size>0.85 0.045 2.0</size></box></geometry>
+          <material><ambient>0.92 0.04 0.04 1</ambient><diffuse>0.92 0.04 0.04 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="handle_red3">
+      <static>true</static>
+      <pose>15.24 -1.82 0.95 1.5708 0 0</pose>
+      <link name="link">
+        <visual name="handle"><geometry><cylinder><radius>0.018</radius><length>0.13</length></cylinder></geometry><material><ambient>0.75 0.60 0.05 1</ambient><diffuse>0.75 0.60 0.05 1</diffuse></material></visual>
+      </link>
+    </model>
+    <model name="exit_green">
+      <static>true</static>
+      <pose>17.92 0 1.0 0 0 0</pose>
+      <link name="link">
+        <visual name="panel">
+          <geometry><box><size>0.06 0.9 2.0</size></box></geometry>
+          <material><ambient>0.02 0.85 0.12 1</ambient><diffuse>0.02 0.85 0.12 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="handle_exit">
+      <static>true</static>
+      <pose>17.88 -0.30 0.95 0 1.5708 0</pose>
+      <link name="link">
+        <visual name="handle"><geometry><cylinder><radius>0.018</radius><length>0.13</length></cylinder></geometry><material><ambient>0.75 0.60 0.05 1</ambient><diffuse>0.75 0.60 0.05 1</diffuse></material></visual>
+      </link>
+    </model>
+    <model name="v5_center_block_00_start">
+      <static>true</static>
+      <pose>0.55 -1.25 0.22 0 0 0</pose>
+      <link name="link">
+        <collision name="col"><geometry><box><size>0.32 0.36 0.44</size></box></geometry></collision>
+        <visual name="vis">
+          <geometry><box><size>0.32 0.36 0.44</size></box></geometry>
+          <material><ambient>0.42 0.42 0.42 1</ambient><diffuse>0.42 0.42 0.42 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="v5_center_block_01_pre_blue1">
+      <static>true</static>
+      <pose>1.55 0.65 0.24 0 0 0</pose>
+      <link name="link">
+        <collision name="col"><geometry><box><size>0.36 0.42 0.48</size></box></geometry></collision>
+        <visual name="vis">
+          <geometry><box><size>0.36 0.42 0.48</size></box></geometry>
+          <material><ambient>0.42 0.42 0.42 1</ambient><diffuse>0.42 0.42 0.42 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="v5_center_block_02_between_blue1_blue2">
+      <static>true</static>
+      <pose>4.65 -0.65 0.28 0 0 0</pose>
+      <link name="link">
+        <collision name="col"><geometry><box><size>0.40 0.45 0.56</size></box></geometry></collision>
+        <visual name="vis">
+          <geometry><box><size>0.40 0.45 0.56</size></box></geometry>
+          <material><ambient>0.42 0.42 0.42 1</ambient><diffuse>0.42 0.42 0.42 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="v5_center_block_03_pre_blue2">
+      <static>true</static>
+      <pose>7.35 0.65 0.26 0 0 0</pose>
+      <link name="link">
+        <collision name="col"><geometry><box><size>0.36 0.42 0.52</size></box></geometry></collision>
+        <visual name="vis">
+          <geometry><box><size>0.36 0.42 0.52</size></box></geometry>
+          <material><ambient>0.42 0.42 0.42 1</ambient><diffuse>0.42 0.42 0.42 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="v5_center_block_04_between_blue2_blue3">
+      <static>true</static>
+      <pose>10.65 -0.65 0.24 0 0 0</pose>
+      <link name="link">
+        <collision name="col"><geometry><box><size>0.38 0.42 0.48</size></box></geometry></collision>
+        <visual name="vis">
+          <geometry><box><size>0.38 0.42 0.48</size></box></geometry>
+          <material><ambient>0.42 0.42 0.42 1</ambient><diffuse>0.42 0.42 0.42 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="v5_center_block_05_after_blue3">
+      <static>true</static>
+      <pose>13.55 0.65 0.26 0 0 0</pose>
+      <link name="link">
+        <collision name="col"><geometry><box><size>0.36 0.42 0.52</size></box></geometry></collision>
+        <visual name="vis">
+          <geometry><box><size>0.36 0.42 0.52</size></box></geometry>
+          <material><ambient>0.42 0.42 0.42 1</ambient><diffuse>0.42 0.42 0.42 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="v5_side_clutter_01_right">
+      <static>true</static>
+      <pose>0.80 1.20 0.18 0 0 0</pose>
+      <link name="link">
+        <collision name="col"><geometry><box><size>0.28 0.32 0.36</size></box></geometry></collision>
+        <visual name="vis">
+          <geometry><box><size>0.28 0.32 0.36</size></box></geometry>
+          <material><ambient>0.42 0.42 0.42 1</ambient><diffuse>0.42 0.42 0.42 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="v5_side_clutter_02_left">
+      <static>true</static>
+      <pose>2.20 0.95 0.20 0 0 0</pose>
+      <link name="link">
+        <collision name="col"><geometry><box><size>0.30 0.34 0.40</size></box></geometry></collision>
+        <visual name="vis">
+          <geometry><box><size>0.30 0.34 0.40</size></box></geometry>
+          <material><ambient>0.42 0.42 0.42 1</ambient><diffuse>0.42 0.42 0.42 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="v5_side_clutter_03_right">
+      <static>true</static>
+      <pose>5.45 -1.42 0.22 0 0 0</pose>
+      <link name="link">
+        <collision name="col"><geometry><box><size>0.34 0.30 0.44</size></box></geometry></collision>
+        <visual name="vis">
+          <geometry><box><size>0.34 0.30 0.44</size></box></geometry>
+          <material><ambient>0.42 0.42 0.42 1</ambient><diffuse>0.42 0.42 0.42 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="v5_side_clutter_04_left">
+      <static>true</static>
+      <pose>8.05 0.95 0.22 0 0 0</pose>
+      <link name="link">
+        <collision name="col"><geometry><box><size>0.32 0.34 0.44</size></box></geometry></collision>
+        <visual name="vis">
+          <geometry><box><size>0.32 0.34 0.44</size></box></geometry>
+          <material><ambient>0.42 0.42 0.42 1</ambient><diffuse>0.42 0.42 0.42 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="v5_side_clutter_05_right">
+      <static>true</static>
+      <pose>11.35 -0.95 0.22 0 0 0</pose>
+      <link name="link">
+        <collision name="col"><geometry><box><size>0.34 0.32 0.44</size></box></geometry></collision>
+        <visual name="vis">
+          <geometry><box><size>0.34 0.32 0.44</size></box></geometry>
+          <material><ambient>0.42 0.42 0.42 1</ambient><diffuse>0.42 0.42 0.42 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="v5_side_clutter_06_left">
+      <static>true</static>
+      <pose>14.25 0.95 0.20 0 0 0</pose>
+      <link name="link">
+        <collision name="col"><geometry><box><size>0.30 0.34 0.40</size></box></geometry></collision>
+        <visual name="vis">
+          <geometry><box><size>0.30 0.34 0.40</size></box></geometry>
+          <material><ambient>0.42 0.42 0.42 1</ambient><diffuse>0.42 0.42 0.42 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+  </world>
+</sdf>

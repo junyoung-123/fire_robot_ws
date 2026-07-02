@@ -4,7 +4,7 @@
 
 ## 현재 상태
 
-2026-05-23 기준으로 Gazebo 시뮬레이션 검증은 완료되었습니다.
+2026-07-02 기준으로 Gazebo 장애물 회피/문 개방/비상구 도착 시뮬레이션 검증은 통과했습니다.
 
 | 항목 | 상태 |
 | --- | --- |
@@ -12,13 +12,15 @@
 | Gazebo 실행 | 통과 |
 | Nav2/SLAM 실행 | 통과 |
 | FSM 전체 흐름 | 통과 |
-| 좌우 6개 문 + 정면 비상구 월드 | 통과 |
+| 벽 부착형 좌우 문 + 정면 비상구 월드 | 통과 |
 | 파란 문 이동 및 sim_mode 문 개방 | 통과 |
 | 초록 비상구 이동 및 `MISSION_COMPLETE` | 통과 |
+| 정적 벽 지도 + AMCL localization 주행 | 통과 |
+| 2D LiDAR 기반 동적 장애물 회피 | 통과 |
 | YOLOv8 학습 모델 `best.pt` | 미완료 |
 | 실제 PIPER/CAN/모바일 베이스 검증 | 미완료 |
 
-상세 테스트 기록은 `docs/TEST_RESULT.md`, 현재 진행 상태는 `docs/PROJECT_STATUS.md`를 참고하세요.
+최신 장시간 검증 증거는 `artifacts/mission_20260702_041116/mission_path.png`, `mission_path.mp4`, `mission_summary.txt`에 저장했습니다.
 
 ## 동작 흐름
 
@@ -34,6 +36,35 @@
 -> 비상구 이동
 -> MISSION_COMPLETE
 ```
+
+## Navigation Update (2026-07-02)
+
+최신 시뮬레이션 구조는 SLAM을 계속 누적하면서 주행하는 방식이 아니라, 월드 구조를 기준으로 만든 정적 벽 지도와 AMCL localization을 기본으로 사용합니다. 로봇이 움직이는 동안 2D LiDAR와 카메라 인식 결과로 costmap을 갱신하고, Nav2가 반복적으로 경로를 재계획합니다.
+
+핵심 변경:
+
+| 영역 | 내용 |
+| --- | --- |
+| 모바일 베이스 | Clearpath J100 계열 치수 반영, 4륜 diff-drive joint 연결 |
+| 지도 | `obstacle_wall_doors_v5_static.yaml` 정적 벽 지도 추가 |
+| localization | 기본 `localization_mode:=localization`, map_server + AMCL 사용 |
+| planner | `SmacPlanner2D` 사용 |
+| controller | `RotationShimController` + `RegulatedPurePursuitController` 사용 |
+| costmap | global은 정적 벽 지도 + LiDAR clearing, local은 LiDAR/segmentation points 사용 |
+| 회피 정책 | 가까운 파란문 방향 우선, 먼 파란문은 LiDAR 차선 유지 후 재스캔 |
+| Gazebo | 카메라 headless 안정화를 위해 Sensors render engine을 `ogre2`로 변경 |
+
+최신 장시간 검증:
+
+```text
+log: logs/headless_verify_20260702_041116.log
+result: EXITING -> MISSION_COMPLETE
+evidence:
+  artifacts/mission_20260702_041116/mission_path.png
+  artifacts/mission_20260702_041116/mission_path.mp4
+```
+
+검증용 headless 장시간 실행은 CPU 부담을 줄이기 위해 `enable_segformer:=false`로 수행했습니다. 카메라 기반 HSV 문/색상 인식은 켜진 상태였고, 2D LiDAR가 동적 장애물 costmap을 담당했습니다. `simulation.launch.py`의 기본값은 `enable_segformer:=true`라서 SegFormer 연결은 유지됩니다.
 
 문 색상 의미:
 
@@ -161,7 +192,8 @@ source install/setup.bash
 LIBGL_ALWAYS_SOFTWARE=1 MESA_GL_VERSION_OVERRIDE=3.3 \
 ros2 launch fire_robot_bringup simulation.launch.py \
   use_rviz:=false \
-  headless:=true
+  headless:=true \
+  enable_segformer:=false
 ```
 
 Gazebo GUI 확인:
@@ -173,7 +205,17 @@ ros2 launch fire_robot_bringup simulation.launch.py \
   headless:=false
 ```
 
-현재 `corridor.world`는 좌우에 빨강/파랑 문 6개, 정면에 초록 비상구가 있는 검증용 월드입니다. 문은 카메라 인식과 Nav2 접근 검증을 위해 벽에서 약간 안쪽에 배치되어 있습니다.
+최신 장애물 검증 월드:
+
+```bash
+ros2 launch fire_robot_bringup simulation.launch.py \
+  world:=obstacle_wall_doors_v5.world \
+  localization_mode:=localization \
+  use_rviz:=true \
+  headless:=false
+```
+
+`obstacle_wall_doors_v5.world`는 벽 부착형 빨강/파랑 문, 중앙/측면 장애물, 정면 초록 비상구를 포함합니다.
 
 ## 실제 로봇 실행 전 체크리스트
 

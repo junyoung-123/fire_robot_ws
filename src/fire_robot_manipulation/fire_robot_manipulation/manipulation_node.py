@@ -36,6 +36,13 @@ try:
 except ImportError:
     _HAS_MOVEIT = False
 
+try:
+    from piper_msgs.msg import PosCmd
+    _HAS_PIPER_MSGS = True
+except ImportError:
+    PosCmd = None
+    _HAS_PIPER_MSGS = False
+
 
 # 문 개방 파라미터
 PRE_GRASP_OFFSET = 0.12   # 손잡이 앞 (m)
@@ -55,16 +62,50 @@ class ManipulationNode(Node):
         self.declare_parameter('velocity_scaling', 0.3)
         self.declare_parameter('sim_mode', True)
         self.declare_parameter('allow_sim_fallback', False)
+        self.declare_parameter('control_backend', 'moveit')
         self.declare_parameter('manipulation_frame', 'base_link')
         self.declare_parameter('tf_timeout_sec', 1.0)
+        self.declare_parameter('piper_pos_cmd_topic', '/pos_cmd')
+        self.declare_parameter('piper_enable_topic', '/enable_flag')
+        self.declare_parameter('piper_command_settle_sec', 1.2)
+        self.declare_parameter('piper_roll', 0.0)
+        self.declare_parameter('piper_pitch', 0.0)
+        self.declare_parameter('piper_yaw', 0.0)
+        self.declare_parameter('piper_mode1', 0)
+        self.declare_parameter('piper_mode2', 0)
+        self.declare_parameter('piper_return_home', False)
+        self.declare_parameter('piper_home_x', 0.25)
+        self.declare_parameter('piper_home_y', 0.0)
+        self.declare_parameter('piper_home_z', 0.30)
 
         self._planning_group = self.get_parameter('planning_group').value
         self._gripper_group  = self.get_parameter('gripper_group').value
         self._vel_scale      = self.get_parameter('velocity_scaling').value
         self._sim_mode       = self.get_parameter('sim_mode').value
         self._allow_sim_fallback = self.get_parameter('allow_sim_fallback').value
+        self._control_backend = str(
+            self.get_parameter('control_backend').value).strip().lower()
         self._manipulation_frame = self.get_parameter('manipulation_frame').value
         self._tf_timeout_sec = self.get_parameter('tf_timeout_sec').value
+        self._piper_pos_cmd_topic = self.get_parameter('piper_pos_cmd_topic').value
+        self._piper_enable_topic = self.get_parameter('piper_enable_topic').value
+        self._piper_settle_sec = self.get_parameter(
+            'piper_command_settle_sec').value
+        self._piper_roll = self.get_parameter('piper_roll').value
+        self._piper_pitch = self.get_parameter('piper_pitch').value
+        self._piper_yaw = self.get_parameter('piper_yaw').value
+        self._piper_mode1 = self.get_parameter('piper_mode1').value
+        self._piper_mode2 = self.get_parameter('piper_mode2').value
+        self._piper_return_home = self.get_parameter('piper_return_home').value
+        self._piper_home_x = self.get_parameter('piper_home_x').value
+        self._piper_home_y = self.get_parameter('piper_home_y').value
+        self._piper_home_z = self.get_parameter('piper_home_z').value
+
+        if self._control_backend not in ('moveit', 'piper_sdk'):
+            self.get_logger().warn(
+                f"Unknown control_backend '{self._control_backend}', "
+                "falling back to 'moveit'.")
+            self._control_backend = 'moveit'
 
         cb_group = ReentrantCallbackGroup()
         self._tf_buffer = Buffer()
@@ -83,8 +124,27 @@ class ManipulationNode(Node):
         self._gripper = None
         self._moveit  = None
         self._moveit_ready = False
+        self._piper_ready = False
+        self._piper_pos_pub = None
+        self._piper_enable_pub = None
 
-        if not self._sim_mode:
+        if not self._sim_mode and self._control_backend == 'piper_sdk':
+            if not _HAS_PIPER_MSGS:
+                self.get_logger().error(
+                    'piper_msgs is not installed; cannot use piper_sdk '
+                    'control_backend.')
+            else:
+                self._piper_pos_pub = self.create_publisher(
+                    PosCmd, self._piper_pos_cmd_topic, 10)
+                self._piper_enable_pub = self.create_publisher(
+                    Bool, self._piper_enable_topic, 10)
+                self._piper_ready = True
+                self.get_logger().info(
+                    'PIPER SDK command backend ready: '
+                    f'{self._piper_pos_cmd_topic}, '
+                    f'{self._piper_enable_topic}')
+
+        if not self._sim_mode and self._control_backend == 'moveit':
             if not _HAS_MOVEIT:
                 self._handle_moveit_init_failure('moveit_py is not installed')
             else:
@@ -100,7 +160,9 @@ class ManipulationNode(Node):
                     self._handle_moveit_init_failure(str(e))
 
         mode_str = 'SIMULATION' if self._sim_mode else 'REAL ROBOT'
-        self.get_logger().info(f'ManipulationNode started [{mode_str}]')
+        self.get_logger().info(
+            f'ManipulationNode started [{mode_str}, '
+            f'backend={self._control_backend}]')
 
     # ── 서비스 핸들러 ─────────────────────────────────────
     def open_door_callback(self,
@@ -123,11 +185,17 @@ class ManipulationNode(Node):
     # ── 문 개방 시퀀스 ────────────────────────────────────
     def _execute_door_open_sequence(self,
                                     handle_position: PointStamped) -> bool:
-        if not self._sim_mode and not self._moveit_ready:
-            self.get_logger().error(
-                'MoveItPy is not ready in real robot mode; '
-                'refusing to report simulated success.')
-            return False
+        if not self._sim_mode:
+            if self._control_backend == 'moveit' and not self._moveit_ready:
+                self.get_logger().error(
+                    'MoveItPy is not ready in real robot mode; '
+                    'refusing to report simulated success.')
+                return False
+            if self._control_backend == 'piper_sdk' and not self._piper_ready:
+                self.get_logger().error(
+                    'PIPER SDK command backend is not ready; '
+                    'cannot open the door safely.')
+                return False
 
         handle_position = self._transform_handle_to_manipulation_frame(
             handle_position)
@@ -220,6 +288,8 @@ class ManipulationNode(Node):
             y=handle_pos.point.y,
             z=handle_pos.point.z,
         )
+        if self._using_piper_sdk():
+            return self._send_piper_pose(target, GRIPPER_OPEN)
         return self._plan_and_execute_cartesian(target)
 
     def _grasp_handle(self, handle_pos: PointStamped) -> bool:
@@ -228,15 +298,20 @@ class ManipulationNode(Node):
             time.sleep(0.5)
             return True
 
-        # 그리퍼 열기
-        self._set_gripper(GRIPPER_OPEN)
-
         # 손잡이 위치로 직선 이동
         target = self._make_pose(
             x=handle_pos.point.x,
             y=handle_pos.point.y,
             z=handle_pos.point.z,
         )
+
+        if self._using_piper_sdk():
+            if not self._send_piper_pose(target, GRIPPER_OPEN):
+                return False
+            return self._send_piper_pose(target, GRIPPER_CLOSE)
+
+        # 그리퍼 열기
+        self._set_gripper(GRIPPER_OPEN)
         if not self._plan_and_execute_cartesian(target):
             return False
 
@@ -251,18 +326,35 @@ class ManipulationNode(Node):
             time.sleep(1.5)
             return True
 
-        # base_link uses x forward and z up, so pulling back changes x.
+        # The manipulation frame uses x forward and z up, so pulling back
+        # changes x.
         target = self._make_pose(
             x=handle_pos.point.x - PULL_DISTANCE,
             y=handle_pos.point.y,
             z=handle_pos.point.z,
         )
+        if self._using_piper_sdk():
+            return self._send_piper_pose(target, GRIPPER_CLOSE)
         return self._plan_and_execute_cartesian(target)
 
     def _move_to_home(self):
         if self._sim_mode:
             self.get_logger().info('  [SIM] Returning to home position')
             time.sleep(1.0)
+            return
+
+        if self._using_piper_sdk():
+            if not self._piper_return_home:
+                self.get_logger().info(
+                    '  [PIPER SDK] Skipping home pose; '
+                    'set piper_return_home:=true after measuring a safe pose.')
+                return
+            target = self._make_pose(
+                x=self._piper_home_x,
+                y=self._piper_home_y,
+                z=self._piper_home_z,
+            )
+            self._send_piper_pose(target, GRIPPER_OPEN)
             return
 
         if self._arm is None:
@@ -273,6 +365,39 @@ class ManipulationNode(Node):
         if plan_result:
             self._moveit.execute(plan_result.trajectory,
                                   controllers=[])
+
+    # ── 실제 PIPER SDK 토픽 제어 유틸 ─────────────────────
+    def _using_piper_sdk(self) -> bool:
+        return (not self._sim_mode and
+                self._control_backend == 'piper_sdk')
+
+    def _send_piper_pose(self, target_pose: Pose,
+                         gripper_width: float) -> bool:
+        if self._piper_pos_pub is None or self._piper_enable_pub is None:
+            return False
+
+        enable_msg = Bool()
+        enable_msg.data = True
+        self._piper_enable_pub.publish(enable_msg)
+
+        cmd = PosCmd()
+        cmd.x = float(target_pose.position.x)
+        cmd.y = float(target_pose.position.y)
+        cmd.z = float(target_pose.position.z)
+        cmd.roll = float(self._piper_roll)
+        cmd.pitch = float(self._piper_pitch)
+        cmd.yaw = float(self._piper_yaw)
+        cmd.gripper = float(gripper_width)
+        cmd.mode1 = int(self._piper_mode1)
+        cmd.mode2 = int(self._piper_mode2)
+
+        self._piper_pos_pub.publish(cmd)
+        self.get_logger().info(
+            f'  [PIPER SDK] pos_cmd frame={self._manipulation_frame} '
+            f'x={cmd.x:.3f}, y={cmd.y:.3f}, z={cmd.z:.3f}, '
+            f'gripper={cmd.gripper:.3f}')
+        time.sleep(float(self._piper_settle_sec))
+        return True
 
     # ── MoveIt2 유틸 ─────────────────────────────────────
     def _plan_and_execute_cartesian(self, target_pose: Pose) -> bool:

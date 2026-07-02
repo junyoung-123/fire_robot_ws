@@ -64,14 +64,29 @@ def generate_launch_description():
         Node(
             package='tf2_ros',
             executable='static_transform_publisher',
-            name='sim_radar_sensor_tf',
+            name='sim_lidar_sensor_tf',
             arguments=[
                 '0.2', '0.0', '0.07',
                 '0.0', '0.0', '0.0',
                 'base_link',
-                'fire_robot/base_footprint/radar_sensor',
+                'fire_robot/base_footprint/lidar_sensor',
             ],
             parameters=[{'use_sim_time': use_sim_time}],
+            output='screen',
+        ),
+
+        Node(
+            package='fire_robot_navigation',
+            executable='cmd_vel_safety_node',
+            name='cmd_vel_safety_node',
+            parameters=[{
+                'use_sim_time': use_sim_time,
+                'input_topic': '/cmd_vel',
+                'output_topic': '/cmd_vel_safe',
+                'allow_reverse': False,
+                'max_linear_x': 0.25,
+                'max_angular_z': 1.0,
+            }],
             output='screen',
         ),
 
@@ -101,11 +116,15 @@ def generate_launch_description():
             arguments=[
                 # 시뮬레이션 시간
                 '/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
-                # Radar (Ignition /scan → ROS2 /scan, LaserScan 형식 그대로)
+                # 2D LiDAR (Ignition /scan → ROS2 /scan, LaserScan 형식 그대로)
                 '/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
                 # RGB 카메라 이미지
                 '/camera_raw@sensor_msgs/msg/Image[gz.msgs.Image',
                 '/camera_raw/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo',
+                '/camera_front_left_raw@sensor_msgs/msg/Image[gz.msgs.Image',
+                '/camera_front_left_raw/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo',
+                '/camera_front_right_raw@sensor_msgs/msg/Image[gz.msgs.Image',
+                '/camera_front_right_raw/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo',
                 # Depth 카메라 (rgbd_camera → /camera/depth/*)
                 '/depth_camera/image@sensor_msgs/msg/Image[gz.msgs.Image',
                 '/depth_camera/depth_image@sensor_msgs/msg/Image[gz.msgs.Image',
@@ -123,10 +142,19 @@ def generate_launch_description():
             remappings=[
                 ('/camera_raw',              '/camera/color/image_raw'),
                 ('/camera_raw/camera_info',  '/camera/color/camera_info'),
+                ('/camera_front_left_raw',
+                 '/camera/front_left/image_raw'),
+                ('/camera_front_left_raw/camera_info',
+                 '/camera/front_left/camera_info'),
+                ('/camera_front_right_raw',
+                 '/camera/front_right/image_raw'),
+                ('/camera_front_right_raw/camera_info',
+                 '/camera/front_right/camera_info'),
                 ('/depth_camera/image',      '/camera/depth/color/image_raw'),
                 ('/depth_camera/depth_image','/camera/depth/image_rect_raw'),
                 ('/depth_camera/points',     '/camera/depth/points'),
                 ('/depth_camera/camera_info','/camera/depth/camera_info'),
+                ('/cmd_vel',                 '/cmd_vel_safe'),
             ],
             parameters=[{'use_sim_time': use_sim_time}],
             output='screen',

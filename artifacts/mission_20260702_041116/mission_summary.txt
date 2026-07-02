@@ -1,0 +1,23 @@
+log=/home/junyoung/fire_robot_ws_test/logs/headless_verify_20260702_041116.log
+path_samples=77
+mission_complete=True
+[state_machine_node-22] [INFO] [1782933856.866695837] [state_machine_node]: State: EXPLORING_NAVIGATING → EXPLORING
+[state_machine_node-22] [INFO] [1782933887.690386167] [state_machine_node]: State: EXPLORING → NAVIGATING
+[state_machine_node-22] [INFO] [1782933888.662525374] [state_machine_node]: State: NAVIGATING → OPENING_DOOR
+[state_machine_node-22] [INFO] [1782933893.688037789] [state_machine_node]: State: OPENING_DOOR → DOOR_OPENED
+[state_machine_node-22] [INFO] [1782933894.479276273] [state_machine_node]: State: DOOR_OPENED → EXPLORING
+[state_machine_node-22] [INFO] [1782933895.495932180] [state_machine_node]: State: EXPLORING → EXPLORING_NAVIGATING
+[state_machine_node-22] [INFO] [1782933896.511592477] [state_machine_node]: State: EXPLORING_NAVIGATING → EXPLORING
+[state_machine_node-22] [INFO] [1782933897.525508176] [state_machine_node]: State: EXPLORING → EXPLORING_NAVIGATING
+[state_machine_node-22] [INFO] [1782933898.550800620] [state_machine_node]: State: EXPLORING_NAVIGATING → EXPLORING
+[state_machine_node-22] [INFO] [1782933899.568333300] [state_machine_node]: State: EXPLORING → EXPLORING_NAVIGATING
+[state_machine_node-22] [INFO] [1782933900.568741946] [state_machine_node]: State: EXPLORING_NAVIGATING → EXPLORING
+[state_machine_node-22] [INFO] [1782933901.564997638] [state_machine_node]: State: EXPLORING → EXPLORING_NAVIGATING
+[state_machine_node-22] [INFO] [1782933902.548266073] [state_machine_node]: State: EXPLORING_NAVIGATING → EXPLORING
+[state_machine_node-22] [INFO] [1782933903.534586935] [state_machine_node]: State: EXPLORING → EXPLORING_NAVIGATING
+[state_machine_node-22] [INFO] [1782933904.473281457] [state_machine_node]: State: EXPLORING_NAVIGATING → EXPLORING
+[state_machine_node-22] [INFO] [1782933905.503044331] [state_machine_node]: State: EXPLORING → EXPLORING_NAVIGATING
+[state_machine_node-22] [INFO] [1782933906.451142332] [state_machine_node]: State: EXPLORING_NAVIGATING → EXPLORING
+[state_machine_node-22] [INFO] [1782933907.537257530] [state_machine_node]: State: EXPLORING → EXPLORING_NAVIGATING
+[state_machine_node-22] [INFO] [1782933908.634292018] [state_machine_node]: State: EXPLORING_NAVIGATING → EXITING
+[state_machine_node-22] [INFO] [1782933948.667855824] [state_machine_node]: State: EXITING → MISSION_COMPLETE

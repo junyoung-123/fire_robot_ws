@@ -261,5 +261,150 @@
       </link>
     </model>
 
+    <!-- Obstacle stress v2: many varied boxes, with the center aisle kept navigable. -->
+
+    <model name="v2_obstacle_01_low_left">
+      <static>true</static>
+      <pose>0.80 -1.15 0.20 0 0 0</pose>
+      <link name="link">
+        <collision name="col"><geometry><box><size>0.35 0.35 0.40</size></box></geometry></collision>
+        <visual name="vis">
+          <geometry><box><size>0.35 0.35 0.40</size></box></geometry>
+          <material><ambient>0.28 0.30 0.34 1</ambient><diffuse>0.28 0.30 0.34 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="v2_obstacle_02_mid_right">
+      <static>true</static>
+      <pose>1.90 1.15 0.30 0 0 0</pose>
+      <link name="link">
+        <collision name="col"><geometry><box><size>0.45 0.35 0.60</size></box></geometry></collision>
+        <visual name="vis">
+          <geometry><box><size>0.45 0.35 0.60</size></box></geometry>
+          <material><ambient>0.36 0.32 0.26 1</ambient><diffuse>0.36 0.32 0.26 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="v2_obstacle_03_wide_left">
+      <static>true</static>
+      <pose>3.20 -1.08 0.25 0 0 0</pose>
+      <link name="link">
+        <collision name="col"><geometry><box><size>0.35 0.50 0.50</size></box></geometry></collision>
+        <visual name="vis">
+          <geometry><box><size>0.35 0.50 0.50</size></box></geometry>
+          <material><ambient>0.25 0.36 0.28 1</ambient><diffuse>0.25 0.36 0.28 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="v2_obstacle_04_tall_right">
+      <static>true</static>
+      <pose>4.20 1.12 0.40 0 0 0</pose>
+      <link name="link">
+        <collision name="col"><geometry><box><size>0.40 0.40 0.80</size></box></geometry></collision>
+        <visual name="vis">
+          <geometry><box><size>0.40 0.40 0.80</size></box></geometry>
+          <material><ambient>0.38 0.29 0.24 1</ambient><diffuse>0.38 0.29 0.24 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="v2_obstacle_05_mid_left">
+      <static>true</static>
+      <pose>5.60 -1.20 0.28 0 0 0</pose>
+      <link name="link">
+        <collision name="col"><geometry><box><size>0.50 0.35 0.56</size></box></geometry></collision>
+        <visual name="vis">
+          <geometry><box><size>0.50 0.35 0.56</size></box></geometry>
+          <material><ambient>0.30 0.30 0.42 1</ambient><diffuse>0.30 0.30 0.42 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="v2_obstacle_06_wide_right">
+      <static>true</static>
+      <pose>6.90 1.08 0.28 0 0 0</pose>
+      <link name="link">
+        <collision name="col"><geometry><box><size>0.35 0.50 0.56</size></box></geometry></collision>
+        <visual name="vis">
+          <geometry><box><size>0.35 0.50 0.56</size></box></geometry>
+          <material><ambient>0.34 0.38 0.28 1</ambient><diffuse>0.34 0.38 0.28 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="v2_obstacle_07_low_left">
+      <static>true</static>
+      <pose>8.10 -1.12 0.20 0 0 0</pose>
+      <link name="link">
+        <collision name="col"><geometry><box><size>0.40 0.40 0.40</size></box></geometry></collision>
+        <visual name="vis">
+          <geometry><box><size>0.40 0.40 0.40</size></box></geometry>
+          <material><ambient>0.40 0.34 0.25 1</ambient><diffuse>0.40 0.34 0.25 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="v2_obstacle_08_tall_right">
+      <static>true</static>
+      <pose>9.80 1.15 0.42 0 0 0</pose>
+      <link name="link">
+        <collision name="col"><geometry><box><size>0.55 0.35 0.84</size></box></geometry></collision>
+        <visual name="vis">
+          <geometry><box><size>0.55 0.35 0.84</size></box></geometry>
+          <material><ambient>0.32 0.27 0.36 1</ambient><diffuse>0.32 0.27 0.36 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="v2_obstacle_09_wide_left">
+      <static>true</static>
+      <pose>11.20 -1.08 0.25 0 0 0</pose>
+      <link name="link">
+        <collision name="col"><geometry><box><size>0.35 0.50 0.50</size></box></geometry></collision>
+        <visual name="vis">
+          <geometry><box><size>0.35 0.50 0.50</size></box></geometry>
+          <material><ambient>0.26 0.33 0.36 1</ambient><diffuse>0.26 0.33 0.36 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="v2_obstacle_10_mid_right">
+      <static>true</static>
+      <pose>12.80 1.05 0.35 0 0 0</pose>
+      <link name="link">
+        <collision name="col"><geometry><box><size>0.45 0.40 0.70</size></box></geometry></collision>
+        <visual name="vis">
+          <geometry><box><size>0.45 0.40 0.70</size></box></geometry>
+          <material><ambient>0.35 0.35 0.30 1</ambient><diffuse>0.35 0.35 0.30 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="v2_obstacle_11_mid_left">
+      <static>true</static>
+      <pose>14.20 -1.15 0.30 0 0 0</pose>
+      <link name="link">
+        <collision name="col"><geometry><box><size>0.50 0.35 0.60</size></box></geometry></collision>
+        <visual name="vis">
+          <geometry><box><size>0.50 0.35 0.60</size></box></geometry>
+          <material><ambient>0.31 0.36 0.31 1</ambient><diffuse>0.31 0.36 0.31 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="v2_obstacle_12_low_right">
+      <static>true</static>
+      <pose>15.60 1.10 0.22 0 0 0</pose>
+      <link name="link">
+        <collision name="col"><geometry><box><size>0.35 0.45 0.44</size></box></geometry></collision>
+        <visual name="vis">
+          <geometry><box><size>0.35 0.45 0.44</size></box></geometry>
+          <material><ambient>0.37 0.31 0.29 1</ambient><diffuse>0.37 0.31 0.29 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
   </world>
 </sdf>

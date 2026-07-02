@@ -18,6 +18,7 @@ RGB 카메라 + Radar(+ 선택적 Depth 카메라)를 이용한 문 탐지 노�
 
 import math
 import uuid
+from dataclasses import dataclass
 from pathlib import Path
 
 import cv2
@@ -58,6 +59,20 @@ COLOR_RATIO_THRESHOLD = 0.20
 CAMERA_HFOV_RAD = 1.204   # RealSense D435 기준 ~69도
 
 
+@dataclass
+class CameraSource:
+    name: str
+    image_topic: str
+    info_topic: str
+    yaw_offset: float
+    fx: float = 500.0
+    fy: float = 500.0
+    cx: float = 320.0
+    cy: float = 240.0
+    img_w: int = 640
+    img_h: int = 480
+
+
 class DoorDetectionNode(Node):
     """YOLOv8 + HSV + Radar(+ Depth) 기반 파란/빨간 문 탐지 노드"""
 
@@ -75,6 +90,11 @@ class DoorDetectionNode(Node):
         self.declare_parameter('nav_goal_max_abs_y_m', 0.0)
         self.declare_parameter('min_door_aspect_ratio', 1.3)
         self.declare_parameter('publish_map_frame', True)
+        self.declare_parameter('camera_sources', [
+            'front|/camera/color/image_raw|/camera/color/camera_info|0.0',
+            'front_left|/camera/front_left/image_raw|/camera/front_left/camera_info|45.0',
+            'front_right|/camera/front_right/image_raw|/camera/front_right/camera_info|-45.0',
+        ])
 
         model_path       = self.get_parameter('model_path').value
         self._conf       = self.get_parameter('confidence_threshold').value
@@ -93,16 +113,10 @@ class DoorDetectionNode(Node):
             self.get_parameter('min_door_aspect_ratio').value)
         self._publish_map_frame = bool(
             self.get_parameter('publish_map_frame').value)
+        self._camera_sources = self._parse_camera_sources(
+            self.get_parameter('camera_sources').value)
 
         self.bridge = CvBridge()
-
-        # 카메라 내부 파라미터 기본값 (CameraInfo 수신 전)
-        self._fx = 500.0
-        self._fy = 500.0
-        self._cx = 320.0
-        self._cy = 240.0
-        self._img_w = 640
-        self._img_h = 480
 
         self._latest_scan:  LaserScan | None  = None
         self._latest_depth: np.ndarray | None = None   # (H, W) float32 [m]
@@ -115,12 +129,15 @@ class DoorDetectionNode(Node):
         cb = ReentrantCallbackGroup()
 
         # Subscribers
-        self.create_subscription(
-            Image, '/camera/color/image_raw', self.image_callback, 10,
-            callback_group=cb)
-        self.create_subscription(
-            CameraInfo, '/camera/color/camera_info',
-            self.camera_info_callback, 10)
+        for source in self._camera_sources:
+            self.create_subscription(
+                Image, source.image_topic,
+                lambda msg, src=source: self.image_callback(msg, src),
+                10, callback_group=cb)
+            self.create_subscription(
+                CameraInfo, source.info_topic,
+                lambda msg, src=source: self.camera_info_callback(msg, src),
+                10)
         self.create_subscription(
             LaserScan, '/scan', self.radar_callback, 10,
             callback_group=cb)
@@ -141,7 +158,33 @@ class DoorDetectionNode(Node):
 
         self.get_logger().info(
             f'DoorDetectionNode started | YOLO={"OK" if self._model else "FALLBACK_HSV"}'
-            f' | depth={"ON" if self._use_depth else "OFF"}')
+            f' | depth={"ON" if self._use_depth else "OFF"}'
+            f' | cameras={",".join(src.name for src in self._camera_sources)}')
+
+    def _parse_camera_sources(self, raw_sources) -> list[CameraSource]:
+        sources: list[CameraSource] = []
+        if isinstance(raw_sources, str):
+            raw_sources = [raw_sources]
+        for raw in raw_sources:
+            try:
+                name, image_topic, info_topic, yaw_deg = str(raw).split('|', 3)
+                sources.append(CameraSource(
+                    name=name.strip(),
+                    image_topic=image_topic.strip(),
+                    info_topic=info_topic.strip(),
+                    yaw_offset=math.radians(float(yaw_deg)),
+                ))
+            except Exception as exc:
+                self.get_logger().warn(
+                    f'Invalid camera source "{raw}": {exc}')
+        if not sources:
+            sources.append(CameraSource(
+                name='front',
+                image_topic='/camera/color/image_raw',
+                info_topic='/camera/color/camera_info',
+                yaw_offset=0.0,
+            ))
+        return sources
 
     # ── 모델 로드 ─────────────────────────────────────────
     def _load_model(self, model_path: str):
@@ -160,13 +203,13 @@ class DoorDetectionNode(Node):
         return None
 
     # ── 콜백 ──────────────────────────────────────────────
-    def camera_info_callback(self, msg: CameraInfo):
-        self._fx    = msg.k[0]
-        self._fy    = msg.k[4]
-        self._cx    = msg.k[2]
-        self._cy    = msg.k[5]
-        self._img_w = msg.width
-        self._img_h = msg.height
+    def camera_info_callback(self, msg: CameraInfo, source: CameraSource):
+        source.fx    = msg.k[0]
+        source.fy    = msg.k[4]
+        source.cx    = msg.k[2]
+        source.cy    = msg.k[5]
+        source.img_w = msg.width
+        source.img_h = msg.height
 
     def radar_callback(self, msg: LaserScan):
         self._latest_scan = msg
@@ -183,12 +226,12 @@ class DoorDetectionNode(Node):
         except Exception as e:
             self.get_logger().warn(f'depth decode error: {e}')
 
-    def image_callback(self, msg: Image):
+    def image_callback(self, msg: Image, source: CameraSource):
         image = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
-        self._process(image, msg.header)
+        self._process(image, msg.header, source)
 
     # ── 메인 처리 ─────────────────────────────────────────
-    def _process(self, image: np.ndarray, header):
+    def _process(self, image: np.ndarray, header, source: CameraSource):
         debug = image.copy()
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
@@ -203,13 +246,15 @@ class DoorDetectionNode(Node):
 
             cx_pix = (x1 + x2) // 2
             cy_pix = (y1 + y2) // 2
-            dist   = self._door_distance_at_pixel(cx_pix, cy_pix, y2 - y1)
+            dist   = self._door_distance_at_pixel(
+                cx_pix, cy_pix, y2 - y1, source)
             if dist is None:
                 continue
 
-            door_id  = self._get_door_id(color, cx_pix, image.shape[1])
+            door_id  = self._get_door_id(
+                source.name, color, cx_pix, image.shape[1])
             door_msg = self._build_door_info(
-                header, door_id, color, cx_pix, dist,
+                header, source, door_id, color, cx_pix, dist,
                 bbox_height=(y2 - y1), det_conf=det_conf)
             self.door_pub.publish(door_msg)
 
@@ -223,7 +268,7 @@ class DoorDetectionNode(Node):
             _DBG = {'blue': (255, 100, 0), 'red': (0, 60, 255), 'green': (0, 200, 50)}
             col  = _DBG.get(color, (200, 200, 200))
             cv2.rectangle(debug, (x1, y1), (x2, y2), col, 3)
-            cv2.putText(debug, f'{color} {det_conf:.2f} d={dist:.1f}m',
+            cv2.putText(debug, f'{source.name} {color} {det_conf:.2f} d={dist:.1f}m',
                         (x1, y1 - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.6, col, 2)
 
         self._publish_fire_info(header, red_positions)
@@ -304,32 +349,51 @@ class DoorDetectionNode(Node):
         return best if ratio > COLOR_RATIO_THRESHOLD else 'unknown'
 
     # ── 거리 추정 ─────────────────────────────────────────
-    def _lidar_distance_at_pixel(self, cx_pix: int,
-                                  cy_pix: int | None = None) -> float | None:
+    def _range_distance_at_pixel(self,
+                                  cx_pix: int,
+                                  cy_pix: int | None,
+                                  source: CameraSource) -> float | None:
         """거리 추정: Depth 카메라 우선, 없으면 Radar /scan fallback."""
-        if self._use_depth and self._latest_depth is not None:
+        if (self._use_depth and source.name == 'front'
+                and self._latest_depth is not None):
             dist = self._depth_distance_at_pixel(cx_pix, cy_pix)
             if dist is not None:
                 return dist
-        return self._radar_distance_at_pixel(cx_pix)
+        robot_angle = self._robot_angle_for_pixel(cx_pix, source)
+        return self._radar_distance_at_angle(robot_angle)
 
     def _door_distance_at_pixel(self,
                                 cx_pix: int,
                                 cy_pix: int,
-                                bbox_height: int) -> float | None:
-        measured = self._lidar_distance_at_pixel(cx_pix, cy_pix)
-        visual = self._visual_distance_from_bbox(bbox_height)
+                                bbox_height: int,
+                                source: CameraSource) -> float | None:
+        measured = self._range_distance_at_pixel(cx_pix, cy_pix, source)
+        visual = self._visual_distance_from_bbox(bbox_height, source)
+
+        # Side cameras see wall-mounted doors at an oblique angle. The apparent
+        # bbox height is often too small, so visual range can jump several
+        # meters. Radar is the reliable range source for those side views.
+        if abs(source.yaw_offset) > math.radians(5.0):
+            return measured
 
         if measured is None:
             return visual
-        if measured > self._max_detection_distance and visual is not None:
-            return visual
+        if visual is not None:
+            # A central obstacle can block the radar ray while the colored door is
+            # still visible. In that case, prefer the visual door distance so the
+            # navigation goal is not placed on the obstacle.
+            if measured < max(visual * 0.65, visual - 1.0):
+                return visual
+            if measured > self._max_detection_distance:
+                return visual
         return measured
 
-    def _visual_distance_from_bbox(self, bbox_height: int) -> float | None:
-        if bbox_height <= 0 or self._fy <= 0.0:
+    def _visual_distance_from_bbox(self,
+                                    bbox_height: int,
+                                    source: CameraSource) -> float | None:
+        if bbox_height <= 0 or source.fy <= 0.0:
             return None
-        dist = (self._door_height_m * self._fy) / float(bbox_height)
+        dist = (self._door_height_m * source.fy) / float(bbox_height)
         if 0.2 <= dist <= self._max_detection_distance:
             return float(dist)
         return None
@@ -351,13 +415,19 @@ class DoorDetectionNode(Node):
             return None
         return float(np.median(valid))
 
-    def _radar_distance_at_pixel(self, cx_pix: int) -> float | None:
-        """이미지 픽셀 x → 수평각 → Radar /scan range."""
+    def _robot_angle_for_pixel(self,
+                                cx_pix: int,
+                                source: CameraSource) -> float:
+        """이미지 픽셀 x → 로봇 기준 수평각(+Y/좌측이 양수)."""
+        pixel_angle = math.atan((source.cx - cx_pix) / source.fx)
+        return source.yaw_offset + pixel_angle
+
+    def _radar_distance_at_angle(self, robot_angle: float) -> float | None:
+        """로봇 기준 수평각 → Radar /scan range."""
         if self._latest_scan is None:
             return None
         scan = self._latest_scan
-        angle = math.atan((cx_pix - self._cx) / self._fx)
-        idx = int((angle - scan.angle_min) / scan.angle_increment)
+        idx = int((robot_angle - scan.angle_min) / scan.angle_increment)
         n   = len(scan.ranges)
         window = []
         for offset in range(-2, 3):
@@ -372,14 +442,15 @@ class DoorDetectionNode(Node):
         return float(np.median(window))
 
     # ── 메시지 빌드 ───────────────────────────────────────
-    def _build_door_info(self, header, door_id: str, color: str,
+    def _build_door_info(self, header, source: CameraSource,
+                         door_id: str, color: str,
                          cx_pix: int, dist: float,
                          bbox_height: int, det_conf: float) -> DoorInfo:
         msg = DoorInfo()
         msg.header = header
 
-        # 카메라 수평각 → robot frame (x = 전방, y = 좌)
-        angle = math.atan((cx_pix - self._cx) / self._fx)
+        # 카메라 수평각 + 카메라 장착 yaw → robot frame (x=전방, y=좌).
+        angle = self._robot_angle_for_pixel(cx_pix, source)
         handle_x = dist * math.cos(angle)
         handle_y = dist * math.sin(angle)
         nav_dist = max(0.3, dist - self._door_approach_offset)
@@ -400,7 +471,7 @@ class DoorDetectionNode(Node):
         handle_base.point.z = 0.9
 
         if not self._publish_map_frame:
-            self._clamp_navigation_pose(pose_base)
+            self._clamp_navigation_pose(pose_base, side_hint_y=py)
             msg.door_pose = pose_base
             msg.handle_position = handle_base
             msg.door_id    = door_id
@@ -417,22 +488,42 @@ class DoorDetectionNode(Node):
             handle_map = self._tf_buffer.transform(
                 handle_base, 'map',
                 timeout=rclpy.duration.Duration(seconds=0.1))
-            self._clamp_navigation_pose(pose_map)
+            self._clamp_navigation_pose(pose_map, side_hint_y=py)
             msg.door_pose = pose_map
             msg.handle_position = handle_map
-        except Exception:
-            # SLAM 맵 초기화 전 → base_link 그대로 (Nav2 목표 전달 시 주의)
-            msg.door_pose.header.frame_id         = self._frame
-            msg.door_pose.header.stamp            = header.stamp
-            msg.door_pose.pose.position.x         = px
-            msg.door_pose.pose.position.y         = py
-            msg.door_pose.pose.orientation.w      = 1.0
-            self._clamp_navigation_pose(msg.door_pose)
-            msg.handle_position.header.frame_id   = self._frame
-            msg.handle_position.header.stamp      = header.stamp
-            msg.handle_position.point.x           = handle_x
-            msg.handle_position.point.y           = handle_y
-            msg.handle_position.point.z           = 0.9
+        except Exception as stamped_error:
+            try:
+                # Camera images and TF can be a few frames out of phase in
+                # Gazebo/WSL. Use the latest available transform before
+                # falling back to base_link so FSM can still reason in map.
+                latest_stamp = rclpy.time.Time().to_msg()
+                pose_base.header.stamp = latest_stamp
+                handle_base.header.stamp = latest_stamp
+                pose_map = self._tf_buffer.transform(
+                    pose_base, 'map',
+                    timeout=rclpy.duration.Duration(seconds=0.2))
+                handle_map = self._tf_buffer.transform(
+                    handle_base, 'map',
+                    timeout=rclpy.duration.Duration(seconds=0.2))
+                self._clamp_navigation_pose(pose_map, side_hint_y=py)
+                msg.door_pose = pose_map
+                msg.handle_position = handle_map
+            except Exception:
+                self.get_logger().debug(
+                    f'Door map transform unavailable, publishing {self._frame}: '
+                    f'{stamped_error}')
+                # SLAM 맵 초기화 전 → base_link 그대로 (Nav2 목표 전달 시 주의)
+                msg.door_pose.header.frame_id         = self._frame
+                msg.door_pose.header.stamp            = header.stamp
+                msg.door_pose.pose.position.x         = px
+                msg.door_pose.pose.position.y         = py
+                msg.door_pose.pose.orientation.w      = 1.0
+                self._clamp_navigation_pose(msg.door_pose, side_hint_y=py)
+                msg.handle_position.header.frame_id   = self._frame
+                msg.handle_position.header.stamp      = header.stamp
+                msg.handle_position.point.x           = handle_x
+                msg.handle_position.point.y           = handle_y
+                msg.handle_position.point.z           = 0.9
 
         msg.door_id    = door_id
         msg.door_color = color
@@ -441,12 +532,19 @@ class DoorDetectionNode(Node):
         msg.distance_from_fire = 0.0
         return msg
 
-    def _clamp_navigation_pose(self, pose: PoseStamped):
-        """Keep side-door Nav2 goals inside the corridor, not on the wall panel."""
+    def _clamp_navigation_pose(self, pose: PoseStamped,
+                               side_hint_y: float | None = None):
+        """Keep side-door Nav2 goals in the corridor approach lane."""
         if self._nav_goal_max_abs_y <= 0.0:
             return
         y = pose.pose.position.y
         limit = self._nav_goal_max_abs_y
+        if side_hint_y is not None and abs(side_hint_y) > 0.08:
+            side = 1.0 if side_hint_y > 0.0 else -1.0
+            min_lane_abs_y = limit * 0.75
+            lane_abs_y = min(limit, max(abs(y), min_lane_abs_y))
+            pose.pose.position.y = side * lane_abs_y
+            return
         pose.pose.position.y = max(-limit, min(limit, y))
 
     def _publish_fire_info(self, header, red_positions: list[PointStamped]):
@@ -482,9 +580,10 @@ class DoorDetectionNode(Node):
                     msg.fire_position = fire_point
         self.fire_pub.publish(msg)
 
-    def _get_door_id(self, color: str, cx_pix: int, img_w: int) -> str:
+    def _get_door_id(self, source_name: str,
+                     color: str, cx_pix: int, img_w: int) -> str:
         grid = cx_pix // (img_w // 4)
-        key  = f'{color}_{grid}'
+        key  = f'{source_name}_{color}_{grid}'
         if key not in self._door_id_map:
             self._door_id_map[key] = f'door_{color}_{uuid.uuid4().hex[:6]}'
         return self._door_id_map[key]
