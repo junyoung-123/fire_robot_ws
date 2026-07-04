@@ -65,12 +65,13 @@ class CameraSource:
     image_topic: str
     info_topic: str
     yaw_offset: float
-    fx: float = 500.0
-    fy: float = 500.0
-    cx: float = 320.0
-    cy: float = 240.0
-    img_w: int = 640
-    img_h: int = 480
+    fx: float = 234.0
+    fy: float = 234.0
+    cx: float = 160.0
+    cy: float = 120.0
+    img_w: int = 320
+    img_h: int = 240
+    has_info: bool = False
 
 
 class DoorDetectionNode(Node):
@@ -88,7 +89,21 @@ class DoorDetectionNode(Node):
         self.declare_parameter('max_detection_distance_m', 12.0)
         self.declare_parameter('door_approach_offset_m', 0.8)
         self.declare_parameter('nav_goal_max_abs_y_m', 0.0)
+        self.declare_parameter('side_door_min_abs_y_m', 0.45)
+        self.declare_parameter('side_door_standoff_m', 0.85)
         self.declare_parameter('min_door_aspect_ratio', 1.3)
+        self.declare_parameter('side_range_max_disagreement_ratio', 2.2)
+        self.declare_parameter('side_range_max_disagreement_m', 1.2)
+        self.declare_parameter('hsv_fallback_max_door_distance_m', 5.5)
+        self.declare_parameter('hsv_fallback_side_requires_range', True)
+        self.declare_parameter('log_detection_candidates', False)
+        self.declare_parameter('hsv_fallback_min_width_px', 24)
+        self.declare_parameter('hsv_fallback_min_height_px', 70)
+        self.declare_parameter('hsv_fallback_green_min_height_px', 45)
+        self.declare_parameter('hsv_fallback_green_min_width_px', 18)
+        self.declare_parameter('hsv_fallback_green_min_fill_ratio', 0.16)
+        self.declare_parameter('hsv_fallback_clipped_max_width_ratio', 0.56)
+        self.declare_parameter('hsv_fallback_min_fill_ratio', 0.30)
         self.declare_parameter('publish_map_frame', True)
         self.declare_parameter('camera_sources', [
             'front|/camera/color/image_raw|/camera/color/camera_info|0.0',
@@ -109,8 +124,36 @@ class DoorDetectionNode(Node):
             self.get_parameter('door_approach_offset_m').value)
         self._nav_goal_max_abs_y = float(
             self.get_parameter('nav_goal_max_abs_y_m').value)
+        self._side_door_min_abs_y = float(
+            self.get_parameter('side_door_min_abs_y_m').value)
+        self._side_door_standoff = float(
+            self.get_parameter('side_door_standoff_m').value)
         self._min_door_aspect_ratio = float(
             self.get_parameter('min_door_aspect_ratio').value)
+        self._side_range_max_disagreement_ratio = float(
+            self.get_parameter('side_range_max_disagreement_ratio').value)
+        self._side_range_max_disagreement_m = float(
+            self.get_parameter('side_range_max_disagreement_m').value)
+        self._hsv_fallback_max_door_distance_m = float(
+            self.get_parameter('hsv_fallback_max_door_distance_m').value)
+        self._hsv_fallback_side_requires_range = bool(
+            self.get_parameter('hsv_fallback_side_requires_range').value)
+        self._hsv_fallback_min_width_px = int(
+            self.get_parameter('hsv_fallback_min_width_px').value)
+        self._hsv_fallback_min_height_px = int(
+            self.get_parameter('hsv_fallback_min_height_px').value)
+        self._hsv_fallback_green_min_height_px = int(
+            self.get_parameter('hsv_fallback_green_min_height_px').value)
+        self._hsv_fallback_green_min_width_px = int(
+            self.get_parameter('hsv_fallback_green_min_width_px').value)
+        self._hsv_fallback_green_min_fill_ratio = float(
+            self.get_parameter('hsv_fallback_green_min_fill_ratio').value)
+        self._hsv_fallback_clipped_max_width_ratio = float(
+            self.get_parameter('hsv_fallback_clipped_max_width_ratio').value)
+        self._hsv_fallback_min_fill_ratio = float(
+            self.get_parameter('hsv_fallback_min_fill_ratio').value)
+        self._log_detection_candidates = bool(
+            self.get_parameter('log_detection_candidates').value)
         self._publish_map_frame = bool(
             self.get_parameter('publish_map_frame').value)
         self._camera_sources = self._parse_camera_sources(
@@ -210,6 +253,7 @@ class DoorDetectionNode(Node):
         source.cy    = msg.k[5]
         source.img_w = msg.width
         source.img_h = msg.height
+        source.has_info = True
 
     def radar_callback(self, msg: LaserScan):
         self._latest_scan = msg
@@ -250,12 +294,33 @@ class DoorDetectionNode(Node):
                 cx_pix, cy_pix, y2 - y1, source)
             if dist is None:
                 continue
+            if (self._model is None
+                    and color in ('blue', 'red')
+                    and self._hsv_fallback_max_door_distance_m > 0.0
+                    and dist > self._hsv_fallback_max_door_distance_m):
+                if self._log_detection_candidates:
+                    self.get_logger().info(
+                        f'HSV 후보 제외: source={source.name}, color={color}, '
+                        f'dist={dist:.2f}m > {self._hsv_fallback_max_door_distance_m:.2f}m, '
+                        f'bbox=({x1},{y1},{x2},{y2})',
+                        throttle_duration_sec=2.0)
+                continue
 
             door_id  = self._get_door_id(
-                source.name, color, cx_pix, image.shape[1])
+                source.name, color, cx_pix, image.shape[1], dist)
             door_msg = self._build_door_info(
                 header, source, door_id, color, cx_pix, dist,
                 bbox_height=(y2 - y1), det_conf=det_conf)
+            if self._log_detection_candidates and color in ('blue', 'green'):
+                pose = door_msg.door_pose.pose.position
+                handle = door_msg.handle_position.point
+                self.get_logger().info(
+                    f'문 후보 발행: id={door_msg.door_id}, source={source.name}, '
+                    f'color={color}, dist={dist:.2f}m, conf={det_conf:.2f}, '
+                    f'bbox=({x1},{y1},{x2},{y2}), '
+                    f'goal=({pose.x:.2f},{pose.y:.2f}), '
+                    f'handle=({handle.x:.2f},{handle.y:.2f})',
+                    throttle_duration_sec=1.5)
             self.door_pub.publish(door_msg)
 
             if color == 'red':
@@ -304,27 +369,77 @@ class DoorDetectionNode(Node):
     def _hsv_fallback_detect(self, image: np.ndarray) -> list:
         """YOLO 없을 때 HSV 기반 contour로 문 후보 검출"""
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-        blue_mask  = cv2.inRange(hsv, BLUE_LOWER, BLUE_UPPER)
-        red_mask   = (cv2.inRange(hsv, RED_LOWER1, RED_UPPER1) |
-                      cv2.inRange(hsv, RED_LOWER2, RED_UPPER2))
-        green_mask = cv2.inRange(hsv, GREEN_LOWER, GREEN_UPPER)
-        combined   = blue_mask | red_mask | green_mask
-        kernel    = cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7))
-        combined  = cv2.morphologyEx(combined, cv2.MORPH_CLOSE, kernel)
-        contours, _ = cv2.findContours(combined, cv2.RETR_EXTERNAL,
-                                        cv2.CHAIN_APPROX_SIMPLE)
         min_area = image.shape[0] * image.shape[1] * 0.02
         boxes = []
-        for cnt in contours:
-            if cv2.contourArea(cnt) < min_area:
-                continue
-            x, y, w, h = cv2.boundingRect(cnt)
-            if not self._passes_door_shape_filter(x, y, x + w, y + h):
-                continue
-            conf = min(1.0, cv2.contourArea(cnt) / (min_area * 5))
-            boxes.append((x, y, x + w, y + h, conf))
+        color_masks = [
+            ('blue', cv2.inRange(hsv, BLUE_LOWER, BLUE_UPPER)),
+            ('red', (cv2.inRange(hsv, RED_LOWER1, RED_UPPER1) |
+                     cv2.inRange(hsv, RED_LOWER2, RED_UPPER2))),
+            ('green', cv2.inRange(hsv, GREEN_LOWER, GREEN_UPPER)),
+        ]
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7))
+
+        for mask_color, mask in color_masks:
+            closed = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+            contours, _ = cv2.findContours(
+                closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            for cnt in contours:
+                area = cv2.contourArea(cnt)
+                if area < min_area:
+                    continue
+                x, y, w, h = cv2.boundingRect(cnt)
+                roi_color = self._classify_color(hsv[y:y + h, x:x + w])
+                if roi_color != mask_color:
+                    continue
+                if not self._passes_hsv_fallback_geometry(
+                        mask_color, x, y, w, h, area, image.shape):
+                    continue
+                conf = min(1.0, area / (min_area * 5))
+                boxes.append((x, y, x + w, y + h, conf))
         return boxes
 
+    def _passes_hsv_fallback_geometry(
+            self,
+            color: str,
+            x: int,
+            y: int,
+            w: int,
+            h: int,
+            contour_area: float,
+            image_shape: tuple[int, ...]) -> bool:
+        img_h, img_w = image_shape[:2]
+        if color == 'green':
+            min_width = self._hsv_fallback_green_min_width_px
+            min_height = self._hsv_fallback_green_min_height_px
+            min_fill = self._hsv_fallback_green_min_fill_ratio
+        else:
+            min_width = self._hsv_fallback_min_width_px
+            min_height = self._hsv_fallback_min_height_px
+            min_fill = self._hsv_fallback_min_fill_ratio
+
+        if w < min_width or h < min_height:
+            return False
+        fill_ratio = contour_area / float(max(1, w * h))
+        if fill_ratio < min_fill:
+            return False
+        if not self._passes_door_shape_filter(x, y, x + w, y + h):
+            return False
+
+        clipped_top_bottom = y <= 1 and (y + h) >= img_h - 1
+        clipped_side = x <= 1 or (x + w) >= img_w - 1
+        width_ratio = w / float(max(1, img_w))
+        if (color in ('blue', 'red')
+                and clipped_top_bottom
+                and clipped_side
+                and width_ratio > self._hsv_fallback_clipped_max_width_ratio):
+            if self._log_detection_candidates:
+                self.get_logger().info(
+                    f'HSV candidate rejected: color={color}, edge-clipped bbox='
+                    f'({x},{y},{x + w},{y + h}), width_ratio={width_ratio:.2f}',
+                    throttle_duration_sec=2.0)
+            return False
+
+        return True
     def _passes_door_shape_filter(self, x1: int, y1: int,
                                   x2: int, y2: int) -> bool:
         width = max(1, x2 - x1)
@@ -372,8 +487,23 @@ class DoorDetectionNode(Node):
 
         # Side cameras see wall-mounted doors at an oblique angle. The apparent
         # bbox height is often too small, so visual range can jump several
-        # meters. Radar is the reliable range source for those side views.
+        # meters. Use the 2D LiDAR ray as the anchor, but fall back to visual
+        # range when the ray is clearly hitting an intervening obstacle/wall.
         if abs(source.yaw_offset) > math.radians(5.0):
+            if (self._model is None
+                    and self._hsv_fallback_side_requires_range
+                    and measured is None):
+                return None
+            if measured is None:
+                return visual
+            if visual is not None:
+                near = max(0.1, min(measured, visual))
+                far = max(measured, visual)
+                ratio = far / near
+                diff = abs(measured - visual)
+                if (ratio > self._side_range_max_disagreement_ratio
+                        and diff > self._side_range_max_disagreement_m):
+                    return None
             return measured
 
         if measured is None:
@@ -470,8 +600,17 @@ class DoorDetectionNode(Node):
         handle_base.point.y = handle_y
         handle_base.point.z = 0.9
 
+        # Shape the approach goal in base_link first. Clamping a side-door goal
+        # after transforming to map can flip the side when the SLAM map axis is
+        # not perfectly aligned with corridor lateral.
+        shaped = DoorInfo()
+        shaped.door_pose = pose_base
+        shaped.handle_position = handle_base
+        self._shape_navigation_pose_for_door(shaped, color, handle_y)
+        pose_base = shaped.door_pose
+        handle_base = shaped.handle_position
+
         if not self._publish_map_frame:
-            self._clamp_navigation_pose(pose_base, side_hint_y=py)
             msg.door_pose = pose_base
             msg.handle_position = handle_base
             msg.door_id    = door_id
@@ -488,7 +627,6 @@ class DoorDetectionNode(Node):
             handle_map = self._tf_buffer.transform(
                 handle_base, 'map',
                 timeout=rclpy.duration.Duration(seconds=0.1))
-            self._clamp_navigation_pose(pose_map, side_hint_y=py)
             msg.door_pose = pose_map
             msg.handle_position = handle_map
         except Exception as stamped_error:
@@ -505,7 +643,6 @@ class DoorDetectionNode(Node):
                 handle_map = self._tf_buffer.transform(
                     handle_base, 'map',
                     timeout=rclpy.duration.Duration(seconds=0.2))
-                self._clamp_navigation_pose(pose_map, side_hint_y=py)
                 msg.door_pose = pose_map
                 msg.handle_position = handle_map
             except Exception:
@@ -513,17 +650,8 @@ class DoorDetectionNode(Node):
                     f'Door map transform unavailable, publishing {self._frame}: '
                     f'{stamped_error}')
                 # SLAM 맵 초기화 전 → base_link 그대로 (Nav2 목표 전달 시 주의)
-                msg.door_pose.header.frame_id         = self._frame
-                msg.door_pose.header.stamp            = header.stamp
-                msg.door_pose.pose.position.x         = px
-                msg.door_pose.pose.position.y         = py
-                msg.door_pose.pose.orientation.w      = 1.0
-                self._clamp_navigation_pose(msg.door_pose, side_hint_y=py)
-                msg.handle_position.header.frame_id   = self._frame
-                msg.handle_position.header.stamp      = header.stamp
-                msg.handle_position.point.x           = handle_x
-                msg.handle_position.point.y           = handle_y
-                msg.handle_position.point.z           = 0.9
+                msg.door_pose = pose_base
+                msg.handle_position = handle_base
 
         msg.door_id    = door_id
         msg.door_color = color
@@ -531,6 +659,34 @@ class DoorDetectionNode(Node):
         msg.confidence = float(det_conf)
         msg.distance_from_fire = 0.0
         return msg
+
+    def _shape_navigation_pose_for_door(self, msg: DoorInfo,
+                                        color: str,
+                                        lateral_hint_y: float):
+        if color == 'green':
+            self._set_pose_yaw(msg.door_pose, 0.0)
+            self._clamp_navigation_pose(msg.door_pose, side_hint_y=lateral_hint_y)
+            return
+        if abs(lateral_hint_y) < self._side_door_min_abs_y:
+            self._set_pose_yaw(msg.door_pose, 0.0)
+            self._clamp_navigation_pose(msg.door_pose, side_hint_y=lateral_hint_y)
+            return
+        if msg.handle_position.header.frame_id != msg.door_pose.header.frame_id:
+            self._clamp_navigation_pose(msg.door_pose, side_hint_y=lateral_hint_y)
+            return
+
+        side = 1.0 if lateral_hint_y > 0.0 else -1.0
+        msg.door_pose.pose.position.x = msg.handle_position.point.x
+        msg.door_pose.pose.position.y = (
+            msg.handle_position.point.y - side * self._side_door_standoff)
+        self._set_pose_yaw(msg.door_pose, side * math.pi / 2.0)
+        self._clamp_navigation_pose(msg.door_pose, side_hint_y=lateral_hint_y)
+
+    def _set_pose_yaw(self, pose: PoseStamped, yaw: float):
+        pose.pose.orientation.x = 0.0
+        pose.pose.orientation.y = 0.0
+        pose.pose.orientation.z = math.sin(yaw / 2.0)
+        pose.pose.orientation.w = math.cos(yaw / 2.0)
 
     def _clamp_navigation_pose(self, pose: PoseStamped,
                                side_hint_y: float | None = None):
@@ -581,9 +737,15 @@ class DoorDetectionNode(Node):
         self.fire_pub.publish(msg)
 
     def _get_door_id(self, source_name: str,
-                     color: str, cx_pix: int, img_w: int) -> str:
-        grid = cx_pix // (img_w // 4)
-        key  = f'{source_name}_{color}_{grid}'
+                     color: str, cx_pix: int, img_w: int,
+                     dist: float | None = None) -> str:
+        pixel_grid = cx_pix // max(1, img_w // 4)
+        if dist is None or not math.isfinite(dist):
+            range_grid = 'unknown'
+        else:
+            clipped = max(0.0, min(float(dist), self._max_detection_distance))
+            range_grid = int(clipped // 2.0)
+        key  = f'{source_name}_{color}_{pixel_grid}_{range_grid}'
         if key not in self._door_id_map:
             self._door_id_map[key] = f'door_{color}_{uuid.uuid4().hex[:6]}'
         return self._door_id_map[key]

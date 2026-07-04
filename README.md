@@ -4,7 +4,7 @@
 
 ## 현재 상태
 
-2026-07-02 기준으로 Gazebo 장애물 회피/문 개방/비상구 도착 시뮬레이션 검증은 통과했습니다.
+2026-07-05 기준으로 Gazebo 장애물 회피/문 개방/비상구 도착 시뮬레이션 검증은 통과했습니다.
 
 | 항목 | 상태 |
 | --- | --- |
@@ -65,6 +65,26 @@ evidence:
 ```
 
 검증용 headless 장시간 실행은 CPU 부담을 줄이기 위해 `enable_segformer:=false`로 수행했습니다. 카메라 기반 HSV 문/색상 인식은 켜진 상태였고, 2D LiDAR가 동적 장애물 costmap을 담당했습니다. `simulation.launch.py`의 기본값은 `enable_segformer:=true`라서 SegFormer 연결은 유지됩니다.
+
+## Navigation Update (2026-07-05)
+
+2026-07-05 headless 검증에서도 관측 기반 파란문 순차 개방과 최종 초록 비상구 통과가 완료되었습니다.
+
+추가 안정화:
+
+| 영역 | 내용 |
+| --- | --- |
+| mission axis | 초기 SLAM/static map PCA 축이 초기 로봇 heading과 크게 다르면 heading 기준으로 잠금 |
+| blue-door target | 사전 스캔 후 관측된 파란문을 하나씩 lock하고 문 앞 yaw 정렬 후 개방 |
+| exit detection | 초록 비상구 후보를 초기 중심선 기준으로 필터링하고, 더 중앙에 가까운 후보를 우선 |
+| exit crossing | Nav2 출구 정렬 실패 시 yaw 보정 직진 통과로 전환하고, 진행축 통과 기준으로 완료 판정 |
+
+최신 검증 로그:
+
+```text
+log: logs/final_verify_540s.log
+result: opened blue doors=3, EXITING -> MISSION_COMPLETE
+```
 
 문 색상 의미:
 

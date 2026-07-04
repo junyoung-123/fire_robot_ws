@@ -503,7 +503,7 @@ class SensorFusionNode(Node):
             return float(t.x), float(t.y), math.atan2(siny_cosp, cosy_cosp)
 
         self.get_logger().warn(
-            f'No TF from radar frame candidates {candidates} to {self._map_frame}',
+            f'No TF from LiDAR frame candidates {candidates} to {self._map_frame}',
             throttle_duration_sec=3.0)
         return None
 

@@ -45,9 +45,13 @@
       <collision name="col"><geometry><box><size>0.2 4 2.5</size></box></geometry></collision>
       <visual name="vis"><geometry><box><size>0.2 4 2.5</size></box></geometry><material><ambient>0.85 0.85 0.80 1</ambient><diffuse>0.85 0.85 0.80 1</diffuse></material></visual>
     </link></model>
-    <model name="wall_east"><static>true</static><pose>18 0 1.25 0 0 0</pose><link name="link">
-      <collision name="col"><geometry><box><size>0.2 4 2.5</size></box></geometry></collision>
-      <visual name="vis"><geometry><box><size>0.2 4 2.5</size></box></geometry><material><ambient>0.85 0.85 0.80 1</ambient><diffuse>0.85 0.85 0.80 1</diffuse></material></visual>
+    <model name="wall_east_upper"><static>true</static><pose>18 1.45 1.25 0 0 0</pose><link name="link">
+      <collision name="col"><geometry><box><size>0.2 1.1 2.5</size></box></geometry></collision>
+      <visual name="vis"><geometry><box><size>0.2 1.1 2.5</size></box></geometry><material><ambient>0.85 0.85 0.80 1</ambient><diffuse>0.85 0.85 0.80 1</diffuse></material></visual>
+    </link></model>
+    <model name="wall_east_lower"><static>true</static><pose>18 -1.45 1.25 0 0 0</pose><link name="link">
+      <collision name="col"><geometry><box><size>0.2 1.1 2.5</size></box></geometry></collision>
+      <visual name="vis"><geometry><box><size>0.2 1.1 2.5</size></box></geometry><material><ambient>0.85 0.85 0.80 1</ambient><diffuse>0.85 0.85 0.80 1</diffuse></material></visual>
     </link></model>
 
     <model name="door_red1">

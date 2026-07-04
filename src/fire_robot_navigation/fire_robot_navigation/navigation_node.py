@@ -37,6 +37,9 @@ class NavigationNode(Node):
         self.declare_parameter('goal_adjust_max_abs_y_m', 0.0)
         self.declare_parameter('goal_adjust_min_progress_m', 0.30)
         self.declare_parameter('fallback_goal_reached_dist_m', 0.85)
+        self.declare_parameter('precise_goal_reached_dist_m', 0.30)
+        self.declare_parameter('explore_goal_reached_dist_m', 0.55)
+        self.declare_parameter('explore_navigation_timeout_sec', 75.0)
         self.declare_parameter('lane_biased_intermediate_goals', False)
         self.declare_parameter('lane_goal_min_abs_y_m', 0.75)
         self._navigation_frame = self.get_parameter('navigation_frame').value
@@ -53,6 +56,12 @@ class NavigationNode(Node):
             self.get_parameter('goal_adjust_min_progress_m').value)
         self._fallback_goal_reached_dist_m = float(
             self.get_parameter('fallback_goal_reached_dist_m').value)
+        self._precise_goal_reached_dist_m = float(
+            self.get_parameter('precise_goal_reached_dist_m').value)
+        self._explore_goal_reached_dist_m = float(
+            self.get_parameter('explore_goal_reached_dist_m').value)
+        self._explore_navigation_timeout_sec = float(
+            self.get_parameter('explore_navigation_timeout_sec').value)
         self._lane_biased_intermediate_goals = bool(
             self.get_parameter('lane_biased_intermediate_goals').value)
         self._lane_goal_min_abs_y_m = float(
@@ -82,9 +91,12 @@ class NavigationNode(Node):
         self._active_goal_pose: PoseStamped | None = None
         self._active_goal_is_intermediate = False
         self._latest_costmap: OccupancyGrid | None = None
+        self._current_goal_color = ''
         self._tf_buffer = Buffer()
         self._tf_listener = TransformListener(self._tf_buffer, self)
+        self._goal_start_time = None
 
+        self.create_timer(0.5, self._goal_watchdog_callback)
         self.get_logger().info('NavigationNode started')
 
     def costmap_callback(self, msg: OccupancyGrid):
@@ -104,6 +116,7 @@ class NavigationNode(Node):
             f'x={msg.door_pose.pose.position.x:.2f}, '
             f'y={msg.door_pose.pose.position.y:.2f})'
         )
+        self._current_goal_color = msg.door_color
         self._navigate_to_pose(msg.door_pose)
 
     # ── Nav2 목표 전송 ────────────────────────────────────
@@ -238,6 +251,7 @@ class NavigationNode(Node):
 
         goal = NavigateToPose.Goal()
         self._active_goal_pose = goal_pose
+        self._goal_start_time = self.get_clock().now()
 
         goal.pose = goal_pose
         goal.pose.header.stamp.sec = 0
@@ -248,6 +262,9 @@ class NavigationNode(Node):
         send_future.add_done_callback(self._goal_response_callback)
 
     def _limited_goal_step(self, final_pose: PoseStamped) -> PoseStamped:
+        if self._current_goal_color in ('blue', 'green', 'explore'):
+            self._active_goal_is_intermediate = False
+            return final_pose
         if self._max_goal_step_m <= 0.0:
             self._active_goal_is_intermediate = False
             return final_pose
@@ -277,7 +294,8 @@ class NavigationNode(Node):
         step_pose = deepcopy(final_pose)
         step_pose.pose.position.x = rx + dx * ratio
         step_pose.pose.position.y = ry + dy * ratio
-        if (self._lane_biased_intermediate_goals
+        if (self._current_goal_color != 'explore'
+                and self._lane_biased_intermediate_goals
                 and abs(fy) >= self._lane_goal_min_abs_y_m):
             lane_side = 1.0 if fy > 0.0 else -1.0
             lane_abs_y = min(abs(fy), max(self._lane_goal_min_abs_y_m, abs(fy) * 0.78))
@@ -327,6 +345,7 @@ class NavigationNode(Node):
             self._final_goal_pose = None
             self._active_goal_pose = None
             self._active_goal_is_intermediate = False
+            self._goal_start_time = None
             self._publish_done(success=False)
             return
 
@@ -338,14 +357,17 @@ class NavigationNode(Node):
         active_dist = self._distance_to_robot(self._active_goal_pose)
         final_dist = self._distance_to_robot(self._final_goal_pose)
 
-        if final_dist is not None and final_dist <= self._fallback_goal_reached_dist_m:
+        fallback_dist = self._goal_reached_fallback_dist()
+        if final_dist is not None and final_dist <= fallback_dist:
             self.get_logger().warn(
                 f'Nav2 failed with status {status}, but robot is {final_dist:.2f}m '
-                'from final goal. Treating navigation as succeeded.')
+                f'from final goal (fallback={fallback_dist:.2f}m). '
+                'Treating navigation as succeeded.')
             self._navigating = False
             self._final_goal_pose = None
             self._active_goal_pose = None
             self._active_goal_is_intermediate = False
+            self._goal_start_time = None
             self._publish_done(success=True)
             return True
 
@@ -359,6 +381,13 @@ class NavigationNode(Node):
             return True
 
         return False
+
+    def _goal_reached_fallback_dist(self) -> float:
+        if self._current_goal_color in ('blue', 'green'):
+            return min(self._fallback_goal_reached_dist_m, self._precise_goal_reached_dist_m)
+        if self._current_goal_color == 'explore':
+            return self._explore_goal_reached_dist_m
+        return self._fallback_goal_reached_dist_m
 
     def _distance_to_robot(self, pose: PoseStamped | None) -> float | None:
         if pose is None:
@@ -380,6 +409,8 @@ class NavigationNode(Node):
         return math.hypot(px - rx, py - ry)
 
     def _result_callback(self, future):
+        if not self._navigating and self._final_goal_pose is None:
+            return
         self._current_goal_handle = None
         status = future.result().status
 
@@ -392,6 +423,8 @@ class NavigationNode(Node):
             self._navigating = False
             self._final_goal_pose = None
             self._active_goal_pose = None
+            self._current_goal_color = ''
+            self._goal_start_time = None
             self.get_logger().info('Navigation succeeded.')
             self._publish_done(success=True)
         else:
@@ -401,6 +434,8 @@ class NavigationNode(Node):
             self._navigating = False
             self._final_goal_pose = None
             self._active_goal_pose = None
+            self._current_goal_color = ''
+            self._goal_start_time = None
             self.get_logger().warn(f'Navigation failed with status: {status}')
             self._publish_done(success=False)
 
@@ -408,6 +443,72 @@ class NavigationNode(Node):
         dist = feedback_msg.feedback.distance_remaining
         if dist is not None:
             self.get_logger().debug(f'Distance remaining: {dist:.2f} m')
+        self._complete_if_close_enough()
+        self._goal_watchdog_callback()
+
+    def _complete_if_close_enough(self):
+        if not self._navigating:
+            return
+        if self._active_goal_is_intermediate:
+            return
+        if self._current_goal_color not in ('blue', 'green', 'explore'):
+            return
+        final_dist = self._distance_to_robot(self._final_goal_pose)
+        if final_dist is None:
+            return
+        fallback_dist = self._goal_reached_fallback_dist()
+        if final_dist > fallback_dist:
+            return
+
+        self.get_logger().warn(
+            f'Robot is {final_dist:.2f}m from {self._current_goal_color} goal '
+            f'(threshold={fallback_dist:.2f}m). Treating navigation as succeeded.')
+        if self._current_goal_handle is not None:
+            self._current_goal_handle.cancel_goal_async()
+            self._current_goal_handle = None
+        self._navigating = False
+        self._final_goal_pose = None
+        self._active_goal_pose = None
+        self._active_goal_is_intermediate = False
+        self._current_goal_color = ''
+        self._goal_start_time = None
+        self._publish_done(success=True)
+
+    def _goal_watchdog_callback(self):
+        if not self._navigating:
+            return
+        if self._current_goal_color != 'explore':
+            return
+        if self._goal_start_time is None:
+            return
+        if self._explore_navigation_timeout_sec <= 0.0:
+            return
+
+        elapsed = (
+            self.get_clock().now() - self._goal_start_time
+        ).nanoseconds / 1e9
+        if elapsed <= self._explore_navigation_timeout_sec:
+            return
+
+        final_dist = self._distance_to_robot(self._final_goal_pose)
+        success_threshold = max(
+            self._explore_goal_reached_dist_m,
+            min(self._fallback_goal_reached_dist_m, 0.90))
+        success = final_dist is not None and final_dist <= success_threshold
+        self.get_logger().warn(
+            f'Explore navigation watchdog timeout ({elapsed:.1f}s). '
+            f'final_dist={final_dist if final_dist is not None else -1.0:.2f}, '
+            f'threshold={success_threshold:.2f}, success={success}.')
+        if self._current_goal_handle is not None:
+            self._current_goal_handle.cancel_goal_async()
+            self._current_goal_handle = None
+        self._navigating = False
+        self._final_goal_pose = None
+        self._active_goal_pose = None
+        self._active_goal_is_intermediate = False
+        self._current_goal_color = ''
+        self._goal_start_time = None
+        self._publish_done(success=success)
 
     # ── 취소 ──────────────────────────────────────────────
     def _cancel_current_goal(self):
@@ -418,6 +519,8 @@ class NavigationNode(Node):
         self._final_goal_pose = None
         self._active_goal_pose = None
         self._active_goal_is_intermediate = False
+        self._current_goal_color = ''
+        self._goal_start_time = None
 
     # ── 완료 신호 발행 ────────────────────────────────────
     def _publish_done(self, success: bool):

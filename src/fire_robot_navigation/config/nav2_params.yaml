@@ -104,8 +104,8 @@ controller_server:
     general_goal_checker:
       stateful: true
       plugin: "nav2_controller::SimpleGoalChecker"
-      xy_goal_tolerance: 0.35
-      yaw_goal_tolerance: 0.60
+      xy_goal_tolerance: 0.22
+      yaw_goal_tolerance: 0.35
 
     FollowPath:
       plugin: "nav2_rotation_shim_controller::RotationShimController"
@@ -133,7 +133,7 @@ controller_server:
       use_fixed_curvature_lookahead: false
       curvature_lookahead_dist: 0.65
       use_rotate_to_heading: false
-      rotate_to_heading_min_angle: 0.65
+      rotate_to_heading_min_angle: 0.35
       allow_reversing: false
 
 # ── Smoother Server ──────────────────────────────────────────
@@ -274,30 +274,32 @@ global_costmap:
       footprint: "[[-0.26, -0.23], [-0.26, 0.23], [0.26, 0.23], [0.26, -0.23]]"
       plugins:
         - "static_layer"        # 절대 벽/방 구조: SLAM 누적과 분리
-        - "obstacle_layer"      # 2D LiDAR clearing 기반 동적 장애물
+        - "obstacle_layer"      # live scan obstacles with raytrace clearing
         - "inflation_layer"
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
-        map_topic: /map
+        map_topic: /initial_static_map
         map_subscribe_transient_local: true
         subscribe_to_updates: false
         enabled: true
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: true
-        footprint_clearing_enabled: true
         observation_sources: scan
         scan:
           topic: /scan
           data_type: "LaserScan"
-          max_obstacle_height: 2.0
-          min_obstacle_height: 0.0
-          obstacle_max_range: 6.0
-          obstacle_min_range: 0.85
-          raytrace_max_range: 7.0
-          raytrace_min_range: 0.0
-          clearing: true
+          sensor_frame: lidar_link
+          expected_update_rate: 0.0
+          observation_persistence: 0.8
           marking: true
+          clearing: true
+          obstacle_max_range: 8.0
+          obstacle_min_range: 0.05
+          raytrace_max_range: 8.5
+          raytrace_min_range: 0.0
+          max_obstacle_height: 2.0
+          min_obstacle_height: 0.02
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 5.0
