@@ -24,6 +24,9 @@ def generate_launch_description():
     map_file = LaunchConfiguration('map', default=PathJoinSubstitution([
         FindPackageShare('fire_robot_navigation'), 'maps', 'obstacle_wall_doors_v5_static.yaml',
     ]))
+    door_model_path = LaunchConfiguration('door_model_path', default=PathJoinSubstitution([
+        FindPackageShare('fire_robot_perception'), 'models', 'best.pt',
+    ]))
     nav2_params = PathJoinSubstitution([
         FindPackageShare('fire_robot_navigation'), 'config', 'nav2_params.yaml',
     ])
@@ -202,6 +205,7 @@ def generate_launch_description():
                 name='door_detection_node',
                 parameters=[{
                     'use_sim_time': use_sim_time,
+                    'model_path': door_model_path,
                     'door_approach_offset_m': 1.5,
                     'nav_goal_max_abs_y_m': 0.85,
                     'side_door_min_abs_y_m': 0.45,
@@ -416,6 +420,13 @@ def generate_launch_description():
                 FindPackageShare('fire_robot_navigation'), 'maps', 'obstacle_wall_doors_v5_static.yaml',
             ]),
             description='Map yaml used when localization_mode:=localization.',
+        ),
+        DeclareLaunchArgument(
+            'door_model_path',
+            default_value=PathJoinSubstitution([
+                FindPackageShare('fire_robot_perception'), 'models', 'best.pt',
+            ]),
+            description='YOLO door detector weight path. Leave the file absent to use HSV fallback.',
         ),
         DeclareLaunchArgument(
             'headless',

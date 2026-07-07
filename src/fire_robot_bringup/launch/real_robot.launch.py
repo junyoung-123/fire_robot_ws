@@ -48,6 +48,9 @@ def generate_launch_description():
     nav2_params = PathJoinSubstitution([
         FindPackageShare('fire_robot_navigation'), 'config', 'nav2_params.yaml',
     ])
+    door_model_path = LaunchConfiguration('door_model_path', default=PathJoinSubstitution([
+        FindPackageShare('fire_robot_perception'), 'models', 'best.pt',
+    ]))
     odom_topic = LaunchConfiguration('odom_topic', default='/odom')
     clearpath_setup_path = LaunchConfiguration(
         'clearpath_setup_path',
@@ -284,7 +287,10 @@ def generate_launch_description():
             Node(package='fire_robot_perception', executable='sensor_fusion_node',
                  parameters=[{'use_sim_time': use_sim_time, 'lidar_frame': lidar_frame}], output='screen'),
             Node(package='fire_robot_perception', executable='door_detection_node',
-                 parameters=[{'use_sim_time': use_sim_time}], output='screen'),
+                 parameters=[{
+                     'use_sim_time': use_sim_time,
+                     'model_path': door_model_path,
+                 }], output='screen'),
             Node(package='fire_robot_navigation',  executable='navigation_node',
                  parameters=[{'use_sim_time': use_sim_time}], output='screen'),
             Node(package='fire_robot_manipulation', executable='manipulation_node',
@@ -327,6 +333,13 @@ def generate_launch_description():
             description='LaserScan frame on the real Clearpath/ROAS2 robot.'),
         DeclareLaunchArgument('odom_topic', default_value='/odom',
             description='Odometry topic used by Nav2; use /platform/odom/filtered on Clearpath J100.'),
+        DeclareLaunchArgument(
+            'door_model_path',
+            default_value=PathJoinSubstitution([
+                FindPackageShare('fire_robot_perception'), 'models', 'best.pt',
+            ]),
+            description='YOLO door detector weight path. Leave the file absent to use HSV fallback.',
+        ),
         DeclareLaunchArgument('clearpath_setup_path',
             default_value='/home/roas/jackal_ws/src/roas2_bringup/',
             description='Path to roas2_bringup setup directory on the J100 onboard PC.'),

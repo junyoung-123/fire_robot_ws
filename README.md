@@ -4,7 +4,7 @@
 
 ## 현재 상태
 
-2026-07-05 기준으로 Gazebo 장애물 회피/문 개방/비상구 도착 시뮬레이션 검증은 통과했습니다.
+2026-07-07 기준으로 Gazebo 장애물 회피/문 개방/비상구 도착 시뮬레이션 검증은 통과했고, 팀원 학습 YOLOv8s Door 모델을 로컬 프로젝트 경로에 연결했습니다.
 
 | 항목 | 상태 |
 | --- | --- |
@@ -17,7 +17,7 @@
 | 초록 비상구 이동 및 `MISSION_COMPLETE` | 통과 |
 | 정적 벽 지도 + AMCL localization 주행 | 통과 |
 | 2D LiDAR 기반 동적 장애물 회피 | 통과 |
-| YOLOv8 학습 모델 `best.pt` | 미완료 |
+| YOLOv8s Door 학습 모델 `best.pt` | 학습 완료 / 로컬 적용 |
 | 실제 PIPER/CAN/모바일 베이스 검증 | 미완료 |
 
 최신 장시간 검증 증거는 `artifacts/mission_20260702_041116/mission_path.png`, `mission_path.mp4`, `mission_summary.txt`에 저장했습니다.
@@ -128,7 +128,7 @@ SegFormer + LaserScan/Depth
 -> Nav2 costmap 보조 레이어로 사용
 ```
 
-현재 시뮬레이션 검증은 YOLO `best.pt` 없이 HSV fallback으로 통과했습니다. 실제 환경에서는 조명과 문 재질이 달라지므로 YOLO 학습 모델 적용이 필요합니다.
+기존 시뮬레이션 검증은 YOLO `best.pt` 없이 HSV fallback으로 통과했습니다. 2026-07-07에 OpenImages Door 데이터셋으로 학습한 YOLOv8s `best.pt`를 `src/fire_robot_perception/models/best.pt`에 배치했고, `simulation.launch.py`와 `real_robot.launch.py`의 `door_model_path` 기본값으로 연결했습니다. 단, ROS2 실행 환경에 `ultralytics`가 설치되어 있지 않으면 노드는 자동으로 HSV-only fallback을 사용합니다.
 
 ## 데이터셋과 학습
 
@@ -157,11 +157,35 @@ python3 scripts/train_door_detector.py \
   --dataset datasets/door_detection/dataset.yaml
 ```
 
-학습 후 생성되는 `best.pt`를 `door_detection_node`의 `model_path` 파라미터로 넘겨 사용합니다.
+학습 완료 모델:
+
+| 항목 | 값 |
+| --- | --- |
+| 모델 | YOLOv8s |
+| 클래스 | Door 1개 |
+| 데이터셋 | OpenImages Door |
+| mAP50 | 0.6088 |
+| mAP50-95 | 0.3923 |
+| Precision | 0.6184 |
+| Recall | 0.5817 |
+
+`best.pt`는 Git 추적 대상이 아니므로 현장/테스트 PC마다 아래 위치에 복사합니다.
 
 ```bash
-ros2 run fire_robot_perception door_detection_node \
-  --ros-args -p model_path:=/path/to/best.pt
+mkdir -p ~/fire_robot_ws_test/src/fire_robot_perception/models
+cp /mnt/c/Users/황준영/Desktop/best.pt \
+  ~/fire_robot_ws_test/src/fire_robot_perception/models/best.pt
+
+cd ~/fire_robot_ws_test
+source /opt/ros/humble/setup.bash
+colcon build --symlink-install
+source install/setup.bash
+```
+
+기본 launch는 설치된 패키지의 `models/best.pt`를 자동 사용합니다. 다른 weight를 시험할 때는 `door_model_path`를 오버라이드합니다.
+
+```bash
+ros2 launch fire_robot_bringup simulation.launch.py door_model_path:=/path/to/best.pt
 ```
 
 문이 아닌 파란/빨간/초록 물체 오탐을 줄이기 위해 bbox 세로/가로 비율 필터가 적용되어 있습니다.
