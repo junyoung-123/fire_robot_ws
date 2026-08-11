@@ -1,159 +1,162 @@
-# ROS2 Test Result
+# 검증 결과 정리 (2026-08-11)
 
-Date: 2026-05-22  
-Environment: WSL2 Ubuntu 22.04, ROS 2 Humble  
-Workspace used for ROS2 test: `~/fire_robot_ws_test`
+## 빌드 및 정적 검사
 
-## Summary
+```text
+python3 -m py_compile \
+  src/fire_robot_fsm/fire_robot_fsm/state_machine_node.py \
+  src/fire_robot_fsm/fire_robot_fsm/fsm_subsystems.py \
+  src/fire_robot_bringup/launch/simulation.launch.py
 
-The project builds and launches in a ROS 2 Humble environment. Core launch files, MoveIt configuration, Nav2/SLAM startup, Gazebo bridge startup, the AgileX PIPER driver path, and the full Gazebo FSM simulation flow were verified without connecting the real robot.
+colcon build --symlink-install --packages-select fire_robot_fsm fire_robot_bringup
+Summary: 2 packages finished
+결과: PASS
+```
 
-The real PIPER arm and mobile base were not available, so CAN communication, physical motion, camera/radar hardware, and final door-opening behavior must still be verified in the lab.
+이전 단계에서 navigation/perception 포함 전체 워크스페이스 빌드도 통과했습니다.
 
-## Test Results
+## 최종 Full Validation
 
-| Test | Result | Notes |
-| --- | --- | --- |
-| Python syntax check | PASS | 21 Python files parsed, 0 errors |
-| ROS2 workspace build | PASS | 15 packages built with `colcon build --symlink-install` |
-| `simulation.launch.py --show-args` | PASS | Launch file is discoverable and arguments parse correctly |
-| `real_robot.launch.py --show-args` | PASS | Hardware enable/disable arguments parse correctly |
-| PIPER package discovery | PASS | `piper_single_ctrl` and `piper_read_slave_joint` found |
-| PIPER no-hardware smoke test | EXPECTED FAIL | Driver starts, then fails because `can0` is not connected |
-| Nav2/SLAM no-base smoke test | EXPECTED WAIT | Nav2 starts, then waits for missing `odom` TF |
-| Gazebo simulation smoke test | PASS WITH WSL NOTE | ROS nodes and Gazebo bridges start; software rendering is recommended in WSL |
-| Full Gazebo FSM simulation | PASS | Red door detection, blue door navigation, simulated door opening, green exit navigation, and `MISSION_COMPLETE` verified |
-| MoveIt smoke log check | PASS | No gripper KDL chain error, no missing `lidar_link` warning, no traceback |
-| Git whitespace check | PASS | `git diff --check` returned no issues |
+검증 태그:
 
-## Commands Used
+```text
+full_worlds_12345_exit_tail_red_guard_20260811
+```
+
+검증 방식:
+
+- Gazebo headless
+- ROS2 Humble
+- YOLO Door bbox + HSV 색상 분류
+- 3카메라 + 2D LiDAR observation map
+- Nav2 SmacPlanner2D + RotationShim + RegulatedPurePursuit
+- 좌표/문 개수 하드코딩 없이 관측된 문 후보와 map 메모리 기반으로 목표 선택
+
+## 월드별 결과
+
+### World 1
+
+- 월드: `obstacle_wall_doors_v5.world`
+- 조건: 파란문 3개, 빨간문/장애물 혼합
+- 결과: PASS
+
+```text
+expected_blue=3
+opened_count=3
+matched_blue=3/3
+false_opened=(none)
+mission_complete=True
+navigation_failed_logs=0
+red_opened=(none)
+align_ok_logs=3
+```
+
+### World 2
+
+- 월드: `obstacle_door_layout_alt_v1.world`
+- 조건: 다른 문 배열/장애물 배치
+- 결과: PASS
+
+```text
+expected_blue=3
+opened_count=3
+matched_blue=3/3
+false_opened=(none)
+mission_complete=True
+navigation_failed_logs=0
+red_opened=(none)
+align_ok_logs=3
+```
+
+### World 3
+
+- 월드: `obstacle_door_layout_world3_v1.world`
+- 조건: 파란문 4개, 빨간문 2개
+- 결과: PASS
+
+```text
+expected_blue=4
+opened_count=4
+matched_blue=4/4
+false_opened=(none)
+mission_complete=True
+navigation_failed_logs=0
+red_opened=(none)
+align_ok_logs=4
+```
+
+### World 4
+
+- 월드: `obstacle_no_blue_world4_v1.world`
+- 조건: 파란문 없음
+- 결과: PASS
+
+```text
+expected_blue=0
+opened_count=0
+matched_blue=0/0
+false_opened=(none)
+mission_complete=True
+navigation_failed_logs=0
+red_opened=(none)
+align_ok_logs=0
+```
+
+### World 5
+
+- 월드: `obstacle_all_blue_world5_v1.world`
+- 조건: 좌우 3개씩 모든 문 파란색
+- 결과: PASS
+
+```text
+expected_blue=6
+opened_count=6
+matched_blue=6/6
+false_opened=(none)
+mission_complete=True
+navigation_failed_logs=0
+red_opened=(none)
+align_ok_logs=6
+```
+
+## 검증 증빙 파일
+
+```text
+docs/validation/2026-08-11/summary.txt
+docs/validation/2026-08-11/progress.txt
+docs/validation/2026-08-11/world1_trajectory.png
+docs/validation/2026-08-11/world1_alignment.png
+...
+docs/validation/2026-08-11/world5_trajectory.png
+docs/validation/2026-08-11/world5_alignment.png
+```
+
+## 검증 명령
 
 ```bash
 cd ~/fire_robot_ws_test
-source /opt/ros/humble/setup.bash
-colcon build --symlink-install
+bash /mnt/c/Users/황준영/Documents/졸업작품/run_full_worlds_20260802.sh \
+  full_worlds_12345_exit_tail_red_guard_20260811
 ```
+
+개별 월드 검증:
 
 ```bash
-source install/setup.bash
-ros2 launch fire_robot_bringup simulation.launch.py --show-args
-ros2 launch fire_robot_bringup real_robot.launch.py --show-args
-ros2 pkg executables piper
+cd ~/fire_robot_ws_test
+TAG=world1_exit_tail_red_guard_20260811 \
+bash /mnt/c/Users/황준영/Documents/졸업작품/run_single_world_validation_20260802.sh \
+  world1 obstacle_wall_doors_v5.world 81
 ```
 
-PIPER smoke test without the robot:
+## 결론
 
-```bash
-timeout 8s ros2 launch fire_robot_bringup real_robot.launch.py \
-  enable_camera:=false \
-  enable_radar:=false \
-  enable_base:=false \
-  enable_moveit:=false \
-  enable_slam:=false \
-  enable_nav2:=false \
-  enable_app_nodes:=false \
-  enable_piper:=true \
-  piper_can_port:=can0
-```
+시뮬레이션에서 요구한 기본 주행 정책은 현재 월드 1~5 기준으로 통과했습니다.
 
-Expected result without hardware:
+- 파란문/빨간문 구분
+- 관측된 파란문 전체 개방
+- 장애물 회피 주행
+- 문 앞 정면 정렬
+- 파란문이 없는 환경에서 바로 비상구 이동
+- 모든 파란문 개방 후 초록 비상구 통과
 
-```text
-CAN socket can0 does not exist.
-```
-
-Nav2/SLAM smoke test without base odometry:
-
-```bash
-timeout 12s ros2 launch fire_robot_bringup real_robot.launch.py \
-  enable_camera:=false \
-  enable_radar:=false \
-  enable_base:=false \
-  enable_moveit:=false \
-  enable_slam:=true \
-  enable_nav2:=true \
-  enable_app_nodes:=false \
-  enable_piper:=false
-```
-
-Expected result without base/odom:
-
-```text
-Timed out waiting for transform from base_link to odom
-```
-
-Gazebo simulation smoke test in WSL:
-
-```bash
-LIBGL_ALWAYS_SOFTWARE=1 MESA_GL_VERSION_OVERRIDE=3.3 \
-timeout 35s ros2 launch fire_robot_bringup simulation.launch.py use_rviz:=false headless:=true
-```
-
-Observed important startup messages:
-
-```text
-Creating GZ->ROS Bridge: [/scan ... -> /scan ...]
-Creating ROS->GZ Bridge: [/cmd_vel ... -> /cmd_vel ...]
-Creating GZ->ROS Bridge: [/odom ... -> /odom ...]
-SensorFusionNode started | depth=OFF
-DoorDetectionNode started | YOLO=FALLBACK_HSV | depth=OFF
-ManipulationNode started [SIMULATION]
-StateMachineNode started
-NavigationNode started
-```
-
-Full FSM simulation in WSL:
-
-```bash
-LIBGL_ALWAYS_SOFTWARE=1 MESA_GL_VERSION_OVERRIDE=3.3 \
-timeout -k 10s 260s ros2 launch fire_robot_bringup simulation.launch.py \
-  use_rviz:=false \
-  headless:=true
-```
-
-Observed mission flow:
-
-```text
-Fire detected (1 red door(s)). Starting mission.
-State: IDLE -> EXPLORING
-Navigation goal received: door door_blue_...
-Navigation goal accepted by Nav2
-Goal succeeded
-State: NAVIGATING -> OPENING_DOOR
-Open door request: id=door_blue_...
-Door open succeeded
-State: DOOR_OPENED -> EXPLORING
-Green exit detected
-State: EXPLORING -> EXITING
-Navigation goal received: door door_green_...
-Goal succeeded
-State: EXITING -> MISSION_COMPLETE
-Mission complete
-```
-
-## Fixed During Testing
-
-- Corrected ROS2 Python package install locations by adding `setup.cfg` files.
-- Fixed MoveIt launch parameter loading so non-ROS YAML files are passed correctly.
-- Installed SRDF files with `fire_robot_manipulation`.
-- Changed simulation Gazebo command to `ign gazebo` for ROS2 Humble/Fortress.
-- Added launch switches to `real_robot.launch.py` so hardware can be disabled for tests.
-- Replaced the stale PIPER driver entry with AgileX `piper` package executable `piper_single_ctrl`.
-- Updated Nav2 BT plugin names for installed ROS2 Humble packages.
-- Fixed red-door/fire position handling to preserve the source TF frame.
-- Removed invalid gripper KDL IK setup and corrected SRDF `lidar_link` references to `radar_link`.
-- Added a `headless` Gazebo launch option. GUI is the default; WSL smoke tests can use `headless:=true`.
-- Fixed the real-robot MoveIt pose target link from a generated non-existent link name to `arm_link6`.
-- Tuned simulation-only door approach distance so Nav2 goals are placed inside the explored map.
-- Changed the global costmap to a rolling window so the long corridor simulation can navigate to the green exit.
-
-## Remaining Verification
-
-These items require the lab robot or trained model assets:
-
-- PIPER CAN connection through `can0`.
-- Actual PIPER arm movement and gripper open/close behavior.
-- Mobile base odometry and `odom -> base_link` TF.
-- Real camera/radar topics and calibration.
-- YOLO door detector trained `best.pt`.
-- Visual Gazebo GUI inspection. Run without `headless:=true` when a GUI display is available.
+실제 로봇 검증은 아직 남아 있으며, PIPER/베이스/카메라/2D LiDAR TF와 연구실 조명 조건 튜닝이 필요합니다.

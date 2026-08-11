@@ -14,10 +14,13 @@ class CmdVelSafetyNode(Node):
         self.declare_parameter('input_topic', '/cmd_vel')
         self.declare_parameter('output_topic', '/cmd_vel_safe')
         self.declare_parameter('allow_reverse', False)
+        self.declare_parameter('max_blocked_reverse_linear_x', 0.0)
         self.declare_parameter('max_linear_x', 0.25)
         self.declare_parameter('max_angular_z', 1.0)
 
         self._allow_reverse = bool(self.get_parameter('allow_reverse').value)
+        self._max_blocked_reverse_linear_x = abs(float(
+            self.get_parameter('max_blocked_reverse_linear_x').value))
         self._max_linear_x = float(self.get_parameter('max_linear_x').value)
         self._max_angular_z = abs(float(self.get_parameter('max_angular_z').value))
         input_topic = str(self.get_parameter('input_topic').value)
@@ -29,14 +32,19 @@ class CmdVelSafetyNode(Node):
 
         self.get_logger().info(
             f'CmdVelSafetyNode started | {input_topic} -> {output_topic} '
-            f'allow_reverse={self._allow_reverse}')
+            f'allow_reverse={self._allow_reverse}, '
+            f'micro_reverse={self._max_blocked_reverse_linear_x:.3f}m/s')
 
     def _on_cmd_vel(self, msg: Twist):
         safe = Twist()
         safe.linear.x = max(-self._max_linear_x, min(self._max_linear_x, msg.linear.x))
         if not self._allow_reverse and safe.linear.x < 0.0:
-            self._log_reverse_clamp(msg.linear.x)
-            safe.linear.x = 0.0
+            micro_reverse = min(safe.linear.x, 0.0)
+            if abs(micro_reverse) <= self._max_blocked_reverse_linear_x:
+                safe.linear.x = micro_reverse
+            else:
+                self._log_reverse_clamp(msg.linear.x)
+                safe.linear.x = 0.0
         safe.linear.y = 0.0
         safe.linear.z = 0.0
         safe.angular.x = 0.0

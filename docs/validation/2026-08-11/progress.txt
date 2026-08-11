@@ -1,0 +1,13 @@
+2026-08-11 05:49:44 OUTPUT /mnt/c/Users/황준영/Documents/졸업작품/validation_images/full_worlds_12345_exit_tail_red_guard_20260811
+2026-08-11 05:49:44 LOG_DIR /home/junyoung/fire_robot_ws_test/artifacts/gazebo_gui_validation/logs/full_worlds_12345_exit_tail_red_guard_20260811
+2026-08-11 05:49:44 START world1 obstacle_wall_doors_v5.world ROS_DOMAIN_ID=81
+2026-08-11 05:56:07 PASS world1
+2026-08-11 05:56:07 START world2 obstacle_door_layout_alt_v1.world ROS_DOMAIN_ID=82
+2026-08-11 06:01:49 PASS world2
+2026-08-11 06:01:49 START world3 obstacle_door_layout_world3_v1.world ROS_DOMAIN_ID=83
+2026-08-11 06:08:59 PASS world3
+2026-08-11 06:08:59 START world4 obstacle_no_blue_world4_v1.world ROS_DOMAIN_ID=84
+2026-08-11 06:12:03 PASS world4
+2026-08-11 06:12:03 START world5 obstacle_all_blue_world5_v1.world ROS_DOMAIN_ID=85
+2026-08-11 06:19:52 PASS world5
+2026-08-11 06:19:59 ALL_PASS full_worlds_12345_exit_tail_red_guard_20260811

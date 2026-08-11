@@ -13,7 +13,7 @@ setup(
         ('share/' + package_name, ['package.xml']),
         (os.path.join('share', package_name, 'launch'),  glob('launch/*.py')),
         (os.path.join('share', package_name, 'config'),  glob('config/*.yaml')),
-        (os.path.join('share', package_name, 'models'),  glob('models/*.pt')),
+        (os.path.join('share', package_name, 'models'),  glob('models/*')),
         # 학습 스크립트: colcon build 후 lib/fire_robot_perception/ 에 설치됨
         # → source install/setup.bash 후 `ros2 run fire_robot_perception prepare_dataset.py` 실행 가능
         (os.path.join('lib', package_name),

@@ -1,8 +1,4 @@
-Panels:
-  - Class: rviz_common/Displays
-    Name: Displays
-  - Class: rviz_common/Views
-    Name: Views
+Panels: []
 
 Visualization Manager:
   Class: ""
@@ -21,7 +17,7 @@ Visualization Manager:
       Alpha: 1
 
     - Class: rviz_default_plugins/LaserScan
-      Name: Radar
+      Name: LiDAR
       Value: true
       Topic: /scan
       Color: 255; 0; 0
@@ -36,75 +32,18 @@ Visualization Manager:
       Alpha: 0.8
 
     - Class: rviz_default_plugins/Path
-      Name: Global Plan (/plan)
+      Name: Nav2 Path
       Value: true
       Topic: /plan
-      Color: 0; 255; 80
-      Line Width: 0.15
-
-    - Class: rviz_default_plugins/Path
-      Name: Local Plan (/local_plan)
-      Value: true
-      Topic: /local_plan
-      Color: 255; 240; 0
-      Line Width: 0.10
-
-    - Class: rviz_default_plugins/Path
-      Name: Smoothed Plan (/plan_smoothed)
-      Value: true
-      Topic: /plan_smoothed
-      Color: 255; 120; 0
-      Line Width: 0.12
-
-    - Class: rviz_default_plugins/Path
-      Name: Controller Lookahead Arc
-      Value: true
-      Topic: /lookahead_arc
-      Color: 0; 220; 255
-      Line Width: 0.08
-
-    - Class: rviz_default_plugins/Map
-      Name: Global Costmap
-      Value: false
-      Topic: /global_costmap/costmap
-      Color Scheme: costmap
-      Alpha: 0.35
-
-    - Class: rviz_default_plugins/Map
-      Name: Local Costmap
-      Value: false
-      Topic: /local_costmap/costmap
-      Color Scheme: costmap
-      Alpha: 0.45
-
-    - Class: rviz_default_plugins/Map
-      Name: Segmentation Map
-      Value: false
-      Topic: /segmentation_map
-      Color Scheme: costmap
-      Alpha: 0.55
-
-    - Class: rviz_default_plugins/PointCloud2
-      Name: Segmentation Obstacle Points
-      Value: true
-      Topic: /segmentation_points
-      Style: Spheres
-      Size (m): 0.08
-      Color Transformer: FlatColor
-      Color: 255; 0; 255
+      Color: 0; 200; 0
+      Line Width: 0.03
 
     - Class: rviz_default_plugins/Odometry
       Name: Odometry
-      Value: false
-      Topic: /odom
-      Keep: 1
-      Color: 255; 165; 0
-
-    - Class: rviz_default_plugins/Image
-      Name: Camera
       Value: true
-      Topic: /camera/color/image_raw
-      Transport Hint: raw
+      Topic: /odom
+      Keep: 50
+      Color: 255; 165; 0
 
     - Class: rviz_default_plugins/MarkerArray
       Name: Door Markers
@@ -132,8 +71,10 @@ Visualization Manager:
   Value: true
   Views:
     Current:
-      Class: rviz_default_plugins/Orbit
-      Distance: 10
-      Pitch: 0.8
-      Target Frame: base_footprint
-      Yaw: 3.14
+      Class: rviz_default_plugins/TopDownOrtho
+      Name: Current View
+      Angle: 4.71238898038
+      Scale: 38
+      Target Frame: map
+      X: 6.5
+      Y: 0

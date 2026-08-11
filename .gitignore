@@ -17,6 +17,7 @@ src/fire_robot_perception/datasets/
 src/fire_robot_perception/runs/
 src/fire_robot_perception/scripts/runs/
 *.pt
+!src/fire_robot_perception/models/best.pt
 *.onnx
 *.tflite
 
@@ -32,3 +33,10 @@ Thumbs.db
 # ROS2
 *.bag
 *.db3
+
+# Runtime validation artifacts
+artifacts/
+logs/
+world*_trace*/
+world*_trace*
+/-e

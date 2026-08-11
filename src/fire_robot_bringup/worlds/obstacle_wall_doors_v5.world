@@ -219,7 +219,7 @@
     </model>
     <model name="v5_center_block_04_between_blue2_blue3">
       <static>true</static>
-      <pose>10.65 -0.65 0.24 0 0 0</pose>
+      <pose>10.65 0.10 0.24 0 0 0</pose>
       <link name="link">
         <collision name="col"><geometry><box><size>0.38 0.42 0.48</size></box></geometry></collision>
         <visual name="vis">
@@ -285,7 +285,7 @@
     </model>
     <model name="v5_side_clutter_05_right">
       <static>true</static>
-      <pose>11.35 -0.95 0.22 0 0 0</pose>
+      <pose>11.35 0.00 0.22 0 0 0</pose>
       <link name="link">
         <collision name="col"><geometry><box><size>0.34 0.32 0.44</size></box></geometry></collision>
         <visual name="vis">

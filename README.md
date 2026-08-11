@@ -1,331 +1,105 @@
 # Fire Robot Workspace
 
-화재 상황에서 이동 로봇과 AgileX PIPER 매니퓰레이터를 이용해 안전 문을 찾고, 문을 개방한 뒤 비상구로 이동하는 ROS2 Humble 기반 졸업작품 프로젝트입니다.
+화재/문 탐지 로봇 시뮬레이션 및 AgileX PIPER 연동 준비용 ROS2 Humble 워크스페이스입니다.
 
-## 현재 상태
+목표 동작은 시작 위치 기준으로 관측한 벽, 문, 장애물 구조를 map 좌표에 축적하고, 가장 가까운 파란문을 선택해 장애물을 피해 접근한 뒤 문 개방 FSM을 수행하는 것입니다. 더 이상 열 파란문이 없으면 초록 비상구를 관측 기반으로 선택해 통과합니다.
 
-2026-07-07 기준으로 Gazebo 장애물 회피/문 개방/비상구 도착 시뮬레이션 검증은 통과했고, 팀원 학습 YOLOv8s Door 모델을 로컬 프로젝트 경로에 연결했습니다.
+## 현재 상태 (2026-08-11)
 
-| 항목 | 상태 |
-| --- | --- |
-| ROS2 Humble 빌드 | 통과 |
-| Gazebo 실행 | 통과 |
-| Nav2/SLAM 실행 | 통과 |
-| FSM 전체 흐름 | 통과 |
-| 벽 부착형 좌우 문 + 정면 비상구 월드 | 통과 |
-| 파란 문 이동 및 sim_mode 문 개방 | 통과 |
-| 초록 비상구 이동 및 `MISSION_COMPLETE` | 통과 |
-| 정적 벽 지도 + AMCL localization 주행 | 통과 |
-| 2D LiDAR 기반 동적 장애물 회피 | 통과 |
-| YOLOv8s Door 학습 모델 `best.pt` | 학습 완료 / 로컬 적용 |
-| 실제 PIPER/CAN/모바일 베이스 검증 | 미완료 |
+- `colcon build --symlink-install` PASS
+- Python 문법 검사 PASS
+- Gazebo headless full validation PASS
+- World 1~5 전체 `MISSION_COMPLETE`
+- 최종 검증 증빙: `docs/validation/2026-08-11/`
+- YOLOv8s Door 1-class 모델 적용
+  - 모델: `src/fire_robot_perception/models/best.pt`
+  - 학습 성능: mAP50 `0.6088`, mAP50-95 `0.3923`, Precision `0.6184`, Recall `0.5817`
+  - 색상 분류는 YOLO가 아니라 HSV 로직에서 `red/blue/green`으로 별도 처리
 
-최신 장시간 검증 증거는 `artifacts/mission_20260702_041116/mission_path.png`, `mission_path.mp4`, `mission_summary.txt`에 저장했습니다.
+## 주요 구조
 
-## 동작 흐름
+### Perception
 
-```text
-카메라/라이다 입력
--> 문 탐지 및 색상 분류
--> 빨간 문 감지 시 미션 시작
--> 복도 탐색 중 파란 문 후보 탐지
--> Nav2로 파란 문 앞 이동
--> PIPER sim_mode 문 개방
--> 다시 탐색
--> 초록 비상구 탐지
--> 비상구 이동
--> MISSION_COMPLETE
-```
+- 카메라: `front`, `front_left`, `front_right`
+- 문 검출: YOLO Door bbox + HSV 색상 분류
+- 장애물/거리: 2D LiDAR 기반 observation/costmap
+- 문 후보는 map 좌표의 관측 메모리로 축적하고, 열린 문/실패 문/빨간문과 충돌하는 후보를 억제합니다.
 
-## Navigation Update (2026-07-02)
+### Navigation
 
-최신 시뮬레이션 구조는 SLAM을 계속 누적하면서 주행하는 방식이 아니라, 월드 구조를 기준으로 만든 정적 벽 지도와 AMCL localization을 기본으로 사용합니다. 로봇이 움직이는 동안 2D LiDAR와 카메라 인식 결과로 costmap을 갱신하고, Nav2가 반복적으로 경로를 재계획합니다.
+- Planner: `nav2_smac_planner/SmacPlanner2D`
+- Controller: `nav2_rotation_shim_controller::RotationShimController`
+- Primary controller: `nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController`
+- 초기 static map + localization 기반 주행
+- LiDAR 관측 맵으로 장애물을 반영하고, 문/비상구 목표는 관측된 map 좌표에서 생성합니다.
 
-핵심 변경:
+### FSM
 
-| 영역 | 내용 |
-| --- | --- |
-| 모바일 베이스 | Clearpath J100 계열 치수 반영, 4륜 diff-drive joint 연결 |
-| 지도 | `obstacle_wall_doors_v5_static.yaml` 정적 벽 지도 추가 |
-| localization | 기본 `localization_mode:=localization`, map_server + AMCL 사용 |
-| planner | `SmacPlanner2D` 사용 |
-| controller | `RotationShimController` + `RegulatedPurePursuitController` 사용 |
-| costmap | global은 정적 벽 지도 + LiDAR clearing, local은 LiDAR/segmentation points 사용 |
-| 회피 정책 | 가까운 파란문 방향 우선, 먼 파란문은 LiDAR 차선 유지 후 재스캔 |
-| Gazebo | 카메라 headless 안정화를 위해 Sensors render engine을 `ogre2`로 변경 |
+- 파란문 후보를 하나 선택하면 target lock을 걸고, 열기 전까지 다른 후보가 끼어들지 않게 합니다.
+- 문 앞에서는 Nav2 접근 후 fine alignment로 정면 정렬합니다.
+- 열린 문은 map 기준 위치로 기록해 중복 접근을 막습니다.
+- 접근/열기 실패는 제한 횟수 이후 abandoned 처리할 수 있습니다.
+- 파란문 후보가 더 없으면 마지막 측면 스캔 후 초록 비상구로 전환합니다.
 
-최신 장시간 검증:
+## 최종 검증 결과 (2026-08-11)
 
-```text
-log: logs/headless_verify_20260702_041116.log
-result: EXITING -> MISSION_COMPLETE
-evidence:
-  artifacts/mission_20260702_041116/mission_path.png
-  artifacts/mission_20260702_041116/mission_path.mp4
-```
-
-검증용 headless 장시간 실행은 CPU 부담을 줄이기 위해 `enable_segformer:=false`로 수행했습니다. 카메라 기반 HSV 문/색상 인식은 켜진 상태였고, 2D LiDAR가 동적 장애물 costmap을 담당했습니다. `simulation.launch.py`의 기본값은 `enable_segformer:=true`라서 SegFormer 연결은 유지됩니다.
-
-## Navigation Update (2026-07-05)
-
-2026-07-05 headless 검증에서도 관측 기반 파란문 순차 개방과 최종 초록 비상구 통과가 완료되었습니다.
-
-추가 안정화:
-
-| 영역 | 내용 |
-| --- | --- |
-| mission axis | 초기 SLAM/static map PCA 축이 초기 로봇 heading과 크게 다르면 heading 기준으로 잠금 |
-| blue-door target | 사전 스캔 후 관측된 파란문을 하나씩 lock하고 문 앞 yaw 정렬 후 개방 |
-| exit detection | 초록 비상구 후보를 초기 중심선 기준으로 필터링하고, 더 중앙에 가까운 후보를 우선 |
-| exit crossing | Nav2 출구 정렬 실패 시 yaw 보정 직진 통과로 전환하고, 진행축 통과 기준으로 완료 판정 |
-
-최신 검증 로그:
-
-```text
-log: logs/final_verify_540s.log
-result: opened blue doors=3, EXITING -> MISSION_COMPLETE
-```
-
-문 색상 의미:
-
-| 색상 | 의미 | 동작 |
+| 월드 | 조건 | 결과 |
 | --- | --- | --- |
-| 빨간색 | 화재/위험 구역 | 미션 시작 트리거 |
-| 파란색 | 안전 문 후보 | 문 앞으로 이동 후 개방 |
-| 초록색 | 비상구 | 최종 목적지 |
+| World 1 | 파란문 3개, 빨간문/장애물 혼합 | PASS, 파란문 3/3, false open 없음 |
+| World 2 | 다른 문 배열/장애물 배치 | PASS, 파란문 3/3, false open 없음 |
+| World 3 | 파란문 4개, 빨간문 2개 | PASS, 파란문 4/4, false open 없음 |
+| World 4 | 파란문 없음 | PASS, 문 개방 없이 비상구 이동 |
+| World 5 | 좌우 3개씩 모든 문 파란색 | PASS, 파란문 6/6, false open 없음 |
 
-## 패키지 구성
+전체 요약은 [docs/validation/2026-08-11/summary.txt](docs/validation/2026-08-11/summary.txt)에 있습니다.
 
-```text
-fire_robot_ws/src/
-├── fire_robot_bringup        # 시뮬레이션/실제 로봇 launch
-├── fire_robot_description    # 로봇 URDF/Xacro, ros2_control 설정
-├── fire_robot_fsm            # 전체 임무 FSM
-├── fire_robot_interfaces     # 공용 msg/srv
-├── fire_robot_manipulation   # MoveIt2/PIPER 문 개방 로직
-├── fire_robot_navigation     # Nav2 wrapper, Nav2 설정
-└── fire_robot_perception     # 문 탐지, 센서 융합, 데이터셋/학습 스크립트
-```
+## 실행 명령
 
-AgileX PIPER 드라이버는 테스트용 WSL 워크스페이스에서 외부 의존 패키지로 추가해 사용했습니다. 원본 프로젝트 패키지 트리에는 포함하지 않습니다.
-
-## 인식 구조
-
-이 프로젝트의 인식은 두 갈래입니다.
-
-```text
-YOLOv8 door detector
--> 문 bounding box 검출
--> 세로로 긴 문 형태 필터링
--> bbox 내부 HSV 색상 분류
--> DoorInfo / FireInfo 발행
--> FSM과 Nav2 목표 생성에 사용
-```
-
-```text
-SegFormer + LaserScan/Depth
--> /segmentation_map OccupancyGrid 생성
--> Nav2 costmap 보조 레이어로 사용
-```
-
-기존 시뮬레이션 검증은 YOLO `best.pt` 없이 HSV fallback으로 통과했습니다. 2026-07-07에 OpenImages Door 데이터셋으로 학습한 YOLOv8s `best.pt`를 `src/fire_robot_perception/models/best.pt`에 배치했고, `simulation.launch.py`와 `real_robot.launch.py`의 `door_model_path` 기본값으로 연결했습니다. 단, ROS2 실행 환경에 `ultralytics`가 설치되어 있지 않으면 노드는 자동으로 HSV-only fallback을 사용합니다.
-
-## 데이터셋과 학습
-
-문 검출용 OpenImages 기반 데이터셋은 이미 준비되어 있습니다.
-
-```text
-src/fire_robot_perception/datasets/door_detection
-```
-
-확인된 구성:
-
-```text
-train images: 5000
-val images: 204
-train labels: 5000
-val labels: 204
-```
-
-팀원 GPU 환경에서 학습:
+WSL 정리:
 
 ```bash
-cd fire_robot_ws/src/fire_robot_perception
-pip install ultralytics
-
-python3 scripts/train_door_detector.py \
-  --dataset datasets/door_detection/dataset.yaml
+wsl --terminate Ubuntu2204Recovered
 ```
 
-학습 완료 모델:
-
-| 항목 | 값 |
-| --- | --- |
-| 모델 | YOLOv8s |
-| 클래스 | Door 1개 |
-| 데이터셋 | OpenImages Door |
-| mAP50 | 0.6088 |
-| mAP50-95 | 0.3923 |
-| Precision | 0.6184 |
-| Recall | 0.5817 |
-
-`best.pt`는 Git 추적 대상이 아니므로 현장/테스트 PC마다 아래 위치에 복사합니다.
+빌드:
 
 ```bash
-mkdir -p ~/fire_robot_ws_test/src/fire_robot_perception/models
-cp /mnt/c/Users/황준영/Desktop/best.pt \
-  ~/fire_robot_ws_test/src/fire_robot_perception/models/best.pt
-
 cd ~/fire_robot_ws_test
 source /opt/ros/humble/setup.bash
 colcon build --symlink-install
-source install/setup.bash
 ```
 
-기본 launch는 설치된 패키지의 `models/best.pt`를 자동 사용합니다. 다른 weight를 시험할 때는 `door_model_path`를 오버라이드합니다.
-
-```bash
-ros2 launch fire_robot_bringup simulation.launch.py door_model_path:=/path/to/best.pt
-```
-
-문이 아닌 파란/빨간/초록 물체 오탐을 줄이기 위해 bbox 세로/가로 비율 필터가 적용되어 있습니다.
-
-```bash
-ros2 run fire_robot_perception door_detection_node \
-  --ros-args -p min_door_aspect_ratio:=1.3
-```
-
-실제 카메라에서 좌우 문을 너무 많이 놓치면 값을 낮추고, 표지판/가구 오탐이 많으면 값을 높여 조정합니다.
-
-## WSL2 테스트 환경
-
-권장 환경:
-
-```text
-Ubuntu 22.04 Jammy
-ROS2 Humble
-Gazebo Fortress/Ignition
-```
-
-Windows의 한글 경로에서 직접 빌드하면 ROSIDL 경로 문제가 생길 수 있으므로, WSL 내부 ASCII 경로를 권장합니다.
-
-```bash
-rsync -a \
-  --exclude build \
-  --exclude install \
-  --exclude log \
-  --exclude 'src/fire_robot_perception/datasets' \
-  '/mnt/c/Users/황준영/Desktop/졸업작품/project/fire_robot_ws/' \
-  ~/fire_robot_ws_test/
-
-cd ~/fire_robot_ws_test
-source /opt/ros/humble/setup.bash
-colcon build --symlink-install
-source install/setup.bash
-```
-
-## 시뮬레이션 실행
-
-Headless 검증:
+Gazebo + RViz2 실행:
 
 ```bash
 cd ~/fire_robot_ws_test
 source /opt/ros/humble/setup.bash
 source install/setup.bash
-
 LIBGL_ALWAYS_SOFTWARE=1 MESA_GL_VERSION_OVERRIDE=3.3 \
 ros2 launch fire_robot_bringup simulation.launch.py \
-  use_rviz:=false \
-  headless:=true \
-  enable_segformer:=false
+  use_rviz:=true headless:=false \
+  world:=obstacle_wall_doors_v5.world
 ```
 
-Gazebo GUI 확인:
+Headless full validation:
 
 ```bash
-LIBGL_ALWAYS_SOFTWARE=1 MESA_GL_VERSION_OVERRIDE=3.3 \
-ros2 launch fire_robot_bringup simulation.launch.py \
-  use_rviz:=false \
-  headless:=false
+cd ~/fire_robot_ws_test
+bash /mnt/c/Users/황준영/Documents/졸업작품/run_full_worlds_20260802.sh \
+  full_worlds_12345_exit_tail_red_guard_20260811
 ```
 
-최신 장애물 검증 월드:
+## 실제 로봇 전 남은 작업
 
-```bash
-ros2 launch fire_robot_bringup simulation.launch.py \
-  world:=obstacle_wall_doors_v5.world \
-  localization_mode:=localization \
-  use_rviz:=true \
-  headless:=false
-```
+- 실제 PIPER CAN `can0` 연결 확인
+- `ros2 action list | grep piper`로 `/piper_arm_controller/follow_joint_trajectory` 제공 여부 확인
+- PIPER MoveIt 단독 동작 확인
+- 그리퍼 open/close 값 실측
+- 실제 모바일 베이스의 `/odom -> base_link` TF 확인
+- 실제 카메라 장착 위치와 camera TF 확인
+- 실제 2D LiDAR 높이/각도 기준 costmap 파라미터 튜닝
+- 연구실 조명 기준 HSV 임계값 튜닝
 
-`obstacle_wall_doors_v5.world`는 벽 부착형 빨강/파랑 문, 중앙/측면 장애물, 정면 초록 비상구를 포함합니다.
+## 주의
 
-## 실제 로봇 실행 전 체크리스트
-
-실험실에서 바로 확인할 항목:
-
-```bash
-ip link show can0
-ls /dev/ttyUSB*
-ros2 topic echo /odom
-ros2 run tf2_ros tf2_echo odom base_link
-ros2 topic echo /camera/color/image_raw
-ros2 topic echo /scan
-```
-
-PIPER 단독 smoke test:
-
-```bash
-ros2 launch fire_robot_bringup real_robot.launch.py \
-  enable_camera:=false \
-  enable_radar:=false \
-  enable_base:=false \
-  enable_moveit:=false \
-  enable_slam:=false \
-  enable_nav2:=false \
-  enable_app_nodes:=false \
-  enable_piper:=true \
-  piper_can_port:=can0
-```
-
-로봇 팔은 처음에 낮은 속도부터 시작하세요.
-
-```text
-velocity_scaling: 0.1 ~ 0.2 권장
-```
-
-## PIPER 문 개방 파라미터
-
-실제 로봇 연결 전 공식 문서와 실측으로 다시 확인해야 합니다.
-
-```python
-PRE_GRASP_OFFSET = 0.12
-PULL_DISTANCE    = 0.35
-GRIPPER_OPEN     = 0.08
-GRIPPER_CLOSE    = 0.01
-```
-
-관련 파일:
-
-```text
-src/fire_robot_manipulation/fire_robot_manipulation/manipulation_node.py
-```
-
-## 남은 작업
-
-| 우선순위 | 작업 |
-| --- | --- |
-| 1 | YOLOv8 `best.pt` 학습 및 적용 |
-| 2 | 실제 로봇 `/odom -> base_link` TF 확인 |
-| 3 | PIPER `can0` 연결 및 팔 단독 동작 확인 |
-| 4 | 실제 카메라/라이다 토픽 확인 |
-| 5 | HSV 범위, bbox 비율 필터, 문 접근 거리, 그리퍼 값 현장 튜닝 |
-| 6 | 실제 통합 미션 테스트 |
-
-## 알려진 제한
-
-- 실제 로봇 하드웨어는 아직 검증하지 않았습니다.
-- 현재 문 인식은 학습 모델 없이도 동작하지만, 실제 환경에서는 YOLO `best.pt` 적용이 필요합니다.
-- Gazebo GUI는 WSLg/그래픽 성능에 따라 느릴 수 있습니다.
-- MoveIt 로그에 octomap 3D sensor plugin 경고가 뜰 수 있으나, 현재 sim_mode 문 개방 검증에는 영향이 없습니다.
+Gazebo/ROS 프로세스가 남아 있으면 `/clock`, TF, Nav2 action result가 꼬여 가짜 실패가 생길 수 있습니다. 검증 전에는 WSL을 한 번 종료하고 새로 시작하는 것을 권장합니다.

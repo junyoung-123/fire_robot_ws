@@ -60,7 +60,9 @@ class MissionAxisNode(Node):
         self._tf_listener = TransformListener(self._tf_buffer, self)
         self._latest_map: OccupancyGrid | None = None
         self._origin_xy: tuple[float, float] | None = None
+        self._origin_from_robot_pose = False
         self._axis_yaw: float | None = None
+        self._axis_aligned_to_robot_heading = False
 
         self.create_timer(1.0 / rate_hz, self._publish_axis)
         self.get_logger().info(
@@ -80,6 +82,7 @@ class MissionAxisNode(Node):
         if origin_xy is None:
             if self._lock_origin and robot_pose is not None:
                 origin_xy = (robot_pose[0], robot_pose[1])
+                self._origin_from_robot_pose = True
             else:
                 origin_xy = (
                     grid.info.origin.position.x
@@ -87,7 +90,18 @@ class MissionAxisNode(Node):
                     grid.info.origin.position.y
                     + grid.info.height * grid.info.resolution * 0.5,
                 )
+                self._origin_from_robot_pose = False
             self._origin_xy = origin_xy
+        elif (
+                self._lock_origin
+                and not self._origin_from_robot_pose
+                and robot_pose is not None):
+            origin_xy = (robot_pose[0], robot_pose[1])
+            self._origin_xy = origin_xy
+            self._origin_from_robot_pose = True
+            self.get_logger().info(
+                'Mission axis origin corrected from map center to initial '
+                f'robot pose: origin=({origin_xy[0]:.2f}, {origin_xy[1]:.2f})')
 
         if self._axis_yaw is None or not self._lock_axis:
             estimated = self._estimate_axis_yaw(grid)
@@ -96,7 +110,22 @@ class MissionAxisNode(Node):
             if robot_pose is not None:
                 estimated = self._align_axis_to_robot_heading(estimated, robot_pose[2])
                 estimated = self._limit_axis_to_robot_heading(estimated, robot_pose[2])
+                self._axis_aligned_to_robot_heading = True
+            else:
+                self._axis_aligned_to_robot_heading = False
             self._axis_yaw = estimated
+        elif (
+                self._lock_axis
+                and not self._axis_aligned_to_robot_heading
+                and robot_pose is not None):
+            estimated = self._align_axis_to_robot_heading(
+                self._axis_yaw, robot_pose[2])
+            estimated = self._limit_axis_to_robot_heading(estimated, robot_pose[2])
+            self._axis_yaw = estimated
+            self._axis_aligned_to_robot_heading = True
+            self.get_logger().info(
+                'Mission axis yaw corrected using initial robot heading: '
+                f'yaw={math.degrees(self._axis_yaw):.1f}deg')
 
         msg = PoseStamped()
         msg.header.stamp = self.get_clock().now().to_msg()

@@ -33,6 +33,8 @@ class FixedObstacleMapNode(Node):
         self.declare_parameter('mark_radius_m', 0.16)
         self.declare_parameter('hit_count_threshold', 2)
         self.declare_parameter('robot_clear_radius_m', 0.75)
+        self.declare_parameter('center_y_m', 0.0)
+        self.declare_parameter('max_abs_y_m', 0.0)
         self.declare_parameter('occupied_value', 100)
         self.declare_parameter('unknown_value', 0)
         self.declare_parameter('publish_rate_hz', 1.0)
@@ -54,6 +56,9 @@ class FixedObstacleMapNode(Node):
             1, int(self.get_parameter('hit_count_threshold').value))
         self._robot_clear_radius_m = max(
             0.0, float(self.get_parameter('robot_clear_radius_m').value))
+        self._center_y_m = float(self.get_parameter('center_y_m').value)
+        self._max_abs_y_m = max(
+            0.0, float(self.get_parameter('max_abs_y_m').value))
         self._occupied_value = int(self.get_parameter('occupied_value').value)
         self._unknown_value = int(self.get_parameter('unknown_value').value)
         rate_hz = max(
@@ -150,6 +155,10 @@ class FixedObstacleMapNode(Node):
                 ly = math.sin(angle) * distance
                 mx = sx + cyaw * lx - syaw_sin * ly
                 my = sy + syaw_sin * lx + cyaw * ly
+                if (self._max_abs_y_m > 0.0
+                        and abs(my - self._center_y_m) > self._max_abs_y_m):
+                    angle += float(msg.angle_increment)
+                    continue
                 updates += self._mark_world_point(mx, my, robot_pose)
             angle += float(msg.angle_increment)
 
