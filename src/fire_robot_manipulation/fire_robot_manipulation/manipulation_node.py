@@ -18,11 +18,13 @@ import math
 
 import rclpy
 from rclpy.duration import Duration
+from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.time import Time
 from geometry_msgs.msg import PointStamped, Pose, PoseStamped, Point, Quaternion
-from std_msgs.msg import Bool
+from std_msgs.msg import Bool, Float64
+from sensor_msgs.msg import JointState
 from tf2_geometry_msgs import do_transform_point
 from tf2_ros import Buffer, TransformException, TransformListener
 
@@ -61,6 +63,13 @@ class ManipulationNode(Node):
         self.declare_parameter('gripper_group', 'piper_gripper')
         self.declare_parameter('velocity_scaling', 0.3)
         self.declare_parameter('sim_mode', True)
+        self.declare_parameter('sim_control_enabled', False)
+        self.declare_parameter('sim_step_sec', 1.5)
+        self.declare_parameter('sim_return_home', True)
+        self.declare_parameter('sim_verify_door', False)
+        self.declare_parameter('sim_door_target_rad', 1.15)
+        self.declare_parameter('sim_door_tolerance_rad', 0.08)
+        self.declare_parameter('sim_feedback_timeout_sec', 4.0)
         self.declare_parameter('allow_sim_fallback', False)
         self.declare_parameter('control_backend', 'moveit')
         self.declare_parameter('manipulation_frame', 'base_link')
@@ -82,6 +91,16 @@ class ManipulationNode(Node):
         self._gripper_group  = self.get_parameter('gripper_group').value
         self._vel_scale      = self.get_parameter('velocity_scaling').value
         self._sim_mode       = self.get_parameter('sim_mode').value
+        self._sim_control_enabled = self.get_parameter('sim_control_enabled').value
+        self._sim_step_sec = float(self.get_parameter('sim_step_sec').value)
+        self._sim_return_home = self.get_parameter('sim_return_home').value
+        self._sim_verify_door = self.get_parameter('sim_verify_door').value
+        self._sim_door_target = float(
+            self.get_parameter('sim_door_target_rad').value)
+        self._sim_door_tolerance = float(
+            self.get_parameter('sim_door_tolerance_rad').value)
+        self._sim_feedback_timeout = float(
+            self.get_parameter('sim_feedback_timeout_sec').value)
         self._allow_sim_fallback = self.get_parameter('allow_sim_fallback').value
         self._control_backend = str(
             self.get_parameter('control_backend').value).strip().lower()
@@ -118,6 +137,17 @@ class ManipulationNode(Node):
 
         # 조작 완료 신호 발행 (옵션 모니터링용)
         self.manip_done_pub = self.create_publisher(Bool, '/manipulation_done', 10)
+        self._sim_joint_pubs = []
+        self._sim_door_pub = None
+        self._sim_door_position = None
+        if self._sim_mode and self._sim_control_enabled:
+            topics = [f'/sim/joint{i}_position_cmd' for i in range(1, 7)]
+            topics += ['/sim/gripper_left_position_cmd', '/sim/gripper_right_position_cmd']
+            self._sim_joint_pubs = [self.create_publisher(Float64, topic, 10) for topic in topics]
+            self._sim_door_pub = self.create_publisher(Float64, '/sim/door_hinge_position_cmd', 10)
+            self.create_subscription(
+                JointState, '/door_joint_states',
+                self._sim_door_state_callback, 10)
 
         # MoveIt2 초기화
         self._arm    = None
@@ -163,6 +193,8 @@ class ManipulationNode(Node):
         self.get_logger().info(
             f'ManipulationNode started [{mode_str}, '
             f'backend={self._control_backend}]')
+        if self._sim_mode and self._sim_control_enabled:
+            self.get_logger().info('Gazebo joint-control simulation enabled.')
 
     # ── 서비스 핸들러 ─────────────────────────────────────
     def open_door_callback(self,
@@ -280,7 +312,9 @@ class ManipulationNode(Node):
                 f'({handle_pos.point.x - PRE_GRASP_OFFSET:.3f}, '
                 f'{handle_pos.point.y:.3f}, '
                 f'{handle_pos.point.z:.3f})')
-            time.sleep(1.0)
+            if self._sim_control_enabled:
+                self._publish_sim_pose([0.0, 0.72, -0.55, 0.0, -0.18, 0.0], 0.035)
+            time.sleep(self._sim_step_sec)
             return True
 
         target = self._make_pose(
@@ -295,7 +329,9 @@ class ManipulationNode(Node):
     def _grasp_handle(self, handle_pos: PointStamped) -> bool:
         if self._sim_mode:
             self.get_logger().info('  [SIM] Gripper closing')
-            time.sleep(0.5)
+            if self._sim_control_enabled:
+                self._publish_sim_pose([0.0, 0.88, -0.72, 0.0, -0.16, 0.0], 0.006)
+            time.sleep(self._sim_step_sec)
             return True
 
         # 손잡이 위치로 직선 이동
@@ -323,7 +359,13 @@ class ManipulationNode(Node):
         if self._sim_mode:
             self.get_logger().info(
                 f'  [SIM] Pulling door {PULL_DISTANCE:.2f}m')
-            time.sleep(1.5)
+            if self._sim_control_enabled:
+                self._publish_sim_pose([0.48, 0.70, -0.58, 0.0, -0.12, 0.0], 0.006)
+                self._sim_door_position = None
+                self._publish_float(self._sim_door_pub, self._sim_door_target)
+            time.sleep(self._sim_step_sec)
+            if self._sim_control_enabled and self._sim_verify_door:
+                return self._wait_for_sim_door_target()
             return True
 
         # The manipulation frame uses x forward and z up, so pulling back
@@ -340,8 +382,49 @@ class ManipulationNode(Node):
     def _move_to_home(self):
         if self._sim_mode:
             self.get_logger().info('  [SIM] Returning to home position')
-            time.sleep(1.0)
+            if self._sim_control_enabled and self._sim_return_home:
+                self._publish_sim_pose([0.0] * 6, 0.035)
+            time.sleep(self._sim_step_sec)
             return
+
+    @staticmethod
+    def _publish_float(publisher, value: float):
+        if publisher is not None:
+            msg = Float64()
+            msg.data = float(value)
+            publisher.publish(msg)
+
+    def _publish_sim_pose(self, arm_positions, gripper_position):
+        if len(self._sim_joint_pubs) != 8:
+            return
+        for publisher, value in zip(self._sim_joint_pubs[:6], arm_positions):
+            self._publish_float(publisher, value)
+        self._publish_float(self._sim_joint_pubs[6], gripper_position)
+        self._publish_float(self._sim_joint_pubs[7], gripper_position)
+
+    def _sim_door_state_callback(self, msg: JointState):
+        try:
+            index = msg.name.index('door_hinge')
+            self._sim_door_position = float(msg.position[index])
+        except (ValueError, IndexError):
+            return
+
+    def _wait_for_sim_door_target(self) -> bool:
+        deadline = time.monotonic() + self._sim_feedback_timeout
+        while time.monotonic() < deadline:
+            position = self._sim_door_position
+            if (position is not None and
+                    abs(position - self._sim_door_target) <=
+                    self._sim_door_tolerance):
+                self.get_logger().info(
+                    f'  [SIM] Door feedback verified: {position:.3f} rad')
+                return True
+            time.sleep(0.05)
+        self.get_logger().error(
+            '  [SIM] Door hinge did not reach target; '
+            f'last={self._sim_door_position}, '
+            f'target={self._sim_door_target:.3f}')
+        return False
 
         if self._using_piper_sdk():
             if not self._piper_return_home:
@@ -441,6 +524,11 @@ class ManipulationNode(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = ManipulationNode()
-    rclpy.spin(node)
+    executor = MultiThreadedExecutor(num_threads=2)
+    executor.add_node(node)
+    try:
+        executor.spin()
+    finally:
+        executor.shutdown()
     node.destroy_node()
     rclpy.shutdown()

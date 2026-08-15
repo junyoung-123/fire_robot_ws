@@ -1,0 +1,73 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+  - Class: rviz_common/Selection
+    Name: Selection
+  - Class: rviz_common/Views
+    Name: Views
+Visualization Manager:
+  Class: ''
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Ground Grid
+      Value: true
+      Cell Size: 0.1
+      Plane Cell Count: 20
+      Color: 100; 100; 105
+      Reference Frame: base_link
+    - Class: rviz_default_plugins/RobotModel
+      Name: PIPER Robot Model
+      Value: true
+      Description Topic:
+        Value: /robot_description
+      Visual Enabled: true
+      Collision Enabled: false
+      Alpha: 1
+      Update Interval: 0
+    - Class: rviz_default_plugins/TF
+      Name: Arm TF Tree
+      Value: true
+      Frame Timeout: 15
+      Marker Scale: 0.12
+      Show Axes: true
+      Show Arrows: true
+      Show Names: true
+      Update Interval: 0
+    - Class: rviz_default_plugins/Axes
+      Name: End Effector Axis
+      Value: true
+      Reference Frame: arm_link6
+      Length: 0.18
+      Radius: 0.012
+    - Class: rviz_default_plugins/Axes
+      Name: Gripper Axis
+      Value: true
+      Reference Frame: gripper_base_link
+      Length: 0.12
+      Radius: 0.008
+  Global Options:
+    Background Color: 32; 34; 38
+    Fixed Frame: base_link
+    Frame Rate: 60
+  Tools:
+    - Class: rviz_default_plugins/Interact
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+    - Class: rviz_default_plugins/Measure
+  Value: true
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Name: Arm Close-up
+      Distance: 1.35
+      Pitch: 0.42
+      Yaw: 2.65
+      Focal Point:
+        X: 0.18
+        Y: 0.0
+        Z: 0.48
+      Target Frame: base_link
+Window Geometry:
+  Height: 900
+  Width: 1400

@@ -562,4 +562,12 @@
     </plugin>
   </gazebo>
 
+  <!-- Gazebo position controllers for the manipulation demo. -->
+  <gazebo><plugin filename='ignition-gazebo-joint-position-controller-system' name='gz::sim::systems::JointPositionController'><joint_name>joint1</joint_name><topic>/sim/joint1_position_cmd</topic><p_gain>80</p_gain><d_gain>4</d_gain></plugin></gazebo>
+  <gazebo><plugin filename='ignition-gazebo-joint-position-controller-system' name='gz::sim::systems::JointPositionController'><joint_name>joint2</joint_name><topic>/sim/joint2_position_cmd</topic><p_gain>80</p_gain><d_gain>4</d_gain></plugin></gazebo>
+  <gazebo><plugin filename='ignition-gazebo-joint-position-controller-system' name='gz::sim::systems::JointPositionController'><joint_name>joint3</joint_name><topic>/sim/joint3_position_cmd</topic><p_gain>70</p_gain><d_gain>3</d_gain></plugin></gazebo>
+  <gazebo><plugin filename='ignition-gazebo-joint-position-controller-system' name='gz::sim::systems::JointPositionController'><joint_name>joint4</joint_name><topic>/sim/joint4_position_cmd</topic><p_gain>35</p_gain><d_gain>2</d_gain></plugin></gazebo>
+  <gazebo><plugin filename='ignition-gazebo-joint-position-controller-system' name='gz::sim::systems::JointPositionController'><joint_name>joint5</joint_name><topic>/sim/joint5_position_cmd</topic><p_gain>35</p_gain><d_gain>2</d_gain></plugin></gazebo>
+  <gazebo><plugin filename='ignition-gazebo-joint-position-controller-system' name='gz::sim::systems::JointPositionController'><joint_name>gripper_left_joint</joint_name><topic>/sim/gripper_left_position_cmd</topic><p_gain>120</p_gain><d_gain>2</d_gain></plugin></gazebo>
+  <gazebo><plugin filename='ignition-gazebo-joint-position-controller-system' name='gz::sim::systems::JointPositionController'><joint_name>gripper_right_joint</joint_name><topic>/sim/gripper_right_position_cmd</topic><p_gain>120</p_gain><d_gain>2</d_gain></plugin></gazebo>
 </robot>
