@@ -15,6 +15,9 @@ def generate_launch_description():
             FindPackageShare('fire_robot_bringup'), 'launch', 'gazebo.launch.py'])),
         launch_arguments={'world': 'manipulation_demo.world',
                           'headless': headless,
+                          # Ogre2 crashes in some WSLg drivers while copying
+                          # render textures. Ogre1 keeps the GUI usable there.
+                          'render_engine_gui': 'ogre',
                           'use_sim_time': 'true'}.items())
 
     command_topics = [
