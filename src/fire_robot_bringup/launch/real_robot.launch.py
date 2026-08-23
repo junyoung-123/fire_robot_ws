@@ -51,6 +51,10 @@ def generate_launch_description():
     door_model_path = LaunchConfiguration('door_model_path', default=PathJoinSubstitution([
         FindPackageShare('fire_robot_perception'), 'models', 'best.pt',
     ]))
+    handle_model_path = LaunchConfiguration('handle_model_path', default=PathJoinSubstitution([
+        FindPackageShare('fire_robot_perception'), 'models', 'handle_best.pt',
+    ]))
+    require_yolo_handle = LaunchConfiguration('require_yolo_handle', default='false')
     odom_topic = LaunchConfiguration('odom_topic', default='/odom')
     clearpath_setup_path = LaunchConfiguration(
         'clearpath_setup_path',
@@ -290,6 +294,10 @@ def generate_launch_description():
                  parameters=[{
                      'use_sim_time': use_sim_time,
                      'model_path': door_model_path,
+                     'handle_model_path': handle_model_path,
+                     'handle_confidence_threshold': 0.35,
+                     'handle_yolo_imgsz': 192,
+                     'handle_yolo_fallback_hsv': True,
                  }], output='screen'),
             Node(package='fire_robot_navigation',  executable='navigation_node',
                  parameters=[{'use_sim_time': use_sim_time}], output='screen'),
@@ -299,10 +307,16 @@ def generate_launch_description():
                      'sim_mode': False,
                      'allow_sim_fallback': False,
                      'control_backend': 'piper_sdk',
+                     'door_open_motion': 'push',
+                     'press_handle_before_push': True,
+                     'lever_press_distance_m': 0.07,
+                     'post_open_backoff_enabled': False,
                      'manipulation_frame': 'left_base_link',
                      'piper_pos_cmd_topic': '/pos_cmd',
                      'piper_enable_topic': '/enable_flag',
                      'piper_command_settle_sec': 1.2,
+                     'require_detected_handle': True,
+                     'require_yolo_handle': require_yolo_handle,
                  }], output='screen'),
             Node(package='fire_robot_fsm',          executable='state_machine_node',
                  parameters=[{'use_sim_time': use_sim_time}], output='screen'),
@@ -339,6 +353,18 @@ def generate_launch_description():
                 FindPackageShare('fire_robot_perception'), 'models', 'best.pt',
             ]),
             description='YOLO door detector weight path. Leave the file absent to use HSV fallback.',
+        ),
+        DeclareLaunchArgument(
+            'handle_model_path',
+            default_value=PathJoinSubstitution([
+                FindPackageShare('fire_robot_perception'), 'models', 'handle_best.pt',
+            ]),
+            description='YOLO door-handle detector weight path. Train/install this before requiring YOLO-only opening.',
+        ),
+        DeclareLaunchArgument(
+            'require_yolo_handle',
+            default_value='false',
+            description='If true, manipulation refuses to open unless the handle came from YOLO.',
         ),
         DeclareLaunchArgument('clearpath_setup_path',
             default_value='/home/roas/jackal_ws/src/roas2_bringup/',

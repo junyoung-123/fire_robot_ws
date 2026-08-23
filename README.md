@@ -4,17 +4,39 @@
 
 목표 동작은 시작 위치 기준으로 관측한 벽, 문, 장애물 구조를 map 좌표에 축적하고, 가장 가까운 파란문을 선택해 장애물을 피해 접근한 뒤 문 개방 FSM을 수행하는 것입니다. 더 이상 열 파란문이 없으면 초록 비상구를 관측 기반으로 선택해 통과합니다.
 
-## 현재 상태 (2026-08-11)
+## 현재 상태 (2026-08-24)
 
 - `colcon build --symlink-install` PASS
 - Python 문법 검사 PASS
 - Gazebo headless full validation PASS
 - World 1~5 전체 `MISSION_COMPLETE`
-- 최종 검증 증빙: `docs/validation/2026-08-11/`
+- 로봇팔 문 개방 통합 후 World 1~5 전체 FSM 재검증 PASS
+  - World 1/2/3/5: 파란문 전체 개방 후 실제 green 비상구 관측 기반 통과
+  - World 4: 파란문 없음 케이스, 충분한 전방 스캔 후 no-blue fallback으로 통과
+  - 최신 검증 증빙: `C:\Users\황준영\Documents\졸업작품\검증결과_20260823\all_worlds_validation_summary.png`
+  - 팀원 공유 패키지: `C:\Users\황준영\Documents\졸업작품\team_share\fire_robot_team_share_20260824.zip`
 - YOLOv8s Door 1-class 모델 적용
   - 모델: `src/fire_robot_perception/models/best.pt`
   - 학습 성능: mAP50 `0.6088`, mAP50-95 `0.3923`, Precision `0.6184`, Recall `0.5817`
   - 색상 분류는 YOLO가 아니라 HSV 로직에서 `red/blue/green`으로 별도 처리
+- 손잡이 YOLO 연결 경로 추가
+  - 기본 경로: `src/fire_robot_perception/models/handle_best.pt`
+  - 현재 Door 1-class `best.pt`는 손잡이를 검출하지 못하므로 별도 handle/door_handle 1-class 모델 학습이 필요
+  - 손잡이 YOLO 모델이 없거나 미검출이면 HSV 손잡이 blob, 이후 문 위치 기반 추정값으로 fallback
+
+## 문 개방 시뮬레이션 (2026-08-24)
+
+- 파란문 Gazebo 모델을 visual-only marker에서 `static=false` 힌지 문으로 변경했습니다.
+- 각 파란문은 패널 collision, 손잡이 collision, `hinge` revolute joint, `JointPositionController`를 가집니다.
+- `manipulation_node`는 `/open_door` 요청을 받으면 현재 월드 파일의 힌지문 registry를 읽고, 관측된 손잡이 좌표와 가장 가까운 파란문 joint topic에 열림 각도를 보냅니다.
+- Gazebo sim 전용 PIPER joint position controller를 추가해 pre-grasp, grasp, lever-press, push-open, home 단계에서 팔이 움직이는 모습을 확인할 수 있습니다.
+- `door_detection_node`는 문 bbox 내부/주변에서 손잡이 YOLO 모델을 먼저 실행하고, 실패하면 노란/금색 손잡이 blob, 이후 기존 문 위치 기반 추정값으로 fallback합니다.
+- `manipulation_node`는 `LOCALIZE_HANDLE -> PRE_GRASP -> GRASP_HANDLE -> PRESS_HANDLE -> PUSH_OPEN -> RETURN_HOME -> COMPLETE` sub-FSM 단계를 `/manipulation_phase`로 발행합니다.
+- 스모크 테스트에서 `/open_door` 호출 후 `door_blue1` pose가 실제로 회전/이동하는 것을 확인했습니다.
+- 팀원 로봇팔 데모 아이디어를 반영해 `manipulation_demo.launch.py`와 `validate_manipulation_demo.sh`를 추가했습니다.
+- 로봇팔 단독 데모는 ROS-Gazebo command bridge로 arm/gripper/door hinge를 움직이고, `/door_joint_states`에서 문 힌지가 목표각까지 열렸을 때만 `/open_door` 성공으로 판정합니다.
+- `manipulation_demo.world`에는 검증용 Gazebo overhead camera가 있고, `scripts/capture_manipulation_visual_proof.sh`로 실제 Gazebo 렌더링 전/후 이미지와 짧은 mp4를 생성합니다.
+- 전체 FSM 시뮬레이션에서는 파란문을 관측 기반으로 모두 열고, 더 이상 파란문이 없을 때 초록 비상구 통과까지 확인했습니다.
 
 ## 주요 구조
 
@@ -22,6 +44,7 @@
 
 - 카메라: `front`, `front_left`, `front_right`
 - 문 검출: YOLO Door bbox + HSV 색상 분류
+- 손잡이 검출: Door bbox ROI 안에서 YOLO handle 모델 우선, HSV blob fallback
 - 장애물/거리: 2D LiDAR 기반 observation/costmap
 - 문 후보는 map 좌표의 관측 메모리로 축적하고, 열린 문/실패 문/빨간문과 충돌하는 후보를 억제합니다.
 
@@ -41,17 +64,31 @@
 - 접근/열기 실패는 제한 횟수 이후 abandoned 처리할 수 있습니다.
 - 파란문 후보가 더 없으면 마지막 측면 스캔 후 초록 비상구로 전환합니다.
 
-## 최종 검증 결과 (2026-08-11)
+### Manipulation Simulation
+
+- 기본 시뮬레이션 launch에서는 `sim_physical_door_opening=True`입니다.
+- `fire_robot_bringup/worlds` 안에서 파란문이 있는 월드는 힌지 기반으로 열립니다.
+- 월드 4는 파란문이 없는 검증 월드라 문 개방 없이 비상구로 이동합니다.
+- 힌지 문 변환 도구는 `tools/convert_blue_doors_to_hinged.py`입니다.
+- 로봇팔 단독 검증은 `ros2 launch fire_robot_bringup manipulation_demo.launch.py` 또는 `bash scripts/validate_manipulation_demo.sh`로 실행합니다.
+- 시각 증거 캡처는 `bash scripts/capture_manipulation_visual_proof.sh`로 실행합니다.
+
+## 최종 검증 결과 (2026-08-24)
 
 | 월드 | 조건 | 결과 |
 | --- | --- | --- |
-| World 1 | 파란문 3개, 빨간문/장애물 혼합 | PASS, 파란문 3/3, false open 없음 |
-| World 2 | 다른 문 배열/장애물 배치 | PASS, 파란문 3/3, false open 없음 |
-| World 3 | 파란문 4개, 빨간문 2개 | PASS, 파란문 4/4, false open 없음 |
-| World 4 | 파란문 없음 | PASS, 문 개방 없이 비상구 이동 |
-| World 5 | 좌우 3개씩 모든 문 파란색 | PASS, 파란문 6/6, false open 없음 |
+| World 1 `corridor.world` | 파란문 3개, 빨간문/장애물 혼합 | PASS, 파란문 3/3, `MISSION_COMPLETE` |
+| World 2 `obstacle_door_layout_alt_v1.world` | 다른 문 배열/장애물 배치 | PASS, 파란문 3/3, `MISSION_COMPLETE` |
+| World 3 `obstacle_door_layout_world3_v1.world` | 파란문 4개, 빨간문 2개 | PASS, 파란문 4/4, `MISSION_COMPLETE` |
+| World 4 `obstacle_no_blue_world4_v1.world` | 파란문 없음 | PASS, 문 개방 0/0, no-blue fallback 후 `MISSION_COMPLETE` |
+| World 5 `obstacle_all_blue_world5_v1.world` | 좌우 3개씩 모든 문 파란색 | PASS, 파란문 6/6, `MISSION_COMPLETE` |
 
-전체 요약은 [docs/validation/2026-08-11/summary.txt](docs/validation/2026-08-11/summary.txt)에 있습니다.
+증빙:
+
+- `C:\Users\황준영\Documents\졸업작품\검증결과_20260823\all_worlds_validation_summary.png`
+- `C:\Users\황준영\Documents\졸업작품\검증결과_20260823\world*\trajectory.png`
+- `C:\Users\황준영\Documents\졸업작품\검증결과_20260823\world*\door_alignment.png`
+- `C:\Users\황준영\Documents\졸업작품\검증결과_20260823\world*\world*.log`
 
 ## 실행 명령
 
@@ -85,8 +122,31 @@ Headless full validation:
 
 ```bash
 cd ~/fire_robot_ws_test
-bash /mnt/c/Users/황준영/Documents/졸업작품/run_full_worlds_20260802.sh \
-  full_worlds_12345_exit_tail_red_guard_20260811
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+TRACE_DIR=artifacts/validation/latest/world1 \
+  bash scripts/run_headless_validation_once.sh corridor.world artifacts/validation/latest/world1.log 3000
+```
+
+손잡이 YOLO 학습:
+
+```bash
+cd ~/fire_robot_ws_test/src/fire_robot_perception/scripts
+python3 train_handle_detector.py \
+  --dataset ~/datasets/door_handle_detection/dataset.yaml \
+  --model yolov8s.pt \
+  --epochs 80 \
+  --imgsz 640 \
+  --batch 16 \
+  --install
+```
+
+손잡이 YOLO 강제 실제 실행:
+
+```bash
+ros2 launch fire_robot_bringup real_robot.launch.py \
+  handle_model_path:=~/fire_robot_ws_test/src/fire_robot_perception/models/handle_best.pt \
+  require_yolo_handle:=true
 ```
 
 ## 실제 로봇 전 남은 작업
@@ -99,6 +159,7 @@ bash /mnt/c/Users/황준영/Documents/졸업작품/run_full_worlds_20260802.sh \
 - 실제 카메라 장착 위치와 camera TF 확인
 - 실제 2D LiDAR 높이/각도 기준 costmap 파라미터 튜닝
 - 연구실 조명 기준 HSV 임계값 튜닝
+- 손잡이 전용 YOLO 모델 학습 후 `models/handle_best.pt` 설치
 
 ## 주의
 

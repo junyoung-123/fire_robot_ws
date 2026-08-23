@@ -129,21 +129,55 @@
     </model>
 
     <model name="door_blue1">
-      <static>true</static>
-      <pose>3 -1.55 1.0 0 0 0</pose>
-      <link name="link">
+      <static>false</static>
+      <pose>3 -1.55 1 0 0 0</pose>
+      <link name="panel">
+        <inertial>
+          <mass>2.0</mass>
+          <inertia>
+            <ixx>0.90</ixx><ixy>0</ixy><ixz>0</ixz>
+            <iyy>0.90</iyy><iyz>0</iyz><izz>0.12</izz>
+          </inertia>
+        </inertial>
+        <collision name="panel_collision">
+          <geometry><box><size>0.06 0.8 2</size></box></geometry>
+          <surface>
+            <friction><ode><mu>0.8</mu><mu2>0.8</mu2></ode></friction>
+          </surface>
+        </collision>
         <visual name="panel">
-          <geometry><box><size>0.06 0.8 2.0</size></box></geometry>
+          <geometry><box><size>0.06 0.8 2</size></box></geometry>
           <material><ambient>0.04 0.14 0.92 1</ambient><diffuse>0.04 0.14 0.92 1</diffuse></material>
         </visual>
+        <collision name="handle_collision">
+          <pose>0.04 0.3 -0.05 0 1.5708 0</pose>
+          <geometry><cylinder><radius>0.022</radius><length>0.16</length></cylinder></geometry>
+        </collision>
+        <visual name="handle">
+          <pose>0.04 0.3 -0.05 0 1.5708 0</pose>
+          <geometry><cylinder><radius>0.018</radius><length>0.13</length></cylinder></geometry>
+          <material><ambient>0.75 0.60 0.05 1</ambient><diffuse>0.75 0.60 0.05 1</diffuse></material>
+        </visual>
       </link>
-    </model>
-    <model name="handle_blue1">
-      <static>true</static>
-      <pose>3.04 -1.25 0.95 0 1.5708 0</pose>
-      <link name="link">
-        <visual name="handle"><geometry><cylinder><radius>0.018</radius><length>0.13</length></cylinder></geometry><material><ambient>0.75 0.60 0.05 1</ambient></material></visual>
-      </link>
+      <joint name="hinge" type="revolute">
+        <pose>0 -0.4 0 0 0 0</pose>
+        <parent>world</parent>
+        <child>panel</child>
+        <axis>
+          <xyz>0 0 1</xyz>
+          <limit><lower>-2.10</lower><upper>2.10</upper><effort>40</effort><velocity>1.5</velocity></limit>
+          <dynamics><damping>1.0</damping><friction>0.05</friction></dynamics>
+        </axis>
+      </joint>
+      <plugin filename="ignition-gazebo-joint-position-controller-system"
+              name="gz::sim::systems::JointPositionController">
+        <joint_name>hinge</joint_name>
+        <topic>/fire_robot/door/blue/x300/yn155/sn/cmd</topic>
+        <p_gain>8.0</p_gain>
+        <d_gain>0.4</d_gain>
+        <cmd_max>60</cmd_max>
+        <cmd_min>-60</cmd_min>
+      </plugin>
     </model>
 
     <model name="door_red2">
@@ -165,39 +199,107 @@
     </model>
 
     <model name="door_blue2">
-      <static>true</static>
-      <pose>9 -1.55 1.0 0 0 0</pose>
-      <link name="link">
+      <static>false</static>
+      <pose>9 -1.55 1 0 0 0</pose>
+      <link name="panel">
+        <inertial>
+          <mass>2.0</mass>
+          <inertia>
+            <ixx>0.90</ixx><ixy>0</ixy><ixz>0</ixz>
+            <iyy>0.90</iyy><iyz>0</iyz><izz>0.12</izz>
+          </inertia>
+        </inertial>
+        <collision name="panel_collision">
+          <geometry><box><size>0.06 0.8 2</size></box></geometry>
+          <surface>
+            <friction><ode><mu>0.8</mu><mu2>0.8</mu2></ode></friction>
+          </surface>
+        </collision>
         <visual name="panel">
-          <geometry><box><size>0.06 0.8 2.0</size></box></geometry>
+          <geometry><box><size>0.06 0.8 2</size></box></geometry>
           <material><ambient>0.04 0.14 0.92 1</ambient><diffuse>0.04 0.14 0.92 1</diffuse></material>
         </visual>
+        <collision name="handle_collision">
+          <pose>0.04 0.3 -0.05 0 1.5708 0</pose>
+          <geometry><cylinder><radius>0.022</radius><length>0.16</length></cylinder></geometry>
+        </collision>
+        <visual name="handle">
+          <pose>0.04 0.3 -0.05 0 1.5708 0</pose>
+          <geometry><cylinder><radius>0.018</radius><length>0.13</length></cylinder></geometry>
+          <material><ambient>0.75 0.60 0.05 1</ambient><diffuse>0.75 0.60 0.05 1</diffuse></material>
+        </visual>
       </link>
-    </model>
-    <model name="handle_blue2">
-      <static>true</static>
-      <pose>9.04 -1.25 0.95 0 1.5708 0</pose>
-      <link name="link">
-        <visual name="handle"><geometry><cylinder><radius>0.018</radius><length>0.13</length></cylinder></geometry><material><ambient>0.75 0.60 0.05 1</ambient></material></visual>
-      </link>
+      <joint name="hinge" type="revolute">
+        <pose>0 -0.4 0 0 0 0</pose>
+        <parent>world</parent>
+        <child>panel</child>
+        <axis>
+          <xyz>0 0 1</xyz>
+          <limit><lower>-2.10</lower><upper>2.10</upper><effort>40</effort><velocity>1.5</velocity></limit>
+          <dynamics><damping>1.0</damping><friction>0.05</friction></dynamics>
+        </axis>
+      </joint>
+      <plugin filename="ignition-gazebo-joint-position-controller-system"
+              name="gz::sim::systems::JointPositionController">
+        <joint_name>hinge</joint_name>
+        <topic>/fire_robot/door/blue/x900/yn155/sn/cmd</topic>
+        <p_gain>8.0</p_gain>
+        <d_gain>0.4</d_gain>
+        <cmd_max>60</cmd_max>
+        <cmd_min>-60</cmd_min>
+      </plugin>
     </model>
 
     <model name="door_blue3">
-      <static>true</static>
-      <pose>12 1.55 1.0 0 0 0</pose>
-      <link name="link">
+      <static>false</static>
+      <pose>12 1.55 1 0 0 0</pose>
+      <link name="panel">
+        <inertial>
+          <mass>2.0</mass>
+          <inertia>
+            <ixx>0.90</ixx><ixy>0</ixy><ixz>0</ixz>
+            <iyy>0.90</iyy><iyz>0</iyz><izz>0.12</izz>
+          </inertia>
+        </inertial>
+        <collision name="panel_collision">
+          <geometry><box><size>0.06 0.8 2</size></box></geometry>
+          <surface>
+            <friction><ode><mu>0.8</mu><mu2>0.8</mu2></ode></friction>
+          </surface>
+        </collision>
         <visual name="panel">
-          <geometry><box><size>0.06 0.8 2.0</size></box></geometry>
+          <geometry><box><size>0.06 0.8 2</size></box></geometry>
           <material><ambient>0.04 0.14 0.92 1</ambient><diffuse>0.04 0.14 0.92 1</diffuse></material>
         </visual>
+        <collision name="handle_collision">
+          <pose>0.04 -0.3 -0.05 0 1.5708 0</pose>
+          <geometry><cylinder><radius>0.022</radius><length>0.16</length></cylinder></geometry>
+        </collision>
+        <visual name="handle">
+          <pose>0.04 -0.3 -0.05 0 1.5708 0</pose>
+          <geometry><cylinder><radius>0.018</radius><length>0.13</length></cylinder></geometry>
+          <material><ambient>0.75 0.60 0.05 1</ambient><diffuse>0.75 0.60 0.05 1</diffuse></material>
+        </visual>
       </link>
-    </model>
-    <model name="handle_blue3">
-      <static>true</static>
-      <pose>12.04 1.25 0.95 0 1.5708 0</pose>
-      <link name="link">
-        <visual name="handle"><geometry><cylinder><radius>0.018</radius><length>0.13</length></cylinder></geometry><material><ambient>0.75 0.60 0.05 1</ambient></material></visual>
-      </link>
+      <joint name="hinge" type="revolute">
+        <pose>0 0.4 0 0 0 0</pose>
+        <parent>world</parent>
+        <child>panel</child>
+        <axis>
+          <xyz>0 0 1</xyz>
+          <limit><lower>-2.10</lower><upper>2.10</upper><effort>40</effort><velocity>1.5</velocity></limit>
+          <dynamics><damping>1.0</damping><friction>0.05</friction></dynamics>
+        </axis>
+      </joint>
+      <plugin filename="ignition-gazebo-joint-position-controller-system"
+              name="gz::sim::systems::JointPositionController">
+        <joint_name>hinge</joint_name>
+        <topic>/fire_robot/door/blue/x1200/yp155/sp/cmd</topic>
+        <p_gain>8.0</p_gain>
+        <d_gain>0.4</d_gain>
+        <cmd_max>60</cmd_max>
+        <cmd_min>-60</cmd_min>
+      </plugin>
     </model>
 
     <model name="door_red3">

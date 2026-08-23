@@ -18,9 +18,16 @@ bt_navigator:
     odom_topic: /odom
     bt_loop_duration: 100
     default_server_timeout: 20
+    wait_for_service_timeout: 5000
+    navigators: ["navigate_to_pose"]
+    navigate_to_pose:
+      plugin: "nav2_bt_navigator/NavigateToPoseNavigator"
     # 재계획 BT: segment map 기반 planning, reverse-first recovery 제외
     default_nav_to_pose_bt_xml: "$(find-pkg-share fire_robot_navigation)/config/navigate_to_pose_replanning_no_backup.xml"
     default_nav_through_poses_bt_xml: "$(find-pkg-share fire_robot_navigation)/config/navigate_through_poses_replanning_no_backup.xml"
+    # This project sends NavigateToPose goals only, but this Humble BtNavigator
+    # still initializes the through-poses tree. Keep its plugins loadable while
+    # using a longer wait timeout so startup does not poison NavigateToPose.
     plugin_lib_names:
       - nav2_compute_path_to_pose_action_bt_node
       - nav2_compute_path_through_poses_action_bt_node

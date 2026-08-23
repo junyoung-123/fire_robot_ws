@@ -26,6 +26,15 @@ ros2 launch fire_robot_bringup simulation.launch.py \
   "$@" > "${LOG_FILE}" 2>&1 &
 launch_pid=$!
 
+trace_pid=""
+if [[ -n "${TRACE_DIR:-}" ]]; then
+  mkdir -p "${TRACE_DIR}"
+  python3 scripts/validation_trace_logger.py \
+    --output-dir "${TRACE_DIR}" \
+    > "${TRACE_DIR}/trace_logger.log" 2>&1 &
+  trace_pid=$!
+fi
+
 status="timeout"
 start_seconds=${SECONDS}
 deadline=$((SECONDS + MAX_SEC))
@@ -60,5 +69,14 @@ if kill -0 "${launch_pid}" 2>/dev/null; then
   kill -TERM "${launch_pid}" 2>/dev/null || true
 fi
 wait "${launch_pid}" 2>/dev/null || true
+
+if [[ -n "${trace_pid}" ]] && kill -0 "${trace_pid}" 2>/dev/null; then
+  kill -INT "${trace_pid}" 2>/dev/null || true
+  sleep 2
+  kill -TERM "${trace_pid}" 2>/dev/null || true
+fi
+if [[ -n "${trace_pid}" ]]; then
+  wait "${trace_pid}" 2>/dev/null || true
+fi
 
 printf '%s\n' "${status}" > "${LOG_FILE}.status"

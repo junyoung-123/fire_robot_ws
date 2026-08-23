@@ -6,11 +6,13 @@ RGB 카메라 + Radar(+ 선택적 Depth 카메라)를 이용한 문 탐지 노�
 처리 파이프라인:
   1. YOLOv8 → 이미지 내 문(door) bounding box 탐지
   2. HSV 색상 분석 (bbox 내부) → "blue"(안전) / "red"(위험) 분류
-  3. 거리 추정 (우선순위):
+  3. 손잡이 전용 YOLO → 문 bbox 주변 손잡이(handle) 우선 검출
+     - 손잡이 YOLO 모델이 없거나 실패하면 HSV 손잡이 fallback 사용
+  4. 거리 추정 (우선순위):
      a) Depth 카메라 활성화 시: bbox 중심 픽셀의 depth 값
      b) Radar /scan: bbox 방향의 LaserScan range 값
-  4. 카메라 intrinsics + 거리 → 2D 위치 추정 (robot frame)
-  5. DoorInfo / FireInfo 토픽 발행
+  5. 카메라 intrinsics + 거리 → 2D 위치 추정 (robot frame)
+  6. DoorInfo / FireInfo 토픽 발행
 
 모델: YOLOv8 (scripts/train_door_detector.py로 학습한 것,
              없으면 HSV-only fallback)
@@ -58,6 +60,8 @@ RED_UPPER2  = np.array([179, 255, 255])
 # Gazebo exit_marker ambient(0.0, 0.88, 0.05) → OpenCV H≈62
 GREEN_LOWER = np.array([ 50, 100,  80])
 GREEN_UPPER = np.array([ 80, 255, 255])
+HANDLE_LOWER = np.array([ 15,  70,  70])
+HANDLE_UPPER = np.array([ 45, 255, 255])
 
 # bbox 내 색상 픽셀이 이 비율 이상이면 해당 색으로 판정
 COLOR_RATIO_THRESHOLD = 0.20
@@ -80,6 +84,15 @@ class CameraSource:
     has_info: bool = False
 
 
+@dataclass
+class HandleObservation:
+    x: int
+    y: int
+    confidence: float
+    method: str
+    bbox: tuple[int, int, int, int] | None = None
+
+
 class DoorDetectionNode(Node):
     """YOLOv8 + HSV + Radar(+ Depth) 기반 파란/빨간 문 탐지 노드"""
 
@@ -87,6 +100,7 @@ class DoorDetectionNode(Node):
         super().__init__('door_detection_node')
 
         self.declare_parameter('model_path', '')
+        self.declare_parameter('handle_model_path', '')
         self.declare_parameter('confidence_threshold', 0.40)
         self.declare_parameter('yolo_min_interval_sec', 0.50)
         self.declare_parameter('yolo_imgsz', 0)
@@ -111,6 +125,26 @@ class DoorDetectionNode(Node):
         self.declare_parameter('side_door_min_abs_y_m', 0.45)
         self.declare_parameter('side_door_standoff_m', 0.85)
         self.declare_parameter('side_handle_max_abs_y_m', 0.0)
+        self.declare_parameter('detect_handle_enabled', True)
+        self.declare_parameter('handle_confidence_threshold', 0.30)
+        self.declare_parameter('handle_yolo_imgsz', 0)
+        self.declare_parameter('handle_yolo_class_keywords', [
+            'handle', 'door_handle', 'knob', 'lever',
+        ])
+        self.declare_parameter('handle_yolo_roi_expand_x_px', 40)
+        self.declare_parameter('handle_yolo_roi_expand_y_px', 28)
+        self.declare_parameter('handle_yolo_min_area_px', 4)
+        self.declare_parameter('handle_yolo_max_area_ratio', 0.12)
+        self.declare_parameter('handle_yolo_fallback_hsv', True)
+        self.declare_parameter('handle_search_expand_x_px', 18)
+        self.declare_parameter('handle_search_expand_y_px', 12)
+        self.declare_parameter('handle_min_area_px', 6)
+        self.declare_parameter('handle_max_area_ratio', 0.08)
+        self.declare_parameter('handle_min_fill_ratio', 0.18)
+        self.declare_parameter('handle_default_z_m', 0.90)
+        self.declare_parameter('handle_min_z_m', 0.65)
+        self.declare_parameter('handle_max_z_m', 1.25)
+        self.declare_parameter('log_handle_detections', False)
         self.declare_parameter('min_door_aspect_ratio', 1.3)
         self.declare_parameter('side_range_max_disagreement_ratio', 2.2)
         self.declare_parameter('side_range_max_disagreement_m', 1.2)
@@ -145,6 +179,7 @@ class DoorDetectionNode(Node):
         self.declare_parameter('hsv_fallback_green_min_fill_ratio', 0.16)
         self.declare_parameter('hsv_fallback_clipped_max_width_ratio', 0.56)
         self.declare_parameter('hsv_fallback_min_fill_ratio', 0.30)
+        self.declare_parameter('hsv_fallback_min_aspect_ratio', 0.75)
         self.declare_parameter('blue_min_color_ratio', 0.24)
         self.declare_parameter('blue_min_dominance_margin', 0.07)
         self.declare_parameter('blue_max_red_ratio', 0.08)
@@ -159,6 +194,7 @@ class DoorDetectionNode(Node):
         ])
 
         model_path       = self.get_parameter('model_path').value
+        handle_model_path = self.get_parameter('handle_model_path').value
         self._conf       = self.get_parameter('confidence_threshold').value
         self._yolo_min_interval_sec = max(
             0.0, float(self.get_parameter('yolo_min_interval_sec').value))
@@ -202,6 +238,45 @@ class DoorDetectionNode(Node):
             self.get_parameter('side_door_standoff_m').value)
         self._side_handle_max_abs_y = float(
             self.get_parameter('side_handle_max_abs_y_m').value)
+        self._detect_handle_enabled = bool(
+            self.get_parameter('detect_handle_enabled').value)
+        self._handle_confidence_threshold = float(
+            self.get_parameter('handle_confidence_threshold').value)
+        self._handle_yolo_imgsz = max(
+            0, int(self.get_parameter('handle_yolo_imgsz').value))
+        self._handle_yolo_class_keywords = tuple(
+            keyword.strip().lower()
+            for keyword in self.get_parameter(
+                'handle_yolo_class_keywords').value
+            if str(keyword).strip())
+        self._handle_yolo_roi_expand_x_px = int(
+            self.get_parameter('handle_yolo_roi_expand_x_px').value)
+        self._handle_yolo_roi_expand_y_px = int(
+            self.get_parameter('handle_yolo_roi_expand_y_px').value)
+        self._handle_yolo_min_area_px = int(
+            self.get_parameter('handle_yolo_min_area_px').value)
+        self._handle_yolo_max_area_ratio = float(
+            self.get_parameter('handle_yolo_max_area_ratio').value)
+        self._handle_yolo_fallback_hsv = bool(
+            self.get_parameter('handle_yolo_fallback_hsv').value)
+        self._handle_search_expand_x_px = int(
+            self.get_parameter('handle_search_expand_x_px').value)
+        self._handle_search_expand_y_px = int(
+            self.get_parameter('handle_search_expand_y_px').value)
+        self._handle_min_area_px = int(
+            self.get_parameter('handle_min_area_px').value)
+        self._handle_max_area_ratio = float(
+            self.get_parameter('handle_max_area_ratio').value)
+        self._handle_min_fill_ratio = float(
+            self.get_parameter('handle_min_fill_ratio').value)
+        self._handle_default_z_m = float(
+            self.get_parameter('handle_default_z_m').value)
+        self._handle_min_z_m = float(
+            self.get_parameter('handle_min_z_m').value)
+        self._handle_max_z_m = float(
+            self.get_parameter('handle_max_z_m').value)
+        self._log_handle_detections = bool(
+            self.get_parameter('log_handle_detections').value)
         self._min_door_aspect_ratio = float(
             self.get_parameter('min_door_aspect_ratio').value)
         self._side_range_max_disagreement_ratio = float(
@@ -268,6 +343,8 @@ class DoorDetectionNode(Node):
             self.get_parameter('hsv_fallback_clipped_max_width_ratio').value)
         self._hsv_fallback_min_fill_ratio = float(
             self.get_parameter('hsv_fallback_min_fill_ratio').value)
+        self._hsv_fallback_min_aspect_ratio = float(
+            self.get_parameter('hsv_fallback_min_aspect_ratio').value)
         self._blue_min_color_ratio = float(
             self.get_parameter('blue_min_color_ratio').value)
         self._blue_min_dominance_margin = float(
@@ -293,6 +370,7 @@ class DoorDetectionNode(Node):
         self._latest_depth: np.ndarray | None = None   # (H, W) float32 [m]
         self._door_id_map:  dict[str, str]    = {}
         self._yolo_cache: dict[str, tuple[float, list[tuple[int, int, int, int, float]]]] = {}
+        self._handle_yolo_class_ids: set[int] = set()
         self._yolo_lock = Lock()
         self._last_image_process_time: dict[str, float] = {}
 
@@ -330,9 +408,12 @@ class DoorDetectionNode(Node):
         # YOLOv8 로드
         self._configure_inference_threads()
         self._model = self._load_model(model_path)
+        self._handle_model = self._load_handle_model(
+            handle_model_path, door_model_path=str(model_path))
 
         self.get_logger().info(
             f'DoorDetectionNode started | YOLO={"OK" if self._model else "FALLBACK_HSV"}'
+            f' | handle_yolo={"OK" if self._handle_model else "OFF"}'
             f' | imgsz={self._yolo_imgsz if self._yolo_imgsz > 0 else "auto"}'
             f' | depth={"ON" if self._use_depth else "OFF"}'
             f' | yolo_interval={self._yolo_min_interval_sec:.2f}s'
@@ -383,6 +464,10 @@ class DoorDetectionNode(Node):
             self.get_logger().warn(
                 'ultralytics not installed. Using HSV-only detection.')
             return None
+        if not str(model_path).strip():
+            self.get_logger().warn(
+                'model_path is empty. Falling back to HSV-only detection.')
+            return None
         path = Path(model_path)
         if path.exists():
             self.get_logger().info(f'Loading custom YOLO model: {path}')
@@ -392,6 +477,84 @@ class DoorDetectionNode(Node):
         self.get_logger().warn(
             f'model_path "{model_path}" not found. Falling back to HSV-only detection.')
         return None
+
+    def _load_handle_model(self, model_path: str, door_model_path: str = ''):
+        if not self._detect_handle_enabled:
+            return None
+        if not _HAS_YOLO:
+            self.get_logger().warn(
+                'ultralytics not installed. Handle YOLO is disabled.')
+            return None
+        if not str(model_path).strip():
+            self.get_logger().info(
+                'handle_model_path is empty. Using HSV/estimated handle fallback.')
+            return None
+
+        path = Path(model_path)
+        if not path.exists():
+            self.get_logger().warn(
+                f'handle_model_path "{model_path}" not found. '
+                'Using HSV/estimated handle fallback.')
+            return None
+
+        model = YOLO(str(path))
+        class_ids = self._handle_class_ids(model, path, door_model_path)
+        if not class_ids:
+            self.get_logger().error(
+                f'Handle YOLO model "{path}" does not expose a usable '
+                f'handle class. names={self._model_names_map(model)}')
+            return None
+
+        self._handle_yolo_class_ids = set(class_ids)
+        class_names = [
+            self._model_class_name(model, class_id)
+            for class_id in sorted(self._handle_yolo_class_ids)
+        ]
+        self.get_logger().info(
+            f'Loading handle YOLO model: {path} '
+            f'(classes={class_names})')
+        return model
+
+    def _handle_class_ids(self, model, model_path: Path,
+                          door_model_path: str = '') -> list[int]:
+        names = self._model_names_map(model)
+        keywords = self._handle_yolo_class_keywords or (
+            'handle', 'door_handle', 'knob', 'lever')
+        class_ids = []
+        for class_id, name in names.items():
+            label = name.lower().replace('-', '_').replace(' ', '_')
+            if any(keyword in label for keyword in keywords):
+                class_ids.append(class_id)
+
+        if class_ids:
+            return class_ids
+
+        if len(names) == 1:
+            class_id, name = next(iter(names.items()))
+            same_as_door = False
+            try:
+                same_as_door = (
+                    Path(door_model_path).resolve() == model_path.resolve())
+            except Exception:
+                same_as_door = str(door_model_path) == str(model_path)
+            if 'door' not in name.lower() and not same_as_door:
+                self.get_logger().warn(
+                    f'Handle YOLO model has a single non-handle class '
+                    f'"{name}". Treating it as handle. Rename the dataset '
+                    'class to handle/door_handle when retraining.')
+                return [class_id]
+
+        return []
+
+    @staticmethod
+    def _model_names_map(model) -> dict[int, str]:
+        names = getattr(model, 'names', {})
+        if isinstance(names, dict):
+            return {int(idx): str(name) for idx, name in names.items()}
+        return {idx: str(name) for idx, name in enumerate(names)}
+
+    def _model_class_name(self, model, class_id: int) -> str:
+        return self._model_names_map(model).get(int(class_id), str(class_id))
 
     # ── 콜백 ──────────────────────────────────────────────
     def camera_info_callback(self, msg: CameraInfo, source: CameraSource):
@@ -496,9 +659,12 @@ class DoorDetectionNode(Node):
 
             door_id  = self._get_door_id(
                 source.name, color, cx_pix, image.shape[1], dist)
+            handle_obs = self._detect_handle_observation(
+                image, hsv, x1, y1, x2, y2, color, image.shape)
             door_msg = self._build_door_info(
                 header, source, door_id, color, cx_pix, dist,
-                bbox_height=(y2 - y1), det_conf=det_conf)
+                bbox_height=(y2 - y1), det_conf=det_conf,
+                bbox=(x1, y1, x2, y2), handle_obs=handle_obs)
             if self._log_detection_candidates and color in ('blue', 'green'):
                 pose = door_msg.door_pose.pose.position
                 handle = door_msg.handle_position.point
@@ -518,7 +684,10 @@ class DoorDetectionNode(Node):
                     f'center_angle={center_angle_deg:.1f}deg, '
                     f'lidar={measured_text}m, visual={visual_text}m, '
                     f'goal=({pose.x:.2f},{pose.y:.2f}), '
-                    f'handle=({handle.x:.2f},{handle.y:.2f})',
+                    f'handle=({handle.x:.2f},{handle.y:.2f},{handle.z:.2f}), '
+                    f'handle_obs={handle_obs is not None}, '
+                    f'handle_method={door_msg.handle_detection_method}, '
+                    f'handle_conf={door_msg.handle_confidence:.2f}',
                     throttle_duration_sec=1.5)
             self.door_pub.publish(door_msg)
 
@@ -533,6 +702,18 @@ class DoorDetectionNode(Node):
                 _DBG = {'blue': (255, 100, 0), 'red': (0, 60, 255), 'green': (0, 200, 50)}
                 col  = _DBG.get(color, (200, 200, 200))
                 cv2.rectangle(debug, (x1, y1), (x2, y2), col, 3)
+                if handle_obs is not None:
+                    hp_x, hp_y = handle_obs.x, handle_obs.y
+                    cv2.circle(debug, (hp_x, hp_y), 5, (0, 220, 255), -1)
+                    if handle_obs.bbox is not None:
+                        hx1, hy1, hx2, hy2 = handle_obs.bbox
+                        cv2.rectangle(
+                            debug, (hx1, hy1), (hx2, hy2), (0, 220, 255), 2)
+                    cv2.putText(
+                        debug,
+                        f'handle:{handle_obs.method} {handle_obs.confidence:.2f}',
+                        (hp_x + 6, max(18, hp_y - 6)),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 220, 255), 1)
                 cv2.putText(debug, f'{source.name} {color} {det_conf:.2f} d={dist:.1f}m',
                             (x1, y1 - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.6, col, 2)
 
@@ -612,7 +793,7 @@ class DoorDetectionNode(Node):
         boxes = []
         for r in results:
             for box in r.boxes:
-                cls_name = self._model.names[int(box.cls)]
+                cls_name = self._model_class_name(self._model, int(box.cls))
                 # 학습된 모델에서 'door' 클래스만, 기본 모델은 모든 클래스 허용
                 if 'door' not in cls_name.lower() and len(self._model.names) > 10:
                     continue
@@ -817,7 +998,8 @@ class DoorDetectionNode(Node):
         fill_ratio = contour_area / float(max(1, w * h))
         if fill_ratio < min_fill:
             return False
-        if not self._passes_door_shape_filter(x, y, x + w, y + h):
+        aspect = h / float(max(1, w))
+        if aspect < self._hsv_fallback_min_aspect_ratio:
             return False
 
         clipped_top_bottom = y <= 1 and (y + h) >= img_h - 1
@@ -914,6 +1096,200 @@ class DoorDetectionNode(Node):
                 return 'unknown'
             return 'red'
         return 'unknown'
+
+    # ── 손잡이 직접 검출 ──────────────────────────────────
+    def _detect_handle_observation(
+            self,
+            image: np.ndarray,
+            hsv: np.ndarray,
+            x1: int,
+            y1: int,
+            x2: int,
+            y2: int,
+            color: str,
+            image_shape: tuple[int, ...]) -> HandleObservation | None:
+        """Detect a handle inside an expanded door ROI."""
+        if not self._detect_handle_enabled:
+            return None
+        if color not in ('blue', 'red'):
+            return None
+
+        yolo_obs = self._detect_yolo_handle_observation(
+            image, x1, y1, x2, y2, image_shape)
+        if yolo_obs is not None:
+            return yolo_obs
+        if not self._handle_yolo_fallback_hsv:
+            return None
+
+        return self._detect_hsv_handle_observation(
+            hsv, x1, y1, x2, y2, color, image_shape)
+
+    def _detect_yolo_handle_observation(
+            self,
+            image: np.ndarray,
+            x1: int,
+            y1: int,
+            x2: int,
+            y2: int,
+            image_shape: tuple[int, ...]) -> HandleObservation | None:
+        if self._handle_model is None:
+            return None
+
+        img_h, img_w = image_shape[:2]
+        if img_h <= 0 or img_w <= 0:
+            return None
+
+        ex = max(0, self._handle_yolo_roi_expand_x_px)
+        ey = max(0, self._handle_yolo_roi_expand_y_px)
+        sx1 = max(0, x1 - ex)
+        sy1 = max(0, y1 - ey)
+        sx2 = min(img_w, x2 + ex)
+        sy2 = min(img_h, y2 + ey)
+        if sx2 <= sx1 or sy2 <= sy1:
+            return None
+
+        crop = image[sy1:sy2, sx1:sx2]
+        yolo_kwargs = {
+            'conf': self._handle_confidence_threshold,
+            'verbose': False,
+        }
+        if self._handle_yolo_imgsz > 0:
+            yolo_kwargs['imgsz'] = self._handle_yolo_imgsz
+
+        with self._yolo_lock:
+            results = self._handle_model(crop, **yolo_kwargs)
+
+        door_area = max(1, (x2 - x1) * (y2 - y1))
+        max_area = max(self._handle_yolo_min_area_px * 4,
+                       door_area * self._handle_yolo_max_area_ratio)
+        best: HandleObservation | None = None
+        best_score = -1.0
+
+        for result in results:
+            for box in result.boxes:
+                class_id = int(box.cls)
+                if (self._handle_yolo_class_ids
+                        and class_id not in self._handle_yolo_class_ids):
+                    continue
+                lx1, ly1, lx2, ly2 = map(int, box.xyxy[0])
+                lx1 = max(0, min(crop.shape[1] - 1, lx1))
+                lx2 = max(0, min(crop.shape[1], lx2))
+                ly1 = max(0, min(crop.shape[0] - 1, ly1))
+                ly2 = max(0, min(crop.shape[0], ly2))
+                if lx2 <= lx1 or ly2 <= ly1:
+                    continue
+
+                area = (lx2 - lx1) * (ly2 - ly1)
+                if area < self._handle_yolo_min_area_px or area > max_area:
+                    continue
+                conf = float(box.conf[0])
+                cx = sx1 + (lx1 + lx2) / 2.0
+                cy = sy1 + (ly1 + ly2) / 2.0
+                if not (x1 - ex <= cx <= x2 + ex
+                        and y1 - ey <= cy <= y2 + ey):
+                    continue
+
+                label = self._model_class_name(self._handle_model, class_id)
+                score = conf * (1.0 + min(1.0, area / max(1.0, max_area)))
+                if score > best_score:
+                    best_score = score
+                    best = HandleObservation(
+                        x=int(round(cx)),
+                        y=int(round(cy)),
+                        confidence=conf,
+                        method=f'yolo:{label}',
+                        bbox=(sx1 + lx1, sy1 + ly1, sx1 + lx2, sy1 + ly2),
+                    )
+
+        if best is not None and self._log_handle_detections:
+            self.get_logger().info(
+                f'YOLO handle observed: pixel=({best.x},{best.y}), '
+                f'conf={best.confidence:.2f}, bbox={best.bbox}',
+                throttle_duration_sec=1.0)
+        return best
+
+    def _detect_hsv_handle_observation(
+            self,
+            hsv: np.ndarray,
+            x1: int,
+            y1: int,
+            x2: int,
+            y2: int,
+            color: str,
+            image_shape: tuple[int, ...]) -> HandleObservation | None:
+        """Detect a yellow/gold handle inside an expanded door ROI."""
+        img_h, img_w = image_shape[:2]
+        if img_h <= 0 or img_w <= 0:
+            return None
+
+        ex = max(0, self._handle_search_expand_x_px)
+        ey = max(0, self._handle_search_expand_y_px)
+        sx1 = max(0, x1 - ex)
+        sy1 = max(0, y1 - ey)
+        sx2 = min(img_w, x2 + ex)
+        sy2 = min(img_h, y2 + ey)
+        if sx2 <= sx1 or sy2 <= sy1:
+            return None
+
+        roi = hsv[sy1:sy2, sx1:sx2]
+        mask = cv2.inRange(roi, HANDLE_LOWER, HANDLE_UPPER)
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+        contours, _ = cv2.findContours(
+            mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        door_area = max(1, (x2 - x1) * (y2 - y1))
+        max_area = max(self._handle_min_area_px * 4,
+                       door_area * self._handle_max_area_ratio)
+        best: HandleObservation | None = None
+        best_score = -1.0
+        expected_y = y1 + 0.52 * max(1, y2 - y1)
+
+        for cnt in contours:
+            area = cv2.contourArea(cnt)
+            if area < self._handle_min_area_px or area > max_area:
+                continue
+            rx, ry, rw, rh = cv2.boundingRect(cnt)
+            if rw <= 0 or rh <= 0:
+                continue
+            fill = area / float(max(1, rw * rh))
+            if fill < self._handle_min_fill_ratio:
+                continue
+            cx = sx1 + rx + rw / 2.0
+            cy = sy1 + ry + rh / 2.0
+            if not (x1 - ex <= cx <= x2 + ex and y1 - ey <= cy <= y2 + ey):
+                continue
+            y_penalty = abs(cy - expected_y) / max(1.0, y2 - y1)
+            compactness = min(rw, rh) / max(1.0, max(rw, rh))
+            score = area * (0.6 + compactness) * max(0.25, 1.0 - y_penalty)
+            if score > best_score:
+                best_score = score
+                best = HandleObservation(
+                    x=int(round(cx)),
+                    y=int(round(cy)),
+                    confidence=min(1.0, area / max(1.0, max_area)),
+                    method='hsv',
+                    bbox=(sx1 + rx, sy1 + ry, sx1 + rx + rw, sy1 + ry + rh),
+                )
+
+        if best is not None and self._log_handle_detections:
+            self.get_logger().info(
+                f'HSV handle observed: color={color}, '
+                f'pixel=({best.x},{best.y}), conf={best.confidence:.2f}, '
+                f'door_bbox=({x1},{y1},{x2},{y2})',
+                throttle_duration_sec=1.0)
+        return best
+
+    def _handle_z_from_pixel(self, y1: int, y2: int,
+                             handle_y_pix: int | None) -> float:
+        if handle_y_pix is None or y2 <= y1:
+            return self._handle_default_z_m
+        ratio_from_bottom = (y2 - handle_y_pix) / float(max(1, y2 - y1))
+        z = ratio_from_bottom * self._door_height_m
+        if not math.isfinite(z):
+            return self._handle_default_z_m
+        return float(min(self._handle_max_z_m, max(self._handle_min_z_m, z)))
 
     # ── 거리 추정 ─────────────────────────────────────────
     def _range_distance_at_pixel(self,
@@ -1073,9 +1449,18 @@ class DoorDetectionNode(Node):
     def _build_door_info(self, header, source: CameraSource,
                          door_id: str, color: str,
                          cx_pix: int, dist: float,
-                         bbox_height: int, det_conf: float) -> DoorInfo:
+                         bbox_height: int, det_conf: float,
+                         bbox: tuple[int, int, int, int] | None = None,
+                         handle_obs: HandleObservation | None = None
+                         ) -> DoorInfo:
         msg = DoorInfo()
         msg.header = header
+        handle_method = 'estimated'
+        handle_confidence = 0.0
+        handle_detected = handle_obs is not None
+        if handle_obs is not None:
+            handle_method = handle_obs.method
+            handle_confidence = float(handle_obs.confidence)
 
         # 카메라 수평각 + 카메라 장착 yaw → robot frame (x=전방, y=좌).
         angle = self._robot_angle_for_pixel(cx_pix, source)
@@ -1086,8 +1471,21 @@ class DoorDetectionNode(Node):
                     or wall_projected_dist
                     > dist + self._side_wall_projection_min_extend_m):
                 dist = wall_projected_dist
-        handle_x = dist * math.cos(angle)
-        handle_y = dist * math.sin(angle)
+        handle_angle = angle
+        handle_z = self._handle_default_z_m
+        if handle_obs is not None:
+            hp_x, hp_y = handle_obs.x, handle_obs.y
+            handle_angle = self._robot_angle_for_pixel(hp_x, source)
+            if bbox is not None:
+                _, by1, _, by2 = bbox
+                handle_z = self._handle_z_from_pixel(by1, by2, hp_y)
+        handle_dist = dist
+        handle_projected_dist = self._side_wall_projected_distance(
+            handle_angle, color)
+        if handle_projected_dist is not None:
+            handle_dist = handle_projected_dist
+        handle_x = handle_dist * math.cos(handle_angle)
+        handle_y = handle_dist * math.sin(handle_angle)
         handle_y = self._clamp_side_handle_y(handle_y, color)
         nav_dist = max(0.3, dist - self._door_approach_offset)
         px = nav_dist * math.cos(angle)
@@ -1104,7 +1502,7 @@ class DoorDetectionNode(Node):
         handle_base.header = pose_base.header
         handle_base.point.x = handle_x
         handle_base.point.y = handle_y
-        handle_base.point.z = 0.9
+        handle_base.point.z = handle_z
 
         # Shape the approach goal in base_link first. Clamping a side-door goal
         # after transforming to map can flip the side when the SLAM map axis is
@@ -1119,6 +1517,9 @@ class DoorDetectionNode(Node):
         if not self._publish_map_frame:
             msg.door_pose = pose_base
             msg.handle_position = handle_base
+            msg.handle_detected = handle_detected
+            msg.handle_detection_method = handle_method
+            msg.handle_confidence = handle_confidence
             msg.door_id    = door_id
             msg.door_color = color
             msg.is_open    = False
@@ -1161,6 +1562,9 @@ class DoorDetectionNode(Node):
 
         msg.door_id    = door_id
         msg.door_color = color
+        msg.handle_detected = handle_detected
+        msg.handle_detection_method = handle_method
+        msg.handle_confidence = handle_confidence
         msg.is_open    = False
         msg.confidence = float(det_conf)
         msg.distance_from_fire = 0.0

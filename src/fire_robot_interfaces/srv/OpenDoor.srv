@@ -1,5 +1,8 @@
 string door_id
 geometry_msgs/PointStamped handle_position
+bool handle_detected
+string handle_detection_method
+float32 handle_confidence
 ---
 bool success
 string message

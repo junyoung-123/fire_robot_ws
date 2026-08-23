@@ -56,6 +56,16 @@ class DoorTargetSubFsm:
 
         target_wall = n._door_handle_xy(door)
         candidate_wall = n._door_handle_xy(candidate)
+        candidate_raw_wall = n._raw_blue_handle_xy_for_evidence(candidate)
+        if (
+                candidate_raw_wall is not None
+                and math.hypot(
+                    target_wall[0] - candidate_raw_wall[0],
+                    target_wall[1] - candidate_raw_wall[1])
+                < math.hypot(
+                    target_wall[0] - candidate_wall[0],
+                    target_wall[1] - candidate_wall[1])):
+            candidate_wall = candidate_raw_wall
         target_progress = n._axis_progress_xy(target_wall[0], target_wall[1])
         candidate_progress = n._axis_progress_xy(candidate_wall[0], candidate_wall[1])
         target_lateral = n._axis_lateral_xy(target_wall[0], target_wall[1])
@@ -88,9 +98,21 @@ class DoorTargetSubFsm:
             wall_dist = math.hypot(
                 target_wall[0] - candidate_wall[0],
                 target_wall[1] - candidate_wall[1])
-            station_dist_limit = max(0.45, min(max_dist, 0.85))
-            strict_progress_gap = max(0.20, min(max_progress_gap, 0.70))
-            strict_lateral_gap = max(0.20, min(max_lateral_gap, 0.65))
+            strict_progress_gap = max(
+                0.20,
+                min(
+                    max_progress_gap,
+                    max(0.70, n._observed_physical_door_merge_dist_m + 0.80)))
+            strict_lateral_gap = max(
+                0.20,
+                min(
+                    max_lateral_gap,
+                    max(0.65, n._axis_door_side_standoff_m + 0.75)))
+            station_dist_limit = max(
+                0.45,
+                min(
+                    max_dist,
+                    math.hypot(strict_progress_gap, strict_lateral_gap)))
             identity_match = (
                 identity_dist <= station_dist_limit
                 and abs(candidate_identity_progress - identity_progress)
@@ -243,6 +265,16 @@ class DoorTargetSubFsm:
         candidate_xy = n._door_identity_xy(candidate)
         target_wall = n._door_handle_xy(door)
         candidate_wall = n._door_handle_xy(candidate)
+        candidate_raw_wall = n._raw_blue_handle_xy_for_evidence(candidate)
+        if (
+                candidate_raw_wall is not None
+                and math.hypot(
+                    target_wall[0] - candidate_raw_wall[0],
+                    target_wall[1] - candidate_raw_wall[1])
+                < math.hypot(
+                    target_wall[0] - candidate_wall[0],
+                    target_wall[1] - candidate_wall[1])):
+            candidate_wall = candidate_raw_wall
 
         target_lateral = n._axis_lateral_xy(target_xy[0], target_xy[1])
         candidate_lateral = n._axis_lateral_xy(candidate_xy[0], candidate_xy[1])

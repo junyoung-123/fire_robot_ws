@@ -12,7 +12,12 @@ def generate_launch_description():
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')
     world_file = LaunchConfiguration('world', default='corridor.world')
     headless = LaunchConfiguration('headless', default='false')
+    render_engine_gui = LaunchConfiguration('render_engine_gui', default='ogre2')
     enable_depth_camera = LaunchConfiguration('enable_depth_camera', default='false')
+    gazebo_env = {
+        'LIBGL_ALWAYS_SOFTWARE': '1',
+        'MESA_GL_VERSION_OVERRIDE': '3.3',
+    }
 
     world_path = PathJoinSubstitution([
         FindPackageShare('fire_robot_bringup'), 'worlds', world_file,
@@ -37,19 +42,30 @@ def generate_launch_description():
             description='Run Gazebo server-only mode without GUI when true.',
         ),
         DeclareLaunchArgument(
+            'render_engine_gui',
+            default_value='ogre2',
+            description='Gazebo GUI rendering engine, for example ogre2 or ogre.',
+        ),
+        DeclareLaunchArgument(
             'enable_depth_camera',
             default_value='false',
             description='Bridge the simulated depth camera topics when enabled.',
         ),
 
         ExecuteProcess(
-            cmd=['ign', 'gazebo', '-r', world_path],
+            cmd=[
+                'ign', 'gazebo', '-r',
+                '--render-engine-gui', render_engine_gui,
+                world_path,
+            ],
             output='screen',
+            additional_env=gazebo_env,
             condition=UnlessCondition(headless),
         ),
         ExecuteProcess(
             cmd=['ign', 'gazebo', '-r', '-s', world_path],
             output='screen',
+            additional_env=gazebo_env,
             condition=IfCondition(headless),
         ),
 

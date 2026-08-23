@@ -2,6 +2,9 @@ std_msgs/Header header
 
 geometry_msgs/PoseStamped door_pose        # 문 위치 및 방향
 geometry_msgs/PointStamped handle_position # 손잡이 3D 위치
+bool handle_detected                       # 손잡이를 직접 관측했는지 여부
+string handle_detection_method             # "yolo", "hsv", "estimated"
+float32 handle_confidence                  # 손잡이 검출 신뢰도
 
 string door_id       # 문 고유 ID
 string door_color    # "blue"(안전), "red"(위험/화재), "unknown"
