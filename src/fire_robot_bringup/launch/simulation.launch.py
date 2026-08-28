@@ -27,6 +27,9 @@ def generate_launch_description():
     map_file = LaunchConfiguration('map', default=PathJoinSubstitution([
         FindPackageShare('fire_robot_navigation'), 'maps', 'obstacle_wall_doors_v5_static.yaml',
     ]))
+    handle_model_path = LaunchConfiguration('handle_model_path', default=PathJoinSubstitution([
+        FindPackageShare('fire_robot_perception'), 'models', 'handle_best.pt',
+    ]))
     door_model_path = LaunchConfiguration('door_model_path', default=PathJoinSubstitution([
         FindPackageShare('fire_robot_perception'), 'models', 'best.pt',
     ]))
@@ -292,6 +295,7 @@ def generate_launch_description():
                 parameters=[{
                     'use_sim_time': use_sim_time,
                     'model_path': door_model_path,
+                    'handle_model_path': handle_model_path,
                     'confidence_threshold': 0.20,
                     'yolo_min_interval_sec': 2.40,
                     'yolo_imgsz': 320,
@@ -701,6 +705,13 @@ def generate_launch_description():
                 FindPackageShare('fire_robot_navigation'), 'maps', 'obstacle_wall_doors_v5_static.yaml',
             ]),
             description='Map yaml used when localization_mode:=localization.',
+        ),
+        DeclareLaunchArgument(
+            'handle_model_path',
+            default_value=PathJoinSubstitution([
+                FindPackageShare('fire_robot_perception'), 'models', 'handle_best.pt',
+            ]),
+            description='YOLO lever-handle detector weight path; absent uses door-center fallback.',
         ),
         DeclareLaunchArgument(
             'door_model_path',

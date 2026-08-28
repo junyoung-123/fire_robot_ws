@@ -87,6 +87,9 @@ class DoorDetectionNode(Node):
         super().__init__('door_detection_node')
 
         self.declare_parameter('model_path', '')
+        self.declare_parameter('handle_model_path', '')
+        self.declare_parameter('handle_confidence_threshold', 0.25)
+        self.declare_parameter('handle_height_m', 0.9)
         self.declare_parameter('confidence_threshold', 0.40)
         self.declare_parameter('yolo_min_interval_sec', 0.50)
         self.declare_parameter('yolo_imgsz', 0)
@@ -159,6 +162,9 @@ class DoorDetectionNode(Node):
         ])
 
         model_path       = self.get_parameter('model_path').value
+        handle_model_path = self.get_parameter('handle_model_path').value
+        self._handle_conf = float(self.get_parameter('handle_confidence_threshold').value)
+        self._handle_height_m = float(self.get_parameter('handle_height_m').value)
         self._conf       = self.get_parameter('confidence_threshold').value
         self._yolo_min_interval_sec = max(
             0.0, float(self.get_parameter('yolo_min_interval_sec').value))
@@ -329,10 +335,12 @@ class DoorDetectionNode(Node):
 
         # YOLOv8 로드
         self._configure_inference_threads()
-        self._model = self._load_model(model_path)
+        self._model = self._load_model(model_path, 'door')
+        self._handle_model = self._load_model(handle_model_path, 'handle')
 
         self.get_logger().info(
             f'DoorDetectionNode started | YOLO={"OK" if self._model else "FALLBACK_HSV"}'
+            f' | handle_YOLO={bool(self._handle_model)}'
             f' | imgsz={self._yolo_imgsz if self._yolo_imgsz > 0 else "auto"}'
             f' | depth={"ON" if self._use_depth else "OFF"}'
             f' | yolo_interval={self._yolo_min_interval_sec:.2f}s'
@@ -378,14 +386,14 @@ class DoorDetectionNode(Node):
         return sources
 
     # ── 모델 로드 ─────────────────────────────────────────
-    def _load_model(self, model_path: str):
+    def _load_model(self, model_path: str, purpose: str = 'door'):
         if not _HAS_YOLO:
             self.get_logger().warn(
                 'ultralytics not installed. Using HSV-only detection.')
             return None
         path = Path(model_path)
         if path.exists():
-            self.get_logger().info(f'Loading custom YOLO model: {path}')
+            self.get_logger().info(f'Loading custom {purpose} YOLO model: {path}')
             return YOLO(str(path))
         # 경로 미지정 또는 파일 없음 → HSV 전용 모드
         # (COCO 사전학습 모델은 Door 클래스를 포함하지 않으므로 사용 불가)
@@ -463,6 +471,7 @@ class DoorDetectionNode(Node):
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
         detections = self._detect_doors(image, source.name)  # list of (x1,y1,x2,y2,conf)
+        handle_detections = self._detect_handles(image)
         red_positions: list[PointStamped] = []
 
         for (x1, y1, x2, y2, det_conf) in detections:
@@ -471,6 +480,9 @@ class DoorDetectionNode(Node):
             if color == 'unknown':
                 continue
 
+            handle_box = self._select_handle_for_door(
+                (x1, y1, x2, y2), handle_detections)
+            handle_cx_pix = (handle_box[0] + handle_box[2]) // 2 if handle_box else None
             cx_pix = self._representative_door_pixel(
                 x1, x2, source, color)
             cy_pix = (y1 + y2) // 2
@@ -498,7 +510,8 @@ class DoorDetectionNode(Node):
                 source.name, color, cx_pix, image.shape[1], dist)
             door_msg = self._build_door_info(
                 header, source, door_id, color, cx_pix, dist,
-                bbox_height=(y2 - y1), det_conf=det_conf)
+                bbox_height=(y2 - y1), det_conf=det_conf,
+                handle_cx_pix=handle_cx_pix)
             if self._log_detection_candidates and color in ('blue', 'green'):
                 pose = door_msg.door_pose.pose.position
                 handle = door_msg.handle_position.point
@@ -533,12 +546,53 @@ class DoorDetectionNode(Node):
                 _DBG = {'blue': (255, 100, 0), 'red': (0, 60, 255), 'green': (0, 200, 50)}
                 col  = _DBG.get(color, (200, 200, 200))
                 cv2.rectangle(debug, (x1, y1), (x2, y2), col, 3)
+                if handle_box is not None:
+                    hx1, hy1, hx2, hy2, handle_conf = handle_box
+                    cv2.rectangle(debug, (hx1, hy1), (hx2, hy2), (0, 255, 255), 2)
+                    cv2.putText(debug, f'handle {handle_conf:.2f}', (hx1, max(18, hy1 - 5)),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 2)
                 cv2.putText(debug, f'{source.name} {color} {det_conf:.2f} d={dist:.1f}m',
                             (x1, y1 - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.6, col, 2)
 
         self._publish_fire_info(header, red_positions)
         if debug is not None:
             self.debug_pub.publish(self.bridge.cv2_to_imgmsg(debug, 'bgr8'))
+
+    def _detect_handles(self, image: np.ndarray) -> list:
+        """Detect lever handles once per frame with the dedicated model."""
+        if self._handle_model is None:
+            return []
+        kwargs = {'conf': self._handle_conf, 'verbose': False}
+        if self._yolo_imgsz > 0:
+            kwargs['imgsz'] = self._yolo_imgsz
+        with self._yolo_lock:
+            results = self._handle_model(image, **kwargs)
+        handles = []
+        for result in results:
+            for box in result.boxes:
+                cls_name = self._handle_model.names[int(box.cls)]
+                if 'handle' not in cls_name.lower():
+                    continue
+                x1, y1, x2, y2 = map(int, box.xyxy[0])
+                handles.append((x1, y1, x2, y2, float(box.conf[0])))
+        return handles
+
+    @staticmethod
+    def _select_handle_for_door(door_box, handles: list):
+        """Return the highest-confidence handle whose center is in a door."""
+        x1, y1, x2, y2 = door_box
+        margin_x = max(4, int((x2 - x1) * 0.08))
+        margin_y = max(4, int((y2 - y1) * 0.05))
+        candidates = []
+        for handle in handles:
+            hx1, hy1, hx2, hy2, confidence = handle
+            cx = (hx1 + hx2) / 2.0
+            cy = (hy1 + hy2) / 2.0
+            if (x1 - margin_x <= cx <= x2 + margin_x
+                    and y1 - margin_y <= cy <= y2 + margin_y):
+                candidates.append((confidence, handle))
+        return max(
+            candidates, default=(None, None), key=lambda item: item[0])[1]
 
     # ── 문 탐지 ───────────────────────────────────────────
     def _detect_doors(self, image: np.ndarray, source_name: str) -> list:
@@ -1073,21 +1127,24 @@ class DoorDetectionNode(Node):
     def _build_door_info(self, header, source: CameraSource,
                          door_id: str, color: str,
                          cx_pix: int, dist: float,
-                         bbox_height: int, det_conf: float) -> DoorInfo:
+                         bbox_height: int, det_conf: float,
+                         handle_cx_pix: int | None = None) -> DoorInfo:
         msg = DoorInfo()
         msg.header = header
 
         # 카메라 수평각 + 카메라 장착 yaw → robot frame (x=전방, y=좌).
         angle = self._robot_angle_for_pixel(cx_pix, source)
+        handle_angle = self._robot_angle_for_pixel(
+            handle_cx_pix if handle_cx_pix is not None else cx_pix, source)
         wall_projected_dist = self._side_wall_projected_distance(angle, color)
         if wall_projected_dist is not None:
-            raw_handle_y = dist * math.sin(angle)
+            raw_handle_y = dist * math.sin(handle_angle)
             if (abs(raw_handle_y) >= self._side_door_min_abs_y
                     or wall_projected_dist
                     > dist + self._side_wall_projection_min_extend_m):
                 dist = wall_projected_dist
-        handle_x = dist * math.cos(angle)
-        handle_y = dist * math.sin(angle)
+        handle_x = dist * math.cos(handle_angle)
+        handle_y = dist * math.sin(handle_angle)
         handle_y = self._clamp_side_handle_y(handle_y, color)
         nav_dist = max(0.3, dist - self._door_approach_offset)
         px = nav_dist * math.cos(angle)
@@ -1104,7 +1161,7 @@ class DoorDetectionNode(Node):
         handle_base.header = pose_base.header
         handle_base.point.x = handle_x
         handle_base.point.y = handle_y
-        handle_base.point.z = 0.9
+        handle_base.point.z = self._handle_height_m
 
         # Shape the approach goal in base_link first. Clamping a side-door goal
         # after transforming to map can flip the side when the SLAM map axis is

@@ -48,6 +48,9 @@ def generate_launch_description():
     nav2_params = PathJoinSubstitution([
         FindPackageShare('fire_robot_navigation'), 'config', 'nav2_params.yaml',
     ])
+    handle_model_path = LaunchConfiguration('handle_model_path', default=PathJoinSubstitution([
+        FindPackageShare('fire_robot_perception'), 'models', 'handle_best.pt',
+    ]))
     door_model_path = LaunchConfiguration('door_model_path', default=PathJoinSubstitution([
         FindPackageShare('fire_robot_perception'), 'models', 'best.pt',
     ]))
@@ -290,6 +293,7 @@ def generate_launch_description():
                  parameters=[{
                      'use_sim_time': use_sim_time,
                      'model_path': door_model_path,
+                     'handle_model_path': handle_model_path,
                  }], output='screen'),
             Node(package='fire_robot_navigation',  executable='navigation_node',
                  parameters=[{'use_sim_time': use_sim_time}], output='screen'),
@@ -333,6 +337,13 @@ def generate_launch_description():
             description='LaserScan frame on the real Clearpath/ROAS2 robot.'),
         DeclareLaunchArgument('odom_topic', default_value='/odom',
             description='Odometry topic used by Nav2; use /platform/odom/filtered on Clearpath J100.'),
+        DeclareLaunchArgument(
+            'handle_model_path',
+            default_value=PathJoinSubstitution([
+                FindPackageShare('fire_robot_perception'), 'models', 'handle_best.pt',
+            ]),
+            description='YOLO lever-handle detector weight path; absent uses door-center fallback.',
+        ),
         DeclareLaunchArgument(
             'door_model_path',
             default_value=PathJoinSubstitution([

@@ -18,6 +18,7 @@ src/fire_robot_perception/runs/
 src/fire_robot_perception/scripts/runs/
 *.pt
 !src/fire_robot_perception/models/best.pt
+!src/fire_robot_perception/models/handle_best.pt
 *.onnx
 *.tflite
 
@@ -40,3 +41,9 @@ logs/
 world*_trace*/
 world*_trace*
 /-e
+
+# Local handle-detector training artifacts
+/datasets/
+/runs/
+/yolov8s.pt
+/yolo26n.pt
