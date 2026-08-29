@@ -4,7 +4,7 @@ Train a YOLOv8 door-handle detector.
 
 Expected dataset:
   - YOLO format dataset.yaml
-  - one class named handle, door_handle, knob, or lever
+  - one class named lever_handle, handle, door_handle, knob, or lever
 
 Example:
   python3 train_handle_detector.py \
@@ -16,7 +16,7 @@ Example:
     --install
 
 After installation the runtime default path is:
-  src/fire_robot_perception/models/handle_best.pt
+  src/fire_robot_perception/models/handle_best_v2.pt
 """
 
 import argparse
@@ -44,12 +44,12 @@ def parse_args():
     parser.add_argument('--install', action='store_true',
                         help='Copy best.pt into fire_robot_perception/models')
     parser.add_argument('--install_path', default='',
-                        help='Override install destination for handle_best.pt')
+                        help='Override install destination for handle_best_v2.pt')
     return parser.parse_args()
 
 
 def default_install_path() -> Path:
-    return Path(__file__).resolve().parents[1] / 'models' / 'handle_best.pt'
+    return Path(__file__).resolve().parents[1] / 'models' / 'handle_best_v2.pt'
 
 
 def main():

@@ -93,13 +93,16 @@ def build_hinged_model(match: re.Match[str]) -> str:
     material = parse_material(door_block)
 
     handle_rel = [handle_pose[i] - door_pose[i] for i in range(3)]
-    handle_rpy = handle_pose[3:]
     hinge_x, hinge_y, open_sign = hinge_and_open_sign(door_pose, size)
     topic = topic_for_pose(door_pose, open_sign)
 
     pose_text = " ".join(fmt(v) for v in door_pose)
     size_text = " ".join(fmt(v) for v in size)
-    handle_pose_text = " ".join(fmt(v) for v in (handle_rel + handle_rpy))
+    handle_side = 1.0 if handle_rel[1] >= 0.0 else -1.0
+    handle_z = handle_rel[2]
+    plate_y = handle_side * 0.032
+    lever_y = handle_side * 0.078
+    collision_y = handle_side * 0.074
     hinge_pose_text = f"{fmt(hinge_x)} {fmt(hinge_y)} 0 0 0 0"
 
     i = indent
@@ -125,12 +128,17 @@ def build_hinged_model(match: re.Match[str]) -> str:
 {i}      {material}
 {i}    </visual>
 {i}    <collision name="handle_collision">
-{i}      <pose>{handle_pose_text}</pose>
-{i}      <geometry><cylinder><radius>0.022</radius><length>0.16</length></cylinder></geometry>
+{i}      <pose>{fmt(handle_rel[0] + 0.06)} {fmt(collision_y)} {fmt(handle_z)} 0 0 0</pose>
+{i}      <geometry><box><size>0.32 0.07 0.055</size></box></geometry>
 {i}    </collision>
+{i}    <visual name="handle_backplate">
+{i}      <pose>{fmt(handle_rel[0] - 0.06)} {fmt(plate_y)} {fmt(handle_z)} 0 0 0</pose>
+{i}      <geometry><box><size>0.08 0.022 0.28</size></box></geometry>
+{i}      <material><ambient>0.75 0.60 0.05 1</ambient><diffuse>0.75 0.60 0.05 1</diffuse></material>
+{i}    </visual>
 {i}    <visual name="handle">
-{i}      <pose>{handle_pose_text}</pose>
-{i}      <geometry><cylinder><radius>0.018</radius><length>0.13</length></cylinder></geometry>
+{i}      <pose>{fmt(handle_rel[0] + 0.06)} {fmt(lever_y)} {fmt(handle_z)} 0 0 0</pose>
+{i}      <geometry><box><size>0.32 0.052 0.052</size></box></geometry>
 {i}      <material><ambient>0.75 0.60 0.05 1</ambient><diffuse>0.75 0.60 0.05 1</diffuse></material>
 {i}    </visual>
 {i}  </link>

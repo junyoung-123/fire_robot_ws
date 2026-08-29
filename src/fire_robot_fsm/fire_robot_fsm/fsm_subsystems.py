@@ -28,6 +28,7 @@ class DoorTargetSubFsm:
             and not n._is_door_physically_abandoned(d)
             and not n._is_blue_candidate_blocked_by_red(d)
             and n._is_blue_door_at_valid_wall_position(d)
+            and not n._direct_blue_target_handle_invalid_reason(d)
             and n._is_blue_door_target_ready(d)
             and n._is_blue_door_ready_to_interrupt_explore(d)
         ]
@@ -73,14 +74,25 @@ class DoorTargetSubFsm:
         progress_gap = abs(candidate_progress - target_progress)
         lateral_gap = abs(candidate_lateral - target_lateral)
 
+        opening_aligned = n._blue_target_open_pose_aligned_for_safe_memory(door)
+        open_progress_cap = 1.15 if opening_aligned else 1.35
+        open_lateral_cap = 0.95 if opening_aligned else 1.10
+        if not bool(getattr(door, 'handle_detected', False)):
+            open_progress_cap = min(open_progress_cap, 1.05)
+            open_lateral_cap = min(open_lateral_cap, 0.90)
         max_progress_gap = max(
             0.20,
-            getattr(n, '_observed_blue_fresh_evidence_max_progress_gap_m', 0.95))
+            min(
+                getattr(n, '_observed_blue_fresh_evidence_max_progress_gap_m', 0.95),
+                open_progress_cap))
         max_lateral_gap = max(
             0.20,
-            getattr(n, '_observed_blue_fresh_evidence_max_lateral_gap_m', 0.85))
+            min(
+                getattr(n, '_observed_blue_fresh_evidence_max_lateral_gap_m', 0.85),
+                open_lateral_cap))
         target_xy = n._door_identity_xy(door)
         candidate_xy = n._door_identity_xy(candidate)
+        pre_exit_station_match = False
         pre_exit_strict = (
             n._is_blue_xy_in_pre_exit_zone(target_xy)
             or n._is_blue_xy_near_detected_exit(target_xy)
@@ -124,6 +136,13 @@ class DoorTargetSubFsm:
                 and progress_gap <= strict_progress_gap
                 and lateral_gap <= strict_lateral_gap)
             if not (identity_match or wall_match):
+                if (not opening_aligned
+                        and self._observed_blue_live_progress_match_is_reliable(
+                            door, candidate,
+                            target_wall, candidate_wall,
+                            progress_gap, lateral_gap,
+                            strict_progress_gap, strict_lateral_gap)):
+                    return True
                 n.get_logger().info(
                     f'Fresh blue evidence rejected for {door.door_id}: '
                     f'pre-exit live candidate {candidate.door_id} is not the '
@@ -134,6 +153,7 @@ class DoorTargetSubFsm:
                     f'lateral_gap={lateral_gap:.2f}/{strict_lateral_gap:.2f}).',
                     throttle_duration_sec=3.0)
                 return False
+            pre_exit_station_match = True
 
         target_side = target_lateral - n._explore_center_y
         candidate_side = candidate_lateral - n._explore_center_y
@@ -158,9 +178,12 @@ class DoorTargetSubFsm:
             return False
 
         if progress_gap > max_progress_gap or lateral_gap > max_lateral_gap:
-            if self._observed_blue_live_progress_match_is_reliable(
-                    door, candidate, progress_gap, lateral_gap,
-                    max_progress_gap, max_lateral_gap):
+            if (not opening_aligned
+                    and self._observed_blue_live_progress_match_is_reliable(
+                        door, candidate,
+                        target_wall, candidate_wall,
+                        progress_gap, lateral_gap,
+                        max_progress_gap, max_lateral_gap)):
                 return True
             n.get_logger().info(
                 f'Fresh blue evidence rejected for {door.door_id}: live '
@@ -170,18 +193,33 @@ class DoorTargetSubFsm:
                 throttle_duration_sec=3.0)
             return False
 
+        if pre_exit_station_match:
+            return True
         return self._any_points_close(target_points, candidate_points, max_dist)
 
     def _observed_blue_live_progress_match_is_reliable(
             self,
             door,
             candidate,
+            target_wall,
+            candidate_wall,
             progress_gap: float,
             lateral_gap: float,
             max_progress_gap: float,
             max_lateral_gap: float) -> bool:
         n = self.node
-        if progress_gap > max_progress_gap:
+        target_xy = n._door_identity_xy(door)
+        if n._blue_xy_opened_station_relation(target_xy) is not None:
+            return False
+        candidate_xy = n._door_identity_xy(candidate)
+        if (
+                n._blue_xy_opened_station_relation(candidate_xy) is not None
+                and n._blue_xy_opened_station_relation(target_xy) is None):
+            return False
+        aligned_max_progress_gap = max(
+            0.45,
+            min(max_progress_gap + 0.12, 0.75))
+        if progress_gap > aligned_max_progress_gap:
             return False
         max_projection_lateral_gap = max(
             max_lateral_gap + 0.70,
@@ -191,7 +229,6 @@ class DoorTargetSubFsm:
         if not n._blue_target_open_pose_aligned_for_safe_memory(door):
             return False
 
-        target_xy = n._door_identity_xy(door)
         if not n._is_xy_at_configured_wall_lateral(target_xy):
             return False
 
@@ -226,7 +263,6 @@ class DoorTargetSubFsm:
             return False
 
         target_lateral = n._axis_lateral_xy(target_xy[0], target_xy[1])
-        candidate_xy = n._door_identity_xy(candidate)
         candidate_lateral = n._axis_lateral_xy(candidate_xy[0], candidate_xy[1])
         target_side = target_lateral - n._explore_center_y
         candidate_side = candidate_lateral - n._explore_center_y
@@ -239,11 +275,22 @@ class DoorTargetSubFsm:
                 abs(candidate_side) >= wall_side_threshold
                 and target_side * candidate_side < 0.0):
             return False
+        target_wall_side = (
+            n._axis_lateral_xy(target_wall[0], target_wall[1])
+            - n._explore_center_y)
+        candidate_wall_side = (
+            n._axis_lateral_xy(candidate_wall[0], candidate_wall[1])
+            - n._explore_center_y)
+        if (
+                abs(target_wall_side) >= wall_side_threshold
+                and abs(candidate_wall_side) >= wall_side_threshold
+                and target_wall_side * candidate_wall_side < 0.0):
+            return False
 
         n.get_logger().info(
             f'Fresh blue evidence accepted for {door.door_id}: live progress '
             f'match tolerates projection lateral drift '
-            f'(progress_gap={progress_gap:.2f}/{max_progress_gap:.2f}, '
+            f'(progress_gap={progress_gap:.2f}/{aligned_max_progress_gap:.2f}, '
             f'lateral_gap={lateral_gap:.2f}/{max_projection_lateral_gap:.2f}, '
             f'count={evidence_count}, conf={evidence_confidence:.2f}).',
             throttle_duration_sec=3.0)

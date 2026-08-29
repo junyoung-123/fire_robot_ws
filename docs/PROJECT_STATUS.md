@@ -156,7 +156,7 @@ full_evidence_20260823/proof_traces
 - 실제 베이스 footprint, wheel odom, TF가 시뮬레이션과 다를 수 있음
 - 실제 카메라 높이/각도와 2D LiDAR 높이에 따라 문 bbox 거리 추정과 costmap 튜닝 필요
 - OpenImages Door 모델은 문 일반화용이라 연구실 문/색상판/조명 조건에서 추가 데이터가 필요할 수 있음
-- 현재 `best.pt`는 Door 1-class라 손잡이를 학습하지 않았음. 실제 손잡이 인식은 별도 `handle_best.pt` 학습/적용 필요
+- 현재 `best.pt`는 Door 1-class라 손잡이를 학습하지 않았음. 실제 손잡이 인식은 별도 `handle_best_v2.pt` 학습/적용 필요
 
 ## 다음 작업
 
@@ -165,5 +165,5 @@ full_evidence_20260823/proof_traces
 3. 실제 카메라/2D LiDAR TF 확인
 4. 연구실 조명 기준 HSV 튜닝
 5. 실제 복도 폭/장애물 기준 Nav2 costmap 튜닝
-6. 손잡이 전용 YOLO 데이터셋 학습 후 `src/fire_robot_perception/models/handle_best.pt` 설치
+6. 손잡이 전용 YOLO 데이터셋 학습 후 `src/fire_robot_perception/models/handle_best_v2.pt` 설치
 7. 손잡이 모델 적용 후 실제 로봇 launch에서 `require_yolo_handle:=true`로 YOLO-only 문 개방 검증

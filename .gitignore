@@ -18,6 +18,7 @@ src/fire_robot_perception/runs/
 src/fire_robot_perception/scripts/runs/
 *.pt
 !src/fire_robot_perception/models/best.pt
+!src/fire_robot_perception/models/handle_best_v2.pt
 *.onnx
 *.tflite
 

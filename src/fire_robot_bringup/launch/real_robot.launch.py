@@ -52,7 +52,7 @@ def generate_launch_description():
         FindPackageShare('fire_robot_perception'), 'models', 'best.pt',
     ]))
     handle_model_path = LaunchConfiguration('handle_model_path', default=PathJoinSubstitution([
-        FindPackageShare('fire_robot_perception'), 'models', 'handle_best.pt',
+        FindPackageShare('fire_robot_perception'), 'models', 'handle_best_v2.pt',
     ]))
     require_yolo_handle = LaunchConfiguration('require_yolo_handle', default='false')
     odom_topic = LaunchConfiguration('odom_topic', default='/odom')
@@ -357,7 +357,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'handle_model_path',
             default_value=PathJoinSubstitution([
-                FindPackageShare('fire_robot_perception'), 'models', 'handle_best.pt',
+                FindPackageShare('fire_robot_perception'), 'models', 'handle_best_v2.pt',
             ]),
             description='YOLO door-handle detector weight path. Train/install this before requiring YOLO-only opening.',
         ),

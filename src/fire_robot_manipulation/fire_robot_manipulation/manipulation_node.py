@@ -83,9 +83,9 @@ class ManipulationNode(Node):
         self.declare_parameter('sim_door_contact_min_angle_rad', 0.35)
         self.declare_parameter('sim_door_open_angle_rad', 2.09439510239)
         self.declare_parameter('sim_door_command_steps', 5)
-        self.declare_parameter('sim_door_max_match_distance_m', 1.6)
-        self.declare_parameter('sim_door_axis_match_max_progress_m', 3.1)
-        self.declare_parameter('sim_door_axis_match_max_lateral_m', 1.45)
+        self.declare_parameter('sim_door_max_match_distance_m', 0.95)
+        self.declare_parameter('sim_door_axis_match_max_progress_m', 0.95)
+        self.declare_parameter('sim_door_axis_match_max_lateral_m', 0.75)
         self.declare_parameter(
             'sim_door_topic_prefix', '/fire_robot/door/blue')
         self.declare_parameter('sim_door_command_topic', '')

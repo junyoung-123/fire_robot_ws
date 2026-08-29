@@ -4,30 +4,39 @@
 
 목표 동작은 시작 위치 기준으로 관측한 벽, 문, 장애물 구조를 map 좌표에 축적하고, 가장 가까운 파란문을 선택해 장애물을 피해 접근한 뒤 문 개방 FSM을 수행하는 것입니다. 더 이상 열 파란문이 없으면 초록 비상구를 관측 기반으로 선택해 통과합니다.
 
-## 현재 상태 (2026-08-24)
+## 현재 상태 (2026-08-29)
 
 - `colcon build --symlink-install` PASS
 - Python 문법 검사 PASS
-- Gazebo headless full validation PASS
-- World 1~5 전체 `MISSION_COMPLETE`
-- 로봇팔 문 개방 통합 후 World 1~5 전체 FSM 재검증 PASS
-  - World 1/2/3/5: 파란문 전체 개방 후 실제 green 비상구 관측 기반 통과
-  - World 4: 파란문 없음 케이스, 충분한 전방 스캔 후 no-blue fallback으로 통과
-  - 최신 검증 증빙: `C:\Users\황준영\Documents\졸업작품\검증결과_20260823\all_worlds_validation_summary.png`
-  - 팀원 공유 패키지: `C:\Users\황준영\Documents\졸업작품\team_share\fire_robot_team_share_20260824.zip`
+- Gazebo headless full validation PASS 이력 있음
+- World 1~5 전체 `MISSION_COMPLETE` 이력 있음
+- 자율주행 성공 기준 코드는 보존됨
+  - 보존 브랜치: `codex/navigation-success-before-arm`
+  - 보존 태그: `navigation-success-before-arm-20260826`
+  - 보존 커밋: `41ec296 feat: finalize observation-based navigation validation`
+- 현재 작업본은 더 엄격한 기준으로 재검증 중
+  - 목표: semantic map 기반 문 후보 누적, nearest unopened blue target lock, 문앞 정면 정렬, 레버 누름 + push-open, opened/failed station 메모리, 모든 파란문 처리 후 초록 비상구 통과
+  - 스트레스 검증 월드: `observation_fsm_quick_validation.world`
+  - 스트레스 월드 기존 모델/fallback 기준 PASS: 파란문 3/3 opened, `MISSION_COMPLETE`
+  - 2026-08-29 새 손잡이 모델 v2 + 레버형 Gazebo 손잡이 기준 검증은 진행 중이며, 현재까지는 손잡이 YOLO가 아니라 fallback 좌표로 문개방이 수행됨
 - YOLOv8s Door 1-class 모델 적용
   - 모델: `src/fire_robot_perception/models/best.pt`
   - 학습 성능: mAP50 `0.6088`, mAP50-95 `0.3923`, Precision `0.6184`, Recall `0.5817`
   - 색상 분류는 YOLO가 아니라 HSV 로직에서 `red/blue/green`으로 별도 처리
 - 손잡이 YOLO 연결 경로 추가
-  - 기본 경로: `src/fire_robot_perception/models/handle_best.pt`
-  - 현재 Door 1-class `best.pt`는 손잡이를 검출하지 못하므로 별도 handle/door_handle 1-class 모델 학습이 필요
+  - 기본 경로: `src/fire_robot_perception/models/handle_best_v2.pt`
+  - 2026-08-29 팀원 전달 `handle_best_v2.pt`를 기본 손잡이 모델로 적용
+  - 모델 클래스: `lever_handle`
+  - 기존 Gazebo 정적 샘플 8장 1차 테스트에서는 detection 0건
+  - Gazebo의 얇은 원통형 손잡이가 학습 데이터의 레버 손잡이와 달라서, 파란 힌지문의 손잡이 형상을 `handle_backplate` + 직사각 레버로 수정
+  - 수정 후 live stress run에서도 아직 `handle_detected=False`가 반복되어, 실제 레버 손잡이 사진 또는 새 Gazebo 정렬 장면으로 추가 fine-tuning 필요
   - 손잡이 YOLO 모델이 없거나 미검출이면 HSV 손잡이 blob, 이후 문 위치 기반 추정값으로 fallback
 
 ## 문 개방 시뮬레이션 (2026-08-24)
 
 - 파란문 Gazebo 모델을 visual-only marker에서 `static=false` 힌지 문으로 변경했습니다.
 - 각 파란문은 패널 collision, 손잡이 collision, `hinge` revolute joint, `JointPositionController`를 가집니다.
+- 2026-08-29에는 손잡이를 얇은 원통에서 실제 레버에 가까운 `handle_backplate` + 수평 레버 박스 형상으로 바꿨습니다.
 - `manipulation_node`는 `/open_door` 요청을 받으면 현재 월드 파일의 힌지문 registry를 읽고, 관측된 손잡이 좌표와 가장 가까운 파란문 joint topic에 열림 각도를 보냅니다.
 - Gazebo sim 전용 PIPER joint position controller를 추가해 pre-grasp, grasp, lever-press, push-open, home 단계에서 팔이 움직이는 모습을 확인할 수 있습니다.
 - `door_detection_node`는 문 bbox 내부/주변에서 손잡이 YOLO 모델을 먼저 실행하고, 실패하면 노란/금색 손잡이 blob, 이후 기존 문 위치 기반 추정값으로 fallback합니다.
@@ -73,7 +82,9 @@
 - 로봇팔 단독 검증은 `ros2 launch fire_robot_bringup manipulation_demo.launch.py` 또는 `bash scripts/validate_manipulation_demo.sh`로 실행합니다.
 - 시각 증거 캡처는 `bash scripts/capture_manipulation_visual_proof.sh`로 실행합니다.
 
-## 최종 검증 결과 (2026-08-24)
+## 검증 결과
+
+### 이전 전체 검증 (2026-08-24)
 
 | 월드 | 조건 | 결과 |
 | --- | --- | --- |
@@ -89,6 +100,23 @@
 - `C:\Users\황준영\Documents\졸업작품\검증결과_20260823\world*\trajectory.png`
 - `C:\Users\황준영\Documents\졸업작품\검증결과_20260823\world*\door_alignment.png`
 - `C:\Users\황준영\Documents\졸업작품\검증결과_20260823\world*\world*.log`
+
+### 현재 스트레스 검증 (2026-08-29)
+
+| 월드 | 조건 | 결과 |
+| --- | --- | --- |
+| `observation_fsm_quick_validation.world` | 파란문 3개, 빨간문 2개, 중앙/문앞 장애물 | PASS, 파란문 3/3, `MISSION_COMPLETE` |
+
+로그:
+
+- `artifacts/validation/semantic_stress_20260828_02/stress.log`
+
+주의:
+
+- 이 PASS는 기존 handle 모델/fallback 조합 기준이다.
+- 새 `handle_best_v2.pt`와 레버형 Gazebo 손잡이 적용 후 1차 live run은 중간 종료했다.
+- 해당 run에서는 파란문 2개가 fallback 좌표로 개방 처리됐고, 로그상 손잡이 YOLO 검출은 확인되지 않았다.
+- 따라서 현재 미해결 핵심은 주행 전체보다 “손잡이 YOLO가 실제/Gazebo 레버를 안정적으로 잡는지”와 “새 엄격 기준에서 stress/world1~5를 다시 끝까지 PASS시키는 것”이다.
 
 ## 실행 명령
 
@@ -145,8 +173,17 @@ python3 train_handle_detector.py \
 
 ```bash
 ros2 launch fire_robot_bringup real_robot.launch.py \
-  handle_model_path:=~/fire_robot_ws_test/src/fire_robot_perception/models/handle_best.pt \
+  handle_model_path:=~/fire_robot_ws_test/src/fire_robot_perception/models/handle_best_v2.pt \
   require_yolo_handle:=true
+```
+
+손잡이 검증 디버그 실행:
+
+```bash
+ros2 launch fire_robot_bringup simulation.launch.py \
+  world:=observation_fsm_quick_validation.world \
+  publish_debug_image:=true \
+  log_handle_detections:=true
 ```
 
 ## 실제 로봇 전 남은 작업
@@ -159,7 +196,7 @@ ros2 launch fire_robot_bringup real_robot.launch.py \
 - 실제 카메라 장착 위치와 camera TF 확인
 - 실제 2D LiDAR 높이/각도 기준 costmap 파라미터 튜닝
 - 연구실 조명 기준 HSV 임계값 튜닝
-- 손잡이 전용 YOLO 모델 학습 후 `models/handle_best.pt` 설치
+- 손잡이 전용 YOLO 모델 학습 후 `models/handle_best_v2.pt` 설치
 
 ## 주의
 

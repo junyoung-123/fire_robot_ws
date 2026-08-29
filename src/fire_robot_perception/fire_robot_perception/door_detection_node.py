@@ -1467,9 +1467,21 @@ class DoorDetectionNode(Node):
         wall_projected_dist = self._side_wall_projected_distance(angle, color)
         if wall_projected_dist is not None:
             raw_handle_y = dist * math.sin(angle)
-            if (abs(raw_handle_y) >= self._side_door_min_abs_y
-                    or wall_projected_dist
-                    > dist + self._side_wall_projection_min_extend_m):
+            raw_abs_y = abs(raw_handle_y)
+            max_abs_y = self._side_handle_max_abs_y
+            if max_abs_y <= 0.0 and self._nav_goal_max_abs_y > 0.0:
+                max_abs_y = self._nav_goal_max_abs_y + self._side_door_standoff
+            within_wall_band = (
+                raw_abs_y >= self._side_door_min_abs_y
+                and (
+                    max_abs_y <= self._side_door_min_abs_y
+                    or raw_abs_y <= max_abs_y + 0.20))
+            if (
+                    not within_wall_band
+                    and (
+                        raw_abs_y < self._side_door_min_abs_y
+                        or wall_projected_dist
+                        > dist + self._side_wall_projection_min_extend_m)):
                 dist = wall_projected_dist
         handle_angle = angle
         handle_z = self._handle_default_z_m
