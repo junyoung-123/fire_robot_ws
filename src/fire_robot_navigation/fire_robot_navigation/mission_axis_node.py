@@ -33,6 +33,7 @@ class MissionAxisNode(Node):
         self.declare_parameter('lock_axis_after_first_estimate', False)
         self.declare_parameter('fallback_yaw', 0.0)
         self.declare_parameter('max_robot_heading_deviation_deg', 0.0)
+        self.declare_parameter('fallback_without_map_after_sec', 0.0)
 
         self._map_topic = str(self.get_parameter('map_topic').value)
         self._base_frame = str(self.get_parameter('base_frame').value)
@@ -48,6 +49,8 @@ class MissionAxisNode(Node):
         self._fallback_yaw = float(self.get_parameter('fallback_yaw').value)
         self._max_robot_heading_deviation = math.radians(
             max(0.0, float(self.get_parameter('max_robot_heading_deviation_deg').value)))
+        self._fallback_without_map_after_sec = max(
+            0.0, float(self.get_parameter('fallback_without_map_after_sec').value))
 
         qos = QoSProfile(depth=1)
         qos.reliability = ReliabilityPolicy.RELIABLE
@@ -59,10 +62,12 @@ class MissionAxisNode(Node):
         self._tf_buffer = Buffer()
         self._tf_listener = TransformListener(self._tf_buffer, self)
         self._latest_map: OccupancyGrid | None = None
+        self._node_start_time = self.get_clock().now()
         self._origin_xy: tuple[float, float] | None = None
         self._origin_from_robot_pose = False
         self._axis_yaw: float | None = None
         self._axis_aligned_to_robot_heading = False
+        self._published_once = False
 
         self.create_timer(1.0 / rate_hz, self._publish_axis)
         self.get_logger().info(
@@ -71,10 +76,12 @@ class MissionAxisNode(Node):
 
     def _map_callback(self, msg: OccupancyGrid):
         self._latest_map = msg
+        self._publish_axis()
 
     def _publish_axis(self):
         grid = self._latest_map
         if grid is None:
+            self._publish_fallback_axis_without_map()
             return
 
         robot_pose = self._robot_pose()
@@ -127,14 +134,49 @@ class MissionAxisNode(Node):
                 'Mission axis yaw corrected using initial robot heading: '
                 f'yaw={math.degrees(self._axis_yaw):.1f}deg')
 
+        self._publish_axis_pose(origin_xy, self._axis_yaw)
+
+    def _publish_fallback_axis_without_map(self):
+        if self._fallback_without_map_after_sec <= 0.0:
+            return
+        now = self.get_clock().now()
+        elapsed = (now - self._node_start_time).nanoseconds / 1e9
+        if elapsed < self._fallback_without_map_after_sec:
+            return
+        robot_pose = self._robot_pose()
+        if robot_pose is None:
+            return
+        origin_xy = self._origin_xy
+        if origin_xy is None:
+            origin_xy = (robot_pose[0], robot_pose[1])
+            self._origin_xy = origin_xy
+            self._origin_from_robot_pose = True
+        if self._axis_yaw is None:
+            self._axis_yaw = self._limit_axis_to_robot_heading(
+                self._fallback_yaw, robot_pose[2])
+            self._axis_yaw = self._align_axis_to_robot_heading(
+                self._axis_yaw, robot_pose[2])
+            self._axis_aligned_to_robot_heading = True
+            self.get_logger().warn(
+                'Mission axis map was not available in time; publishing '
+                'robot-pose fallback axis until the static map arrives.',
+                once=True)
+        self._publish_axis_pose(origin_xy, self._axis_yaw)
+
+    def _publish_axis_pose(self, origin_xy: tuple[float, float], yaw: float):
         msg = PoseStamped()
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.header.frame_id = self._map_frame
         msg.pose.position.x = float(origin_xy[0])
         msg.pose.position.y = float(origin_xy[1])
-        msg.pose.orientation.z = math.sin(self._axis_yaw / 2.0)
-        msg.pose.orientation.w = math.cos(self._axis_yaw / 2.0)
+        msg.pose.orientation.z = math.sin(yaw / 2.0)
+        msg.pose.orientation.w = math.cos(yaw / 2.0)
         self._axis_pub.publish(msg)
+        if not self._published_once:
+            self._published_once = True
+            self.get_logger().info(
+                f'Mission axis published: origin=({origin_xy[0]:.2f}, '
+                f'{origin_xy[1]:.2f}), yaw={math.degrees(yaw):.1f}deg')
 
     def _robot_pose(self) -> tuple[float, float, float] | None:
         try:

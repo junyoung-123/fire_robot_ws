@@ -29,7 +29,7 @@ full_worlds_12345_exit_tail_red_guard_20260811
 - ROS2 Humble
 - YOLO Door bbox + HSV 색상 분류
 - 3카메라 + 2D LiDAR observation map
-- Nav2 SmacPlanner2D + RotationShim + RegulatedPurePursuit
+- Nav2 SmacPlanner2D + RotationShim + DWBLocalPlanner
 - 좌표/문 개수 하드코딩 없이 관측된 문 후보와 map 메모리 기반으로 목표 선택
 
 ## 월드별 결과

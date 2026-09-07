@@ -14,6 +14,9 @@ def generate_launch_description():
     headless = LaunchConfiguration('headless', default='false')
     render_engine_gui = LaunchConfiguration('render_engine_gui', default='ogre2')
     enable_depth_camera = LaunchConfiguration('enable_depth_camera', default='false')
+    spawn_x = LaunchConfiguration('spawn_x', default='-3.0')
+    spawn_y = LaunchConfiguration('spawn_y', default='0.0')
+    spawn_yaw = LaunchConfiguration('spawn_yaw', default='0.0')
     gazebo_env = {
         'LIBGL_ALWAYS_SOFTWARE': '1',
         'MESA_GL_VERSION_OVERRIDE': '3.3',
@@ -51,6 +54,9 @@ def generate_launch_description():
             default_value='false',
             description='Bridge the simulated depth camera topics when enabled.',
         ),
+        DeclareLaunchArgument('spawn_x', default_value='-3.0'),
+        DeclareLaunchArgument('spawn_y', default_value='0.0'),
+        DeclareLaunchArgument('spawn_yaw', default_value='0.0'),
 
         ExecuteProcess(
             cmd=[
@@ -101,11 +107,19 @@ def generate_launch_description():
             parameters=[{
                 'use_sim_time': use_sim_time,
                 'input_topic': '/cmd_vel',
+                'manual_input_topic': '/cmd_vel_manual',
                 'output_topic': '/cmd_vel_safe',
-                'allow_reverse': False,
+                'manual_hold_sec': 0.75,
+                'allow_reverse': True,
                 'max_blocked_reverse_linear_x': 0.05,
                 'max_linear_x': 0.25,
                 'max_angular_z': 1.0,
+                'scan_topic': '/scan',
+                'scan_timeout_sec': 0.75,
+                'front_stop_distance_m': 0.48,
+                'rear_stop_distance_m': 0.0,
+                'rotation_stop_distance_m': 0.0,
+                'drive_stop_half_angle_deg': 35.0,
             }],
             output='screen',
         ),
@@ -117,10 +131,10 @@ def generate_launch_description():
             arguments=[
                 '-name', 'fire_robot',
                 '-topic', '/robot_description',
-                '-x', '-3.0',
-                '-y', '0.0',
+                '-x', spawn_x,
+                '-y', spawn_y,
                 '-z', '0.07',
-                '-Y', '0.0',
+                '-Y', spawn_yaw,
             ],
             output='screen',
         ),

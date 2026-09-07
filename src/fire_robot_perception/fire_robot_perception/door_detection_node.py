@@ -151,7 +151,7 @@ class DoorDetectionNode(Node):
         self.declare_parameter('side_lidar_short_visual_ratio', 0.70)
         self.declare_parameter('side_lidar_short_visual_margin_m', 0.55)
         self.declare_parameter('side_visual_fallback_max_distance_m', 4.5)
-        self.declare_parameter('side_wall_projection_enabled', True)
+        self.declare_parameter('side_wall_projection_enabled', False)
         self.declare_parameter('side_wall_projection_min_abs_angle_deg', 8.0)
         self.declare_parameter('side_wall_projection_min_extend_m', 0.20)
         self.declare_parameter('front_lateral_lidar_prefer_angle_deg', 12.0)
@@ -638,7 +638,7 @@ class DoorDetectionNode(Node):
                 x1, x2, source, color)
             cy_pix = (y1 + y2) // 2
             dist   = self._door_distance_at_pixel(
-                cx_pix, cy_pix, y2 - y1, source)
+                cx_pix, cy_pix, y2 - y1, source, header)
             if dist is None:
                 continue
             if (self._model is not None
@@ -669,10 +669,12 @@ class DoorDetectionNode(Node):
                 pose = door_msg.door_pose.pose.position
                 handle = door_msg.handle_position.point
                 center_pix = (x1 + x2) // 2
-                angle_deg = math.degrees(self._robot_angle_for_pixel(cx_pix, source))
+                angle_deg = math.degrees(
+                    self._robot_angle_for_pixel(cx_pix, source, header))
                 center_angle_deg = math.degrees(
-                    self._robot_angle_for_pixel(center_pix, source))
-                measured_dbg = self._range_distance_at_pixel(cx_pix, cy_pix, source)
+                    self._robot_angle_for_pixel(center_pix, source, header))
+                measured_dbg = self._range_distance_at_pixel(
+                    cx_pix, cy_pix, source, header)
                 visual_dbg = self._visual_distance_from_bbox(y2 - y1, source)
                 measured_text = f'{measured_dbg:.2f}' if measured_dbg is not None else 'none'
                 visual_text = f'{visual_dbg:.2f}' if visual_dbg is not None else 'none'
@@ -928,10 +930,16 @@ class DoorDetectionNode(Node):
     def _is_allowed_close_side_edge_clip(
             self, source: CameraSource, conf: float, dist: float,
             x1: int, x2: int, image_shape) -> bool:
-        if source.name == 'front':
-            return False
         if self._yolo_side_edge_clip_allow_max_dist_m <= 0.0:
             return False
+        if source.name == 'front':
+            # At the final parking pose a real door often fills the image and is
+            # necessarily clipped by one side. Keep only close, high-confidence
+            # cases; repeated map observations and the door-front confirmation
+            # still guard the manipulation request.
+            return (
+                dist <= min(2.0, self._yolo_side_edge_clip_allow_max_dist_m)
+                and conf >= max(0.55, self._yolo_side_edge_clip_allow_min_conf))
         return (
             dist <= self._yolo_side_edge_clip_allow_max_dist_m
             and conf >= self._yolo_side_edge_clip_allow_min_conf)
@@ -1295,22 +1303,24 @@ class DoorDetectionNode(Node):
     def _range_distance_at_pixel(self,
                                   cx_pix: int,
                                   cy_pix: int | None,
-                                  source: CameraSource) -> float | None:
+                                  source: CameraSource,
+                                  header=None) -> float | None:
         """거리 추정: Depth 카메라 우선, 없으면 Radar /scan fallback."""
         if (self._use_depth and source.name == 'front'
                 and self._latest_depth is not None):
             dist = self._depth_distance_at_pixel(cx_pix, cy_pix)
             if dist is not None:
                 return dist
-        robot_angle = self._robot_angle_for_pixel(cx_pix, source)
+        robot_angle = self._robot_angle_for_pixel(cx_pix, source, header)
         return self._radar_distance_at_angle(robot_angle)
 
     def _door_distance_at_pixel(self,
                                 cx_pix: int,
                                 cy_pix: int,
                                 bbox_height: int,
-                                source: CameraSource) -> float | None:
-        measured = self._range_distance_at_pixel(cx_pix, cy_pix, source)
+                                source: CameraSource,
+                                header=None) -> float | None:
+        measured = self._range_distance_at_pixel(cx_pix, cy_pix, source, header)
         visual = self._visual_distance_from_bbox(bbox_height, source)
 
         # Side cameras see wall-mounted doors at an oblique angle. The apparent
@@ -1376,7 +1386,7 @@ class DoorDetectionNode(Node):
             if measured < max(visual * 0.65, visual - 1.0):
                 return visual
             if source.name == 'front':
-                front_angle = abs(self._robot_angle_for_pixel(cx_pix, source))
+                front_angle = abs(self._robot_angle_for_pixel(cx_pix, source, header))
                 if front_angle >= self._front_lateral_lidar_prefer_angle:
                     if measured > max(visual * 1.25, visual + 0.70):
                         if self._log_detection_candidates:
@@ -1421,10 +1431,58 @@ class DoorDetectionNode(Node):
 
     def _robot_angle_for_pixel(self,
                                 cx_pix: int,
-                                source: CameraSource) -> float:
+                                source: CameraSource,
+                                header=None) -> float:
         """이미지 픽셀 x → 로봇 기준 수평각(+Y/좌측이 양수)."""
+        tf_angle = self._robot_angle_for_pixel_from_tf(cx_pix, source, header)
+        if tf_angle is not None:
+            return tf_angle
         pixel_angle = math.atan((source.cx - cx_pix) / source.fx)
         return source.yaw_offset + pixel_angle
+
+    def _robot_angle_for_pixel_from_tf(
+            self,
+            cx_pix: int,
+            source: CameraSource,
+            header=None) -> float | None:
+        if header is None:
+            return None
+        frame_id = str(getattr(header, 'frame_id', '') or '')
+        if not frame_id:
+            return None
+        if source.fx <= 0.0:
+            return None
+        try:
+            origin = PointStamped()
+            origin.header.frame_id = frame_id
+            origin.header.stamp = header.stamp
+            origin.point.x = 0.0
+            origin.point.y = 0.0
+            origin.point.z = 0.0
+
+            ray = PointStamped()
+            ray.header.frame_id = frame_id
+            ray.header.stamp = header.stamp
+            ray.point.x = (float(cx_pix) - float(source.cx)) / float(source.fx)
+            ray.point.y = 0.0
+            ray.point.z = 1.0
+
+            origin_base = self._tf_buffer.transform(
+                origin, self._frame,
+                timeout=rclpy.duration.Duration(seconds=0.03))
+            ray_base = self._tf_buffer.transform(
+                ray, self._frame,
+                timeout=rclpy.duration.Duration(seconds=0.03))
+        except Exception:
+            return None
+
+        dx = float(ray_base.point.x - origin_base.point.x)
+        dy = float(ray_base.point.y - origin_base.point.y)
+        if not math.isfinite(dx) or not math.isfinite(dy):
+            return None
+        if abs(dx) < 1e-6 and abs(dy) < 1e-6:
+            return None
+        return math.atan2(dy, dx)
 
     def _radar_distance_at_angle(self, robot_angle: float) -> float | None:
         """로봇 기준 수평각 → Radar /scan range."""
@@ -1457,13 +1515,22 @@ class DoorDetectionNode(Node):
         msg.header = header
         handle_method = 'estimated'
         handle_confidence = 0.0
-        handle_detected = handle_obs is not None
+        handle_detected = False
+        trusted_handle_geometry = False
         if handle_obs is not None:
-            handle_method = handle_obs.method
-            handle_confidence = float(handle_obs.confidence)
+            observed_method = str(handle_obs.method or '').lower()
+            observed_confidence = float(handle_obs.confidence)
+            trusted_handle_geometry = (
+                ('yolo' in observed_method
+                 and observed_confidence >= self._handle_conf)
+                or ('hsv' in observed_method and observed_confidence >= 0.45))
+            if trusted_handle_geometry:
+                handle_detected = True
+                handle_method = handle_obs.method
+                handle_confidence = observed_confidence
 
         # 카메라 수평각 + 카메라 장착 yaw → robot frame (x=전방, y=좌).
-        angle = self._robot_angle_for_pixel(cx_pix, source)
+        angle = self._robot_angle_for_pixel(cx_pix, source, header)
         wall_projected_dist = self._side_wall_projected_distance(angle, color)
         if wall_projected_dist is not None:
             raw_handle_y = dist * math.sin(angle)
@@ -1485,9 +1552,9 @@ class DoorDetectionNode(Node):
                 dist = wall_projected_dist
         handle_angle = angle
         handle_z = self._handle_default_z_m
-        if handle_obs is not None:
+        if handle_obs is not None and trusted_handle_geometry:
             hp_x, hp_y = handle_obs.x, handle_obs.y
-            handle_angle = self._robot_angle_for_pixel(hp_x, source)
+            handle_angle = self._robot_angle_for_pixel(hp_x, source, header)
             if bbox is not None:
                 _, by1, _, by2 = bbox
                 handle_z = self._handle_z_from_pixel(by1, by2, hp_y)
@@ -1584,7 +1651,7 @@ class DoorDetectionNode(Node):
 
     def _clamp_side_handle_y(self, handle_y: float, color: str) -> float:
         """Keep wall-door handle estimates near the physical corridor wall band."""
-        if color == 'green':
+        if color == 'green' or not self._side_wall_projection_enabled:
             return handle_y
         if abs(handle_y) < self._side_door_min_abs_y:
             return handle_y

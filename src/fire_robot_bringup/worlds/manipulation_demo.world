@@ -43,7 +43,7 @@
         <visual name='handle'><pose>0.07 0.25 -0.05 0 1.5708 0</pose><geometry><cylinder><radius>0.025</radius><length>0.16</length></cylinder></geometry><material><ambient>0.8 0.65 0.05 1</ambient></material></visual>
       </link>
       <joint name='door_hinge' type='revolute'><parent>frame</parent><child>panel</child><axis><xyz>0 0 1</xyz><limit><lower>0</lower><upper>2.20</upper><effort>80</effort><velocity>1.4</velocity></limit><dynamics><damping>2.0</damping></dynamics></axis></joint>
-      <plugin filename='ignition-gazebo-joint-position-controller-system' name='gz::sim::systems::JointPositionController'><joint_name>door_hinge</joint_name><topic>/sim/door_hinge_position_cmd</topic><p_gain>35</p_gain><d_gain>5</d_gain><cmd_max>60</cmd_max><cmd_min>-60</cmd_min></plugin>
+      <plugin filename='ignition-gazebo-joint-position-controller-system' name='gz::sim::systems::JointPositionController'><joint_name>door_hinge</joint_name><topic>/sim/door_hinge_position_cmd</topic><p_gain>70</p_gain><d_gain>8</d_gain><cmd_max>80</cmd_max><cmd_min>-80</cmd_min></plugin>
       <plugin filename='gz-sim-joint-state-publisher-system' name='gz::sim::systems::JointStatePublisher'><topic>/door_joint_states</topic></plugin>
     </model>
   </world>

@@ -1,9 +1,9 @@
 <!--
-  Through-poses variant of the no-backup replanning tree.
+  Through-poses variant with the same FollowPath-only short BackUp recovery.
 -->
 <root main_tree_to_execute="MainTree">
   <BehaviorTree ID="MainTree">
-    <RecoveryNode number_of_retries="1" name="NavigateRecovery">
+    <RecoveryNode number_of_retries="3" name="NavigateRecovery">
       <PipelineSequence name="NavigateWithReplanning">
         <RateController hz="1.0">
           <RecoveryNode number_of_retries="1" name="ComputePathThroughPoses">
@@ -14,9 +14,12 @@
             <ClearEntireCostmap name="ClearGlobalCostmap-Context" service_name="global_costmap/clear_entirely_global_costmap"/>
           </RecoveryNode>
         </RateController>
-        <RecoveryNode number_of_retries="1" name="FollowPath">
+        <RecoveryNode number_of_retries="1" name="FollowPathRecovery">
           <FollowPath path="{path}" controller_id="FollowPath"/>
-          <ClearEntireCostmap name="ClearLocalCostmap-Context" service_name="local_costmap/clear_entirely_local_costmap"/>
+          <Sequence name="FollowPathBackupRecovery">
+            <ClearEntireCostmap name="ClearLocalCostmap-FollowPath" service_name="local_costmap/clear_entirely_local_costmap"/>
+            <BackUp backup_dist="0.24" backup_speed="0.08" time_allowance="5.0"/>
+          </Sequence>
         </RecoveryNode>
       </PipelineSequence>
       <ReactiveFallback name="RecoveryFallback">
@@ -26,7 +29,8 @@
             <ClearEntireCostmap name="ClearLocalCostmap-Subtree" service_name="local_costmap/clear_entirely_local_costmap"/>
             <ClearEntireCostmap name="ClearGlobalCostmap-Subtree" service_name="global_costmap/clear_entirely_global_costmap"/>
           </Sequence>
-          <Wait wait_duration="0.5"/>
+          <Spin spin_dist="0.52" time_allowance="6.0"/>
+          <Wait wait_duration="2.0"/>
         </RoundRobin>
       </ReactiveFallback>
     </RecoveryNode>

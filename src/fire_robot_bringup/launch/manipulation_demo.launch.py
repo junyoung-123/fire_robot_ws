@@ -41,7 +41,7 @@ def generate_launch_description():
             'sim_command_transport': 'ros',
             'sim_step_sec': 1.2,
             'sim_return_home': False,
-            'door_open_motion': 'pull',
+            'door_open_motion': 'push',
             'sim_physical_door_opening': True,
             'sim_door_physics_required': True,
             'sim_door_command_topic': '/sim/door_hinge_position_cmd',
@@ -50,7 +50,7 @@ def generate_launch_description():
             'sim_door_command_steps': 4,
             'sim_verify_door': True,
             'sim_door_tolerance_rad': 0.08,
-            'sim_feedback_timeout_sec': 7.0}])])
+            'sim_feedback_timeout_sec': 10.0}])])
     rviz = Node(
         package='rviz2', executable='rviz2', name='manipulation_rviz',
         arguments=['-d', PathJoinSubstitution([

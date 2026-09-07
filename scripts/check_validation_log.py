@@ -50,9 +50,13 @@ def main() -> int:
     elif matched_count != args.expected_open_count:
         failures.append(
             f'matched_blue_doors={matched_count} != expected={args.expected_open_count}')
-    if open_count < args.expected_open_count:
+    if args.allow_extra_open:
+        if open_count < args.expected_open_count:
+            failures.append(
+                f'open_success_count={open_count} < expected={args.expected_open_count}')
+    elif open_count != args.expected_open_count:
         failures.append(
-            f'open_success_count={open_count} < expected={args.expected_open_count}')
+            f'open_success_count={open_count} != expected={args.expected_open_count}')
     if rejected_count > args.max_rejected:
         failures.append(f'rejected_gazebo_matches={rejected_count} > max={args.max_rejected}')
 

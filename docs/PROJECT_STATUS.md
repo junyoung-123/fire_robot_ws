@@ -1,4 +1,4 @@
-# 프로젝트 진행 현황 (2026-08-24)
+# 프로젝트 진행 현황 (2026-09-07)
 
 ## 목표 동작
 
@@ -17,12 +17,13 @@
 | --- | --- |
 | 시뮬레이션 빌드 | PASS |
 | Python 문법 검사 | PASS |
-| World 1~5 headless full validation | PASS |
+| World 1~5 headless strict full validation | 연속 PASS, 파란문 16/16, rejected match 0 |
+| no-GUI CPU 부하 World 5 | PASS, 파란문 6/6, `MISSION_COMPLETE` |
 | YOLO Door 모델 | OpenImages Door 기반 YOLOv8s Door 1-class 적용 |
 | 색상 분류 | HSV 기반 red/blue/green 분리 유지 |
-| 장애물 회피 | Nav2 costmap + SmacPlanner2D + RotationShim/RPP |
+| 장애물 회피 | Nav2 costmap + SmacPlanner2D + RotationShim/DWB |
 | 문 접근 FSM | 파란문 target lock, 문 앞 fine alignment, 열린 문/실패 문 기록 |
-| 손잡이 인식 | Door bbox ROI에서 YOLO handle 모델 우선, 실패 시 노란/금색 handle blob, 이후 기존 추정 fallback |
+| 손잡이 인식 | YOLO handle 모델 정상 로드, 현재 Gazebo 직접 검출 0건; HSV/벽면 투영 fallback 사용 |
 | 문 개방 시뮬레이션 | 파란문 힌지 joint + 손잡이 collision + Gazebo joint topic 개방 |
 | 로봇팔 통합 재검증 | World 1~5 전체 FSM PASS, lever press + push-open 48도 순수 접촉 PASS, attach-assisted 120도 PASS |
 | 실제 PIPER 연동 | 아직 미검증 |
@@ -83,7 +84,7 @@
   - 목표 좌표/프레임 로그와 map 변환 안정화
 - `nav2_params.yaml`
   - Planner를 NavFn에서 SmacPlanner2D로 변경
-  - RotationShim + RegulatedPurePursuit 조합 적용
+  - RotationShim + DWBLocalPlanner 조합 적용
   - global/local costmap 및 obstacle layer 파라미터 조정
   - no-backup replanning BT XML 포함
 - `initial_static_map_node.py` / `fixed_obstacle_map_node.py` / `mission_axis_node.py`
@@ -92,10 +93,10 @@
 
 ## 최종 검증 요약
 
-최종 검증 태그:
+최종 검증 디렉터리:
 
 ```text
-full_evidence_20260823/proof_traces
+artifacts/validation/final_full_20260907_r6
 ```
 
 | 월드 | 기대 파란문 | 개방/매칭 | false open | 결과 |
@@ -109,18 +110,18 @@ full_evidence_20260823/proof_traces
 공통 확인:
 
 - 모든 월드에서 `MISSION_COMPLETE=True`
-- `navigation_failed_logs=0`
-- `fresh_blue_fail_logs=0`
+- 총 파란문 16/16 개방, 고유 Gazebo door topic 16/16, rejected match 0
+- 일시적인 Nav2 실패가 발생한 실행도 FSM 복구 후 최종 미션 완료
+- 월드별 최대 roll `0.021°`, 최대 pitch `0.732°`로 검증 제한 `20°` 이내
 - 빨간문 개방 없음
 - 월드별 궤적/문 앞 정렬 이미지 생성 완료
 
 검증 증빙:
 
-- `C:\Users\황준영\Documents\졸업작품\검증결과_20260823\all_worlds_validation_summary.png`
-- `C:\Users\황준영\Documents\졸업작품\검증결과_20260823\world*\trajectory.png`
-- `C:\Users\황준영\Documents\졸업작품\검증결과_20260823\world*\door_alignment.png`
-- `C:\Users\황준영\Documents\졸업작품\검증결과_20260823\world*\world*.log`
-- `C:\Users\황준영\Documents\졸업작품\team_share\fire_robot_team_share_20260824.zip`
+- `C:\Users\황준영\Documents\졸업작품\미팅자료_20260907\월드1-5_장애물크기_주행궤적.png`
+- `C:\Users\황준영\Documents\졸업작품\미팅자료_20260907\월드1-5_전체검증.png`
+- `C:\Users\황준영\Documents\졸업작품\최종검증_20260906\manipulation_visual_proof\gazebo_door_open_before_after.png`
+- `C:\Users\황준영\Documents\졸업작품\미팅자료_20260907\화재탐지로봇_시뮬레이션_검증결과_20260907.pdf`
 
 ## 로봇팔 통합 재검증 요약
 
@@ -165,5 +166,5 @@ full_evidence_20260823/proof_traces
 3. 실제 카메라/2D LiDAR TF 확인
 4. 연구실 조명 기준 HSV 튜닝
 5. 실제 복도 폭/장애물 기준 Nav2 costmap 튜닝
-6. 손잡이 전용 YOLO 데이터셋 학습 후 `src/fire_robot_perception/models/handle_best_v2.pt` 설치
-7. 손잡이 모델 적용 후 실제 로봇 launch에서 `require_yolo_handle:=true`로 YOLO-only 문 개방 검증
+6. 실제 연구실 레버 손잡이 이미지로 `handle_best_v2.pt` 추가 학습 및 직접 검출 재검증
+7. 실제 로봇 launch에서 `require_yolo_handle:=true`로 YOLO-only 문 개방 검증

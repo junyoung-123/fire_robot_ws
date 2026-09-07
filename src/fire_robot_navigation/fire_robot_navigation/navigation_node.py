@@ -743,12 +743,13 @@ class NavigationNode(Node):
             return
 
         goal = NavigateToPose.Goal()
-        self._active_goal_pose = goal_pose
+        send_pose = deepcopy(goal_pose)
+        send_pose.header.stamp.sec = 0
+        send_pose.header.stamp.nanosec = 0
+        self._active_goal_pose = send_pose
         self._goal_start_time = self.get_clock().now()
 
-        goal.pose = goal_pose
-        goal.pose.header.stamp.sec = 0
-        goal.pose.header.stamp.nanosec = 0
+        goal.pose = send_pose
 
         send_future = self.nav2_client.send_goal_async(
             goal, feedback_callback=self._feedback_callback)

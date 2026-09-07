@@ -38,6 +38,15 @@ def yaw_from_quat(q):
     return math.atan2(siny_cosp, cosy_cosp)
 
 
+def roll_pitch_from_quat(q):
+    sinr_cosp = 2.0 * (q.w * q.x + q.y * q.z)
+    cosr_cosp = 1.0 - 2.0 * (q.x * q.x + q.y * q.y)
+    roll = math.atan2(sinr_cosp, cosr_cosp)
+    sinp = 2.0 * (q.w * q.y - q.z * q.x)
+    pitch = math.copysign(math.pi / 2.0, sinp) if abs(sinp) >= 1.0 else math.asin(sinp)
+    return roll, pitch
+
+
 class ValidationTraceLogger(Node):
     def __init__(self, output_dir: Path, sample_period: float):
         super().__init__("validation_trace_logger")
@@ -190,12 +199,16 @@ class ValidationTraceLogger(Node):
         except TransformException:
             return
         tr = tf.transform.translation
-        yaw = yaw_from_quat(tf.transform.rotation)
+        rotation = tf.transform.rotation
+        yaw = yaw_from_quat(rotation)
+        roll, pitch = roll_pitch_from_quat(rotation)
         row = {
             "t": self.stamp_seconds(),
             "x": float(tr.x),
             "y": float(tr.y),
             "yaw": yaw,
+            "roll": roll,
+            "pitch": pitch,
             "state": self.latest_state or "",
             "target_id": self.latest_target_id,
         }
@@ -205,7 +218,8 @@ class ValidationTraceLogger(Node):
     def save(self):
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.write_csv("poses.csv", self.poses,
-                       ["t", "x", "y", "yaw", "state", "target_id"])
+                       ["t", "x", "y", "yaw", "roll", "pitch",
+                        "state", "target_id"])
         self.write_csv("targets.csv", self.targets,
                        ["t", "id", "color", "x", "y", "yaw",
                         "handle_x", "handle_y", "confidence"])
@@ -223,6 +237,12 @@ class ValidationTraceLogger(Node):
         summary = self.output_dir / "summary.txt"
         open_count = sum(1 for e in self.open_events if e["event"] == "DOOR_OPENED")
         complete = any(e["event"] == "MISSION_COMPLETE" for e in self.open_events)
+        max_roll_deg = max(
+            (abs(math.degrees(float(p.get("roll", 0.0)))) for p in self.poses),
+            default=0.0)
+        max_pitch_deg = max(
+            (abs(math.degrees(float(p.get("pitch", 0.0)))) for p in self.poses),
+            default=0.0)
         summary.write_text(
             f"poses={len(self.poses)}\n"
             f"targets={len(self.targets)}\n"
@@ -230,6 +250,8 @@ class ValidationTraceLogger(Node):
             f"path_points={len(self.paths)}\n"
             f"door_open_events={open_count}\n"
             f"mission_complete={complete}\n"
+            f"max_abs_roll_deg={max_roll_deg:.3f}\n"
+            f"max_abs_pitch_deg={max_pitch_deg:.3f}\n"
         )
 
     def write_csv(self, name, rows, fields):

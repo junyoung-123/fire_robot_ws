@@ -1,5 +1,6 @@
 import copy
 import math
+import re
 import time
 
 import rclpy
@@ -83,6 +84,7 @@ class StateMachineNode(Node):
         self.declare_parameter('opened_door_merge_dist_m', 1.0)
         self.declare_parameter('min_opened_doors_before_exit', 0)
         self.declare_parameter('opened_physical_door_merge_dist_m', 1.2)
+        self.declare_parameter('abandoned_physical_door_merge_dist_m', 0.85)
         self.declare_parameter('observed_physical_door_merge_dist_m', 1.2)
         self.declare_parameter('observed_blue_min_observations', 2)
         self.declare_parameter('observed_blue_target_min_confidence', 0.50)
@@ -135,6 +137,8 @@ class StateMachineNode(Node):
         self.declare_parameter('door_open_fresh_blue_max_age_sec', 6.0)
         self.declare_parameter('door_open_fresh_blue_max_dist_m', 1.10)
         self.declare_parameter('door_open_fresh_blue_min_confidence', 0.18)
+        self.declare_parameter('allow_mapped_memory_open_without_live', False)
+        self.declare_parameter('use_sim_open_feedback_for_memory', False)
         self.declare_parameter('complete_when_past_exit_x', False)
         self.declare_parameter('exit_complete_margin_m', 0.50)
         self.declare_parameter('final_scan_before_exit_sec', 0.0)
@@ -151,10 +155,14 @@ class StateMachineNode(Node):
         self.declare_parameter('door_open_fine_allow_reverse', False)
         self.declare_parameter('door_open_fine_exception_reverse_linear_x', -0.05)
         self.declare_parameter('door_open_fine_exception_reverse_sec', 0.8)
+        self.declare_parameter('door_open_fine_exception_reverse_max_sec', 5.0)
         self.declare_parameter('door_open_fine_yaw_stuck_sec', 10.0)
+        self.declare_parameter('door_retarget_backoff_sec', 2.0)
+        self.declare_parameter('door_retarget_backoff_linear_x', -0.08)
         self.declare_parameter('door_open_axis_min_side_lateral_m', 0.0)
         self.declare_parameter('door_open_settle_sec', 1.0)
         self.declare_parameter('exit_retry_delay_sec', 3.0)
+        self.declare_parameter('exit_nav_failures_before_direct_crossing', 2)
         self.declare_parameter('door_open_align_angular_vel', 0.42)
         self.declare_parameter('door_open_align_kp', 1.2)
         self.declare_parameter('door_open_align_timeout_sec', 34.0)
@@ -182,7 +190,7 @@ class StateMachineNode(Node):
         self.declare_parameter('explore_observation_wait_angular_vel', 0.0)
         self.declare_parameter('nav_target_republish_sec', 0.0)
         self.declare_parameter('door_nav_stuck_watch_enabled', True)
-        self.declare_parameter('door_nav_stuck_timeout_sec', 18.0)
+        self.declare_parameter('door_nav_stuck_timeout_sec', 32.0)
         self.declare_parameter('door_nav_stuck_min_progress_m', 0.08)
         self.declare_parameter('door_nav_stuck_min_goal_dist_m', 0.90)
         self.declare_parameter('explore_waypoint_scan_sec', 0.0)
@@ -220,7 +228,7 @@ class StateMachineNode(Node):
         self.declare_parameter('explore_nav_failed_goal_memory_sec', 24.0)
         self.declare_parameter('explore_nav_failed_goal_progress_window_m', 2.4)
         self.declare_parameter('explore_nav_timeout_sec', 45.0)
-        self.declare_parameter('explore_nav_stuck_wall_timeout_sec', 10.0)
+        self.declare_parameter('explore_nav_stuck_wall_timeout_sec', 28.0)
         self.declare_parameter('explore_nav_stuck_min_progress_m', 0.12)
         self.declare_parameter('min_target_door_abs_y_m', 0.0)
         self.declare_parameter('axis_door_approach_enabled', True)
@@ -240,6 +248,9 @@ class StateMachineNode(Node):
         self.declare_parameter(
             'locked_target_refine_same_detector_forward_max_total_drift_m',
             0.0)
+        self.declare_parameter(
+            'locked_target_close_station_max_forward_correction_m',
+            4.0)
         self.declare_parameter('target_door_direct_nav_max_dist_m', 0.0)
         self.declare_parameter('nav_start_max_abs_y_m', 0.75)
         self.declare_parameter('nav_start_max_heading_error_deg', 85.0)
@@ -251,7 +262,14 @@ class StateMachineNode(Node):
         self.declare_parameter('nav_start_center_recovery_reverse_linear_x', -0.05)
         self.declare_parameter('nav_start_center_recovery_reverse_sec', 0.9)
         self.declare_parameter('nav_start_center_recovery_reverse_min_abs_y_m', 0.80)
-        self.declare_parameter('nav_start_center_recovery_max_sec', 12.0)
+        self.declare_parameter('nav_start_center_recovery_window_sec', 6.0)
+        self.declare_parameter('nav_start_center_recovery_max_sec', 20.0)
+        self.declare_parameter('local_obstacle_escape_max_sec', 12.0)
+        self.declare_parameter('local_obstacle_escape_distance_m', 0.50)
+        self.declare_parameter('local_obstacle_escape_max_attempts', 2)
+        self.declare_parameter('local_obstacle_escape_turn_deg', 55.0)
+        self.declare_parameter('local_obstacle_escape_linear_vel', 0.12)
+        self.declare_parameter('local_obstacle_escape_angular_vel', 0.45)
         self.declare_parameter('start_without_fire',  False)
         self.declare_parameter('exit_x',   10.0)
         self.declare_parameter('exit_y',    0.0)
@@ -284,6 +302,9 @@ class StateMachineNode(Node):
         self.declare_parameter('exit_cross_angular_vel_limit', 0.45)
         self.declare_parameter('exit_cross_timeout_sec', 6.0)
         self.declare_parameter('exit_cross_rotate_in_place_threshold_deg', 75.0)
+        self.declare_parameter('exit_nav_obstacle_recovery_sec', 12.0)
+        self.declare_parameter('exit_nav_obstacle_recovery_progress_m', 0.55)
+        self.declare_parameter('exit_nav_obstacle_recovery_trigger_m', 0.60)
         self.declare_parameter('exit_interrupt_blue_before_exit_margin_m', 0.35)
         self.declare_parameter('allow_front_wall_exit_fallback', False)
         self.declare_parameter('front_wall_exit_min_range_m', 0.45)
@@ -334,6 +355,8 @@ class StateMachineNode(Node):
             self.get_parameter('min_opened_doors_before_exit').value)
         self._opened_physical_door_merge_dist_m = float(
             self.get_parameter('opened_physical_door_merge_dist_m').value)
+        self._abandoned_physical_door_merge_dist_m = float(
+            self.get_parameter('abandoned_physical_door_merge_dist_m').value)
         self._observed_physical_door_merge_dist_m = float(
             self.get_parameter('observed_physical_door_merge_dist_m').value)
         self._observed_blue_min_observations = max(1, int(
@@ -453,6 +476,10 @@ class StateMachineNode(Node):
             self.get_parameter('door_open_fresh_blue_max_dist_m').value)
         self._door_open_fresh_blue_min_confidence = float(
             self.get_parameter('door_open_fresh_blue_min_confidence').value)
+        self._allow_mapped_memory_open_without_live = bool(
+            self.get_parameter('allow_mapped_memory_open_without_live').value)
+        self._use_sim_open_feedback_for_memory = bool(
+            self.get_parameter('use_sim_open_feedback_for_memory').value)
         self._complete_when_past_exit_x = bool(
             self.get_parameter('complete_when_past_exit_x').value)
         self._exit_complete_margin_m = float(
@@ -482,15 +509,25 @@ class StateMachineNode(Node):
         self._door_open_fine_allow_reverse = bool(
             self.get_parameter('door_open_fine_allow_reverse').value)
         self._door_open_fine_exception_reverse_linear_x = max(
-            -0.05,
+            -0.12,
             min(0.0, float(
                 self.get_parameter('door_open_fine_exception_reverse_linear_x').value)))
         self._door_open_fine_exception_reverse_sec = max(
             0.0,
             float(self.get_parameter('door_open_fine_exception_reverse_sec').value))
+        self._door_open_fine_exception_reverse_max_sec = max(
+            self._door_open_fine_exception_reverse_sec,
+            float(self.get_parameter(
+                'door_open_fine_exception_reverse_max_sec').value))
         self._door_open_fine_yaw_stuck_sec = max(
             0.0,
             float(self.get_parameter('door_open_fine_yaw_stuck_sec').value))
+        self._door_retarget_backoff_sec = max(
+            0.0,
+            float(self.get_parameter('door_retarget_backoff_sec').value))
+        self._door_retarget_backoff_linear_x = min(
+            0.0,
+            float(self.get_parameter('door_retarget_backoff_linear_x').value))
         self._door_open_axis_min_side_lateral_m = float(
             self.get_parameter('door_open_axis_min_side_lateral_m').value)
         self._door_open_settle_sec = float(self.get_parameter('door_open_settle_sec').value)
@@ -659,6 +696,9 @@ class StateMachineNode(Node):
         self._locked_target_refine_same_detector_forward_max_total_drift_m = float(
             self.get_parameter(
                 'locked_target_refine_same_detector_forward_max_total_drift_m').value)
+        self._locked_target_close_station_max_forward_correction_m = float(
+            self.get_parameter(
+                'locked_target_close_station_max_forward_correction_m').value)
         self._target_door_direct_nav_max_dist_m = float(
             self.get_parameter('target_door_direct_nav_max_dist_m').value)
         self._nav_start_max_abs_y_m = float(self.get_parameter('nav_start_max_abs_y_m').value)
@@ -685,9 +725,31 @@ class StateMachineNode(Node):
             0.0,
             float(self.get_parameter(
                 'nav_start_center_recovery_reverse_min_abs_y_m').value))
+        self._nav_start_center_recovery_window_sec = max(
+            0.0,
+            float(self.get_parameter(
+                'nav_start_center_recovery_window_sec').value))
         self._nav_start_center_recovery_max_sec = max(
             0.0,
             float(self.get_parameter('nav_start_center_recovery_max_sec').value))
+        self._local_obstacle_escape_max_sec = max(
+            2.0,
+            float(self.get_parameter('local_obstacle_escape_max_sec').value))
+        self._local_obstacle_escape_distance_m = max(
+            0.20,
+            float(self.get_parameter('local_obstacle_escape_distance_m').value))
+        self._local_obstacle_escape_max_attempts = max(
+            0,
+            int(self.get_parameter('local_obstacle_escape_max_attempts').value))
+        self._local_obstacle_escape_turn = math.radians(max(
+            20.0,
+            float(self.get_parameter('local_obstacle_escape_turn_deg').value)))
+        self._local_obstacle_escape_linear_vel = max(
+            0.04,
+            float(self.get_parameter('local_obstacle_escape_linear_vel').value))
+        self._local_obstacle_escape_angular_vel = max(
+            0.10,
+            float(self.get_parameter('local_obstacle_escape_angular_vel').value))
         self._start_without_fire  = self.get_parameter('start_without_fire').value
         self._exit_x   = self.get_parameter('exit_x').value
         self._exit_y   = self.get_parameter('exit_y').value
@@ -746,8 +808,21 @@ class StateMachineNode(Node):
             self.get_parameter('exit_cross_angular_vel_limit').value)
         self._exit_cross_timeout_sec = float(
             self.get_parameter('exit_cross_timeout_sec').value)
+        self._exit_nav_failures_before_direct_crossing = max(
+            0,
+            int(self.get_parameter(
+                'exit_nav_failures_before_direct_crossing').value))
         self._exit_cross_rotate_in_place_threshold = math.radians(float(
             self.get_parameter('exit_cross_rotate_in_place_threshold_deg').value))
+        self._exit_nav_obstacle_recovery_sec = max(
+            1.0,
+            float(self.get_parameter('exit_nav_obstacle_recovery_sec').value))
+        self._exit_nav_obstacle_recovery_progress_m = max(
+            0.20,
+            float(self.get_parameter('exit_nav_obstacle_recovery_progress_m').value))
+        self._exit_nav_obstacle_recovery_trigger_m = max(
+            0.35,
+            float(self.get_parameter('exit_nav_obstacle_recovery_trigger_m').value))
         self._exit_interrupt_blue_before_exit_margin_m = float(
             self.get_parameter(
                 'exit_interrupt_blue_before_exit_margin_m').value)
@@ -815,6 +890,7 @@ class StateMachineNode(Node):
         self._nav_start_time:     Time | None = None
         self._door_nav_wall_start_time: float | None = None
         self._door_nav_last_progress: float | None = None
+        self._door_nav_last_motion_xy: tuple[float, float] | None = None
         self._door_nav_last_progress_wall_time: float | None = None
         self._explore_start_time: Time | None = None
 
@@ -844,6 +920,8 @@ class StateMachineNode(Node):
         self._last_target_republish_time: Time | None = None
         self._pre_nav_scan_start_time: Time | None = None
         self._pending_nav_scan_target_id: str | None = None
+        self._last_pre_nav_scan_key: str | None = None
+        self._last_pre_nav_scan_start_time: Time | None = None
         self._explore_observation_wait_start_time: Time | None = None
         self._explore_observation_wait_completed = False
         self._explore_waypoint_scan_pending = False
@@ -862,20 +940,47 @@ class StateMachineNode(Node):
         self._explore_nav_last_progress_wall_time: float | None = None
         self._explore_nav_clearance_deferral_count = 0
         self._recent_failed_explore_goals: list[tuple[float, float, float]] = []
+        self._explore_nav_backoff_until: Time | None = None
+        self._explore_nav_backoff_goal_id = ''
+        self._last_projection_open_failure_progress: float | None = None
         self._force_final_scan_before_exit = False
+        self._exit_reentry_guard_active = False
         self._active_exit_goal: tuple[float, float, float] | None = None
         self._exit_goal_pending = False
         self._exit_crossing_start_time: Time | None = None
         self._exit_crossing_start_odom_xy: tuple[float, float] | None = None
         self._exit_crossing_required_odom_m = 0.0
+        self._exit_nav_failure_count = 0
+        self._exit_nav_failure_counted_for_goal = False
+        self._exit_force_direct_crossing = False
+        self._exit_obstacle_recovery_start_time: Time | None = None
+        self._exit_obstacle_recovery_start_progress: float | None = None
         self._nav_start_center_recovery_backoff_until: Time | None = None
         self._nav_start_center_recovery_backoff_lateral_sign = 0.0
         self._nav_start_center_recovery_start_time: Time | None = None
+        self._nav_start_center_recovery_axis_escape_start_xy: (
+            tuple[float, float] | None) = None
+        self._nav_start_center_recovery_axis_escape_used = False
+        self._nav_start_center_recovery_motion_ref_xy: (
+            tuple[float, float] | None) = None
+        self._nav_start_center_recovery_motion_ref_time: Time | None = None
         self._nav_start_center_recovery_abort_reason = ''
+        self._local_obstacle_escape_start_time: Time | None = None
+        self._local_obstacle_escape_start_xy: tuple[float, float] | None = None
+        self._local_obstacle_escape_resume_state: State | None = None
+        self._local_obstacle_escape_attempts = 0
+        self._local_obstacle_escape_yaw: float | None = None
+        self._local_obstacle_escape_turn_sign = 1.0
         self._last_locked_target_refine_time: Time | None = None
         self._locked_blue_anchor_key: str | None = None
         self._locked_blue_anchor_xy: tuple[float, float] | None = None
         self._locked_blue_anchor_set_sec: float | None = None
+        self._locked_blue_live_match_count = 0
+        self._locked_blue_live_match_confidence = 0.0
+        self._locked_blue_live_match_time: Time | None = None
+        self._door_final_close_refresh_count = 0
+        self._door_open_translation_complete = False
+        self._door_retarget_backoff_until: Time | None = None
         self._post_open_reorient_pending = False
         self._post_open_reorient_start_time: Time | None = None
         self._post_open_advance_pending = False
@@ -1017,10 +1122,10 @@ class StateMachineNode(Node):
             wall_side_threshold = max(
                 0.15,
                 self._observed_blue_min_abs_wall_y_m * 0.5)
-            opened_window = max(
+            opened_window = self._opened_same_wall_remnant_progress_window(max(
                 self._opened_physical_door_merge_dist_m,
                 self._opened_station_blue_suppression_progress_m,
-                self._opened_station_same_side_blue_suppression_progress_m)
+                self._opened_station_same_side_blue_suppression_progress_m))
             for opened_xy in self._opened_blue_door_positions:
                 opened_progress = self._axis_progress_xy(
                     opened_xy[0], opened_xy[1])
@@ -1061,10 +1166,14 @@ class StateMachineNode(Node):
             return
         if self.state != State.NAVIGATING:
             return
-        if (
-                self._door_open_align_start_time is not None
-                or self._door_open_settle_start_time is not None):
-            return
+        # Keep visual-servo refinement active through the aligned settle
+        # interval. A side-camera projection selected from several metres away
+        # can still be displaced along the wall; the closest observations are
+        # the best chance to correct it before manipulation starts.
+        settling_after_alignment = self._door_open_settle_start_time is not None
+        close_alignment_active = (
+            self._door_open_align_start_time is not None
+            or settling_after_alignment)
         target = self.target_door
         if target is None or target.door_color != 'blue':
             return
@@ -1074,18 +1183,76 @@ class StateMachineNode(Node):
             return
         same_observed_cluster = self._observation_matches_locked_observed_blue_cluster(
             observation)
+        close_station_correction = False
+        settled_station_count = 0
+        settled_station_confidence = 0.0
+        if (
+                close_alignment_active
+                and target.door_id.startswith('observed_blue_')):
+            proposed = self._door_with_axis_aligned_approach(observation)
+            old_handle_xy = self._door_handle_xy(target)
+            new_handle_xy = self._door_handle_xy(proposed)
+            old_progress = self._axis_progress_xy(
+                old_handle_xy[0], old_handle_xy[1])
+            new_progress = self._axis_progress_xy(
+                new_handle_xy[0], new_handle_xy[1])
+            old_lateral = (
+                self._axis_lateral_xy(old_handle_xy[0], old_handle_xy[1])
+                - self._explore_center_y)
+            new_lateral = (
+                self._axis_lateral_xy(new_handle_xy[0], new_handle_xy[1])
+                - self._explore_center_y)
+            correction_cluster = self._find_observed_blue_cluster(
+                new_handle_xy,
+                merge_dist=max(
+                    0.45,
+                    min(self._observed_candidate_merge_dist(), 0.90)))
+            if correction_cluster is not None:
+                settled_station_count = int(
+                    correction_cluster.get('count', 0.0))
+                settled_station_confidence = float(
+                    correction_cluster.get('confidence', 0.0))
+            live_confidence = max(
+                float(getattr(observation, 'confidence', 0.0)),
+                float(getattr(observation, 'handle_confidence', 0.0)),
+                settled_station_confidence)
+            same_wall_side = (
+                abs(old_lateral) < 0.20
+                or abs(new_lateral) < 0.20
+                or old_lateral * new_lateral > 0.0)
+            forward_correction = new_progress - old_progress
+            close_station_forward_cap = max(
+                0.0,
+                self._locked_target_close_station_max_forward_correction_m)
+            close_station_correction = (
+                same_wall_side
+                and close_station_forward_cap > 0.0
+                and 0.30 <= forward_correction <= close_station_forward_cap
+                and settled_station_count >= 2
+                and settled_station_confidence >= max(
+                    0.60, self._door_open_fresh_blue_min_confidence)
+                and self._is_blue_xy_recordable_wall_observation(new_handle_xy)
+                and not self._is_blue_xy_near_observed_red(
+                    new_handle_xy,
+                    observation.door_id,
+                    live_confidence))
         if (
                 not self._is_blue_door_at_valid_wall_position(observation)
                 and not (
-                    same_observed_cluster
-                    and self._is_blue_xy_recordable_wall_observation(
-                        self._door_identity_xy(observation)))):
+                    close_station_correction
+                    or (
+                        same_observed_cluster
+                        and self._is_blue_xy_recordable_wall_observation(
+                            self._door_identity_xy(observation))))):
             return
-        if not self._is_same_locked_blue_target_observation(observation):
+        if (
+                not self._is_same_locked_blue_target_observation(observation)
+                and not close_station_correction):
             return
 
         old_xy = self._door_identity_xy(target)
         new_xy = self._door_identity_xy(observation)
+        trusted_live_handle = self._has_trusted_observed_handle(observation)
         if (
                 self._is_blue_xy_at_or_after_observed_exit(new_xy)
                 or self._blue_xy_in_strict_exit_tail_without_persistent_memory(
@@ -1100,6 +1267,38 @@ class StateMachineNode(Node):
                 or self._locked_blue_anchor_key != target_key):
             self._set_locked_blue_anchor(target)
         anchor_xy = self._locked_blue_anchor_xy
+        live_handle_xy = self._door_handle_xy(
+            self._door_with_axis_aligned_approach(observation))
+        live_confidence = max(
+            float(getattr(observation, 'confidence', 0.0)),
+            float(getattr(observation, 'handle_confidence', 0.0)))
+        now = self.get_clock().now()
+        live_match_elapsed = float('inf')
+        if self._locked_blue_live_match_time is not None:
+            live_match_elapsed = (
+                now - self._locked_blue_live_match_time).nanoseconds / 1e9
+        if (
+                live_confidence >= 0.50
+                and live_match_elapsed >= 0.35
+                and self._is_blue_xy_recordable_wall_observation(live_handle_xy)
+                and not self._is_blue_xy_near_observed_red(
+                    live_handle_xy,
+                    observation.door_id,
+                    live_confidence)):
+            self._locked_blue_live_match_count += 1
+            self._locked_blue_live_match_confidence = max(
+                self._locked_blue_live_match_confidence,
+                live_confidence)
+            self._locked_blue_live_match_time = now
+        if close_station_correction:
+            self._locked_blue_live_match_count = max(
+                self._locked_blue_live_match_count,
+                settled_station_count)
+            self._locked_blue_live_match_confidence = max(
+                self._locked_blue_live_match_confidence,
+                settled_station_confidence,
+                live_confidence)
+            self._locked_blue_live_match_time = now
         old_progress = self._axis_progress_xy(old_xy[0], old_xy[1])
         new_progress = self._axis_progress_xy(new_xy[0], new_xy[1])
         progress_jump = abs(new_progress - old_progress)
@@ -1146,9 +1345,43 @@ class StateMachineNode(Node):
             and abs(new_lateral - old_lateral) <= max(
                 0.45,
                 self._observed_blue_fresh_evidence_max_lateral_gap_m))
+        trusted_handle_refine_cap = max(
+            max_jump,
+            min(self._observed_candidate_merge_dist() + 0.35, 2.0))
+        trusted_handle_forward_refine = (
+            target.door_id.startswith('observed_blue_')
+            and same_observed_cluster
+            and trusted_live_handle
+            and same_wall_side
+            and new_progress >= old_progress - 0.20
+            and progress_jump <= trusted_handle_refine_cap
+            and abs(new_lateral - old_lateral) <= max(
+                0.45,
+                self._observed_blue_fresh_evidence_max_lateral_gap_m))
+        settled_live_refine_cap = max(
+            max_jump,
+            self._locked_target_close_station_max_forward_correction_m
+            if close_station_correction else
+            min(self._observed_candidate_merge_dist() + 0.35, 2.0))
+        close_live_forward_refine = (
+            close_alignment_active
+            and target.door_id.startswith('observed_blue_')
+            and (same_observed_cluster or close_station_correction)
+            and same_wall_side
+            and self._locked_blue_live_match_count >= 2
+            and live_confidence >= max(
+                0.34, self._door_open_fresh_blue_min_confidence)
+            and self._blue_target_open_pose_aligned_for_safe_memory(target)
+            and new_progress >= old_progress - 0.20
+            and progress_jump <= settled_live_refine_cap
+            and abs(new_lateral - old_lateral) <= max(
+                0.45,
+                self._observed_blue_fresh_evidence_max_lateral_gap_m))
         forward_refine_allowed = (
             same_detector_forward_refine
-            or same_observed_cluster_forward_refine)
+            or same_observed_cluster_forward_refine
+            or trusted_handle_forward_refine
+            or close_live_forward_refine)
         observed_cluster_jump_limit = max_jump
         if (
                 max_jump > 0.0
@@ -1181,7 +1414,15 @@ class StateMachineNode(Node):
                 or (
                     same_observed_cluster_forward_refine
                     and total_progress_jump <= observed_forward_cap
-                    and total_xy_jump <= observed_forward_cap))
+                    and total_xy_jump <= observed_forward_cap)
+                or (
+                    trusted_handle_forward_refine
+                    and total_progress_jump <= trusted_handle_refine_cap
+                    and total_xy_jump <= trusted_handle_refine_cap)
+                or (
+                    close_live_forward_refine
+                    and total_progress_jump <= settled_live_refine_cap
+                    and total_xy_jump <= settled_live_refine_cap))
             if (
                     not total_refine_allowed
                     and (total_progress_jump > max_total_jump
@@ -1213,32 +1454,98 @@ class StateMachineNode(Node):
                 old_lateral, new_lateral, observation.door_id):
             return
 
-        refined = self._door_with_axis_aligned_approach(observation)
-        # Keep the locked target identity stable; only refine its observed pose.
-        refined.door_id = target.door_id
         if target.door_id.startswith('observed_blue_'):
             old_handle_xy = self._door_handle_xy(target)
-            new_handle_xy = self._door_handle_xy(refined)
+            proposed = self._door_with_axis_aligned_approach(observation)
+            new_handle_xy = self._door_handle_xy(proposed)
             old_progress = self._axis_progress_xy(
                 old_handle_xy[0], old_handle_xy[1])
             new_progress = self._axis_progress_xy(
                 new_handle_xy[0], new_handle_xy[1])
+            handle_jump_limit = max(
+                0.45,
+                min(
+                    max_jump if max_jump > 0.0 else 0.75,
+                    self._observed_blue_fresh_evidence_max_progress_gap_m,
+                    self._observed_candidate_merge_dist()))
+            handle_xy_jump_limit = max(
+                handle_jump_limit,
+                min(
+                    max_total_jump if max_total_jump > 0.0 else handle_jump_limit,
+                    self._observed_candidate_merge_dist()))
+            handle_xy_jump = math.hypot(
+                new_handle_xy[0] - old_handle_xy[0],
+                new_handle_xy[1] - old_handle_xy[1])
+            proposed_handle_method = str(
+                getattr(proposed, 'handle_detection_method', '') or '').lower()
+            proposed_handle_confidence = float(
+                getattr(proposed, 'handle_confidence', 0.0))
+            proposed_has_trusted_handle = (
+                bool(getattr(proposed, 'handle_detected', False))
+                and proposed_handle_confidence >= 0.35
+                and proposed_handle_method not in (
+                    '',
+                    'estimated',
+                    'hsv',
+                    'observed_map_memory',
+                    'observed_wall_memory',
+                    'direct_wall_projection',
+                    'observed_wall_projection',
+                ))
+            old_handle_lateral = (
+                self._axis_lateral_xy(old_handle_xy[0], old_handle_xy[1])
+                - self._explore_center_y)
+            new_handle_lateral = (
+                self._axis_lateral_xy(new_handle_xy[0], new_handle_xy[1])
+                - self._explore_center_y)
+            handle_wall_refine_allowed = (
+                same_wall_side
+                and abs(new_progress - old_progress) <= max(
+                    handle_jump_limit,
+                    self._observed_blue_fresh_evidence_max_progress_gap_m)
+                and self._is_blue_xy_recordable_wall_observation(new_handle_xy)
+                and (
+                    not self._is_blue_xy_recordable_wall_observation(old_handle_xy)
+                    or abs(new_handle_lateral)
+                    >= abs(old_handle_lateral) + 0.20)
+                and self._door_target_has_current_live_blue_evidence(
+                    proposed,
+                    max(0.35, self._door_open_fresh_blue_min_confidence)))
             if (
-                    abs(new_progress - old_progress) > max_jump
-                    and not same_observed_cluster_forward_refine):
-                refined.handle_position = copy.deepcopy(target.handle_position)
-                refined.handle_detected = bool(
-                    getattr(target, 'handle_detected', False))
-                refined.handle_detection_method = str(
-                    getattr(target, 'handle_detection_method', 'estimated')
-                    or 'estimated')
-                refined.handle_confidence = float(
-                    getattr(target, 'handle_confidence', 0.0))
+                    not proposed_has_trusted_handle
+                    and not handle_wall_refine_allowed
+                    and not close_live_forward_refine
+                    and (
+                        abs(new_progress - old_progress) > handle_jump_limit
+                        or handle_xy_jump > handle_xy_jump_limit)):
+                self.get_logger().info(
+                    f'Locked blue target refine skipped: {observation.door_id} '
+                    'would move the manipulation handle/parking station too far '
+                    f'from the locked observed target '
+                    f'(handle_progress_jump={abs(new_progress - old_progress):.2f}/'
+                    f'{handle_jump_limit:.2f}m, '
+                    f'handle_xy_jump={handle_xy_jump:.2f}/'
+                    f'{handle_xy_jump_limit:.2f}m).',
+                    throttle_duration_sec=2.0)
+                return
+            refined = proposed
+        else:
+            refined = self._door_with_axis_aligned_approach(observation)
+        # Keep the locked target identity stable; only refine its observed pose.
+        refined.door_id = target.door_id
         if refined.door_pose.header.frame_id != 'map' or target.door_pose.header.frame_id != 'map':
             return
         old_pose = target.door_pose.pose.position
         new_pose = refined.door_pose.pose.position
         shift = math.hypot(new_pose.x - old_pose.x, new_pose.y - old_pose.y)
+        close_refine_allowed = (
+            trusted_handle_forward_refine
+            or close_live_forward_refine)
+        if close_alignment_active and not close_refine_allowed:
+            return
+        if close_alignment_active and shift < max(
+                0.30, self._locked_target_refine_min_shift_m):
+            return
         if shift < max(0.0, self._locked_target_refine_min_shift_m):
             return
 
@@ -1248,18 +1555,164 @@ class StateMachineNode(Node):
             if elapsed < max(0.0, self._locked_target_refine_min_period_sec):
                 return
         self._last_locked_target_refine_time = now
-
         self.target_door = refined
+        if close_station_correction:
+            # A large close-range correction replaces the stale long-range
+            # projection as the physical station anchor.  Subsequent small
+            # visual-servo updates must be measured from this observation,
+            # otherwise the original anchor rejects every useful refinement.
+            self._set_locked_blue_anchor(refined)
         self._nav_done = False
         self._nav_failed = False
         self._nav_start_time = now
+        if (
+                close_alignment_active
+                and shift >= max(
+                    0.30,
+                    self._locked_target_refine_min_shift_m)):
+            self._door_open_settle_start_time = None
+            self._door_open_align_start_time = None
+            if (
+                    close_station_correction
+                    and self._door_retarget_backoff_sec > 0.0
+                    and self._door_retarget_backoff_linear_x < 0.0):
+                duration_ns = int(self._door_retarget_backoff_sec * 1e9)
+                self._door_retarget_backoff_until = Time(
+                    nanoseconds=now.nanoseconds + duration_ns,
+                    clock_type=now.clock_type)
+                self._request_navigation_cancel_for_manual_control(
+                    'close-range door station correction backoff')
+            self.get_logger().warn(
+                f'Close door-front observation moved {target.door_id} by '
+                f'{shift:.2f}m; returning to Nav2 before final alignment.')
         self.get_logger().warn(
             f'Locked blue target refined from newer observation: '
             f'{target.door_id} -> {refined.door_id}, '
             f'goal shift={shift:.2f}m, '
             f'identity=({old_xy[0]:.2f},{old_xy[1]:.2f})'
             f' -> ({new_xy[0]:.2f},{new_xy[1]:.2f})')
+        if self._door_retarget_backoff_until is None:
+            self.target_door_pub.publish(self.target_door)
+
+    def _maybe_replace_locked_observed_blue_target(
+            self, observation: DoorInfo, target: DoorInfo) -> bool:
+        if not target.door_id.startswith('observed_blue_'):
+            return False
+        if observation.door_id.startswith('observed_blue_'):
+            return False
+        if self._is_same_locked_blue_target_observation(observation):
+            return False
+        if (
+                self._is_door_opened_for_observation(observation)
+                or self._is_door_abandoned_for_observation(observation)
+                or self._is_door_failed_for_observation(observation)
+                or self._is_door_physically_opened(observation)
+                or self._is_door_observation_suppressed(observation)
+                or self._is_door_physically_abandoned(observation)):
+            return False
+
+        proposed = self._door_with_axis_aligned_approach(observation)
+        if not self._door_has_map_identity(proposed):
+            return False
+        proposed_handle_xy = self._door_handle_xy(proposed)
+        if (
+                self._is_blue_xy_at_or_after_observed_exit(proposed_handle_xy)
+                or self._blue_xy_in_strict_exit_tail_without_persistent_memory(
+                    proposed_handle_xy, proposed)):
+            return False
+        if not self._blue_door_survives_axis_adjusted_opened_filter(proposed):
+            return False
+
+        target_handle_xy = self._door_handle_xy(target)
+        target_progress = self._axis_progress_xy(
+            target_handle_xy[0], target_handle_xy[1])
+        proposed_progress = self._axis_progress_xy(
+            proposed_handle_xy[0], proposed_handle_xy[1])
+        progress_gap = abs(proposed_progress - target_progress)
+        progress_limit = max(
+            0.75,
+            self._observed_candidate_merge_dist(),
+            self._observed_blue_fresh_evidence_max_progress_gap_m)
+        if progress_gap > progress_limit:
+            return False
+
+        target_lateral = (
+            self._axis_lateral_xy(target_handle_xy[0], target_handle_xy[1])
+            - self._explore_center_y)
+        proposed_lateral = (
+            self._axis_lateral_xy(proposed_handle_xy[0], proposed_handle_xy[1])
+            - self._explore_center_y)
+        wall_side_threshold = max(
+            0.35,
+            self._observed_blue_min_abs_wall_y_m * 0.5)
+        if abs(proposed_lateral) < wall_side_threshold:
+            return False
+        if (
+                abs(target_lateral) >= wall_side_threshold
+                and target_lateral * proposed_lateral > 0.0):
+            return False
+
+        raw_xy = self._raw_blue_handle_xy_for_evidence(observation)
+        has_wall_memory = (
+            self._stable_wall_memory_xy_for_direct_blue(observation) is not None
+            or self._direct_blue_candidate_matches_observed_wall_memory(
+                observation,
+                raw_xy if raw_xy is not None else proposed_handle_xy,
+                check_red_conflict=False))
+        candidate_wall_ready = (
+            self._is_blue_door_at_valid_wall_position(observation)
+            or self._is_blue_xy_recordable_wall_observation(proposed_handle_xy)
+            or has_wall_memory)
+        if not candidate_wall_ready:
+            return False
+
+        _target_strong, target_confidence, target_count = (
+            self._blue_target_observation_strength(target))
+        _candidate_strong, candidate_confidence, candidate_count = (
+            self._blue_target_observation_strength(proposed))
+        candidate_confidence = max(
+            candidate_confidence,
+            float(getattr(observation, 'confidence', 0.0)))
+
+        target_red_conflict = self._is_blue_xy_near_observed_red(
+            target_handle_xy, target.door_id, target_confidence)
+        target_wall_reason = self._estimated_blue_handle_wall_lateral_invalid_reason(
+            target)
+        target_current = self._door_target_has_current_live_blue_evidence(
+            target,
+            max(0.35, self._door_open_fresh_blue_min_confidence))
+        wall_lateral_gain = abs(proposed_lateral) - abs(target_lateral)
+        target_weak = (
+            target_red_conflict
+            or bool(target_wall_reason)
+            or not target_current
+            or wall_lateral_gain >= 0.45)
+        candidate_stronger = (
+            candidate_confidence >= max(0.50, target_confidence + 0.12)
+            or candidate_count >= max(
+                target_count + 1,
+                self._observed_blue_min_observations)
+            or wall_lateral_gain >= 0.45
+            or has_wall_memory)
+        if not (target_weak and candidate_stronger):
+            return False
+        if self._is_blue_candidate_blocked_by_red(proposed):
+            return False
+
+        now = self.get_clock().now()
+        self.target_door = proposed
+        self._nav_done = False
+        self._nav_failed = False
+        self._nav_start_time = now
+        self._set_locked_blue_anchor(proposed)
+        self.get_logger().warn(
+            f'Locked observed blue target replaced by stronger live wall '
+            f'observation: {target.door_id} -> {proposed.door_id}, '
+            f'progress_gap={progress_gap:.2f}/{progress_limit:.2f}m, '
+            f'conf={target_confidence:.2f}->{candidate_confidence:.2f}, '
+            f'lat={target_lateral:.2f}->{proposed_lateral:.2f}.')
         self.target_door_pub.publish(self.target_door)
+        return True
 
     def _refine_moves_too_far_toward_center(
             self, reference_lateral: float, new_lateral: float,
@@ -1353,17 +1806,80 @@ class StateMachineNode(Node):
         if door is None or door.door_color != 'blue' or not self._door_has_map_identity(door):
             self._clear_locked_blue_anchor()
             return
-        self._locked_blue_anchor_key = self._canonical_door_id(door.door_id)
-        self._locked_blue_anchor_xy = self._door_identity_xy(door)
+        next_key = self._canonical_door_id(door.door_id)
+        next_xy = self._door_identity_xy(door)
+        same_anchor = (
+            self._locked_blue_anchor_key == next_key
+            and self._locked_blue_anchor_xy is not None
+            and math.hypot(
+                next_xy[0] - self._locked_blue_anchor_xy[0],
+                next_xy[1] - self._locked_blue_anchor_xy[1]) <= 0.35)
+        if not same_anchor:
+            self._door_open_translation_complete = False
+        self._locked_blue_anchor_key = next_key
+        self._locked_blue_anchor_xy = next_xy
         self._locked_blue_anchor_set_sec = (
             self.get_clock().now().nanoseconds / 1e9)
         self._last_locked_target_refine_time = None
+        self._locked_blue_live_match_count = 0
+        self._locked_blue_live_match_confidence = 0.0
+        self._locked_blue_live_match_time = None
 
     def _clear_locked_blue_anchor(self):
         self._locked_blue_anchor_key = None
         self._locked_blue_anchor_xy = None
         self._locked_blue_anchor_set_sec = None
         self._last_locked_target_refine_time = None
+        self._locked_blue_live_match_count = 0
+        self._locked_blue_live_match_confidence = 0.0
+        self._locked_blue_live_match_time = None
+        self._door_final_close_refresh_count = 0
+        self._door_open_translation_complete = False
+        self._door_retarget_backoff_until = None
+        self._nav_start_center_recovery_axis_escape_start_xy = None
+        self._nav_start_center_recovery_axis_escape_used = False
+        self._nav_start_center_recovery_motion_ref_xy = None
+        self._nav_start_center_recovery_motion_ref_time = None
+
+    def _locked_target_has_converged_visual_servo_evidence(
+            self,
+            door: DoorInfo,
+            max_age_sec: float | None = None) -> bool:
+        if (
+                door.door_color != 'blue'
+                or not door.door_id.startswith('observed_blue_')
+                or not self._door_has_map_identity(door)
+                or self._locked_blue_live_match_time is None
+                or self._locked_blue_live_match_count < 2
+                or self._locked_blue_live_match_confidence < 0.50):
+            return False
+        if self._locked_blue_anchor_key != self._canonical_door_id(door.door_id):
+            return False
+
+        age = (
+            self.get_clock().now() - self._locked_blue_live_match_time
+        ).nanoseconds / 1e9
+        max_age = (
+            max(0.0, float(max_age_sec))
+            if max_age_sec is not None
+            else max(40.0, self._door_open_fresh_blue_max_age_sec * 8.0))
+        if age < 0.0 or age > max_age:
+            return False
+
+        handle_xy = self._door_handle_xy(door)
+        if (
+                not self._is_blue_xy_recordable_wall_observation(handle_xy)
+                or self._is_blue_position_opened(handle_xy)
+                or self._is_blue_position_abandoned(handle_xy)
+                or not self._blue_target_open_pose_aligned_for_safe_memory(door)):
+            return False
+
+        self.get_logger().info(
+            f'잠금 문 visual-servo 수렴 관측 사용: {door.door_id}, '
+            f'count={self._locked_blue_live_match_count}, '
+            f'conf={self._locked_blue_live_match_confidence:.2f}, age={age:.1f}s',
+            throttle_duration_sec=3.0)
+        return True
 
     def _update_detected_exit(self, msg: DoorInfo):
         new_xy = self._exit_observation_xy(msg)
@@ -1406,20 +1922,6 @@ class StateMachineNode(Node):
         new_progress = self._axis_progress_xy(new_xy[0], new_xy[1])
         old_center_error = self._exit_center_y_error(old_xy)
         new_center_error = self._exit_center_y_error(new_xy)
-        forward_jump = new_progress - old_progress
-        max_forward_jump = max(
-            self._detected_exit_merge_dist_m + 0.8,
-            self._observed_exit_explore_grace_m)
-        if (
-                forward_jump > max_forward_jump
-                and old_center_error <= max(0.35, self._detected_exit_max_center_y_m)
-                and new_center_error >= old_center_error - 0.35):
-            self.get_logger().info(
-                f'비상구 후보 {msg.door_id} ({new_xy[0]:.1f}, {new_xy[1]:.1f})는 '
-                f'기존 안정 출구보다 진행축 {forward_jump:.1f}m 뒤쪽으로 튀어 '
-                '출구 좌표 갱신에서 제외합니다.',
-                throttle_duration_sec=3.0)
-            return
         if (new_center_error + 0.15 < old_center_error
                 and new_progress >= old_progress - 1.0
                 and msg.confidence >= self._exit_door.confidence - 0.15):
@@ -1434,6 +1936,22 @@ class StateMachineNode(Node):
 
         jump = math.hypot(new_xy[0] - old_xy[0], new_xy[1] - old_xy[1])
         if jump <= max(0.1, self._detected_exit_merge_dist_m):
+            if msg.door_color == 'green':
+                max_center_y = max(0.0, self._detected_exit_max_center_y_m)
+                should_replace = (
+                    new_center_error + 0.08 < old_center_error
+                    or (
+                        new_center_error <= old_center_error + 0.08
+                        and new_progress > old_progress + 0.25)
+                    or (
+                        max_center_y > 0.0
+                        and old_center_error > max_center_y
+                        and new_center_error <= max_center_y))
+                if should_replace:
+                    self._exit_door = copy.deepcopy(msg)
+                    self._last_valid_exit_xy = new_xy
+                    self._last_valid_exit_from_front_wall = False
+                return
             if (self._detected_exit_max_center_y_m > 0.0
                     and new_center_error > old_center_error + 0.20):
                 self.get_logger().debug(
@@ -1476,6 +1994,14 @@ class StateMachineNode(Node):
             0.0,
             self._detected_exit_max_abs_lateral_m,
             self._detected_exit_max_center_y_m + 0.6)
+        if self._exit_candidate_relaxed_after_opened_scan(
+                xy, check_unopened_blue_memory=False):
+            max_lateral = max(
+                max_lateral,
+                self._observed_blue_max_abs_wall_y_m
+                + self._detected_exit_max_y_error_m,
+                self._detected_exit_max_center_y_m
+                + self._observed_blue_fresh_evidence_max_lateral_gap_m)
         if max_lateral > 0.0 and lateral_error > max_lateral:
             return
         if self._opened_blue_door_positions:
@@ -1500,8 +2026,14 @@ class StateMachineNode(Node):
             if exit_progress < old_progress - 0.8:
                 if lateral_error >= old_lateral_error - 0.25:
                     return
-            if (exit_progress > old_progress + 2.0
-                    and lateral_error >= old_lateral_error - 0.35):
+            # A distant green panel can initially inherit the range of an
+            # intervening obstacle.  As the robot passes that obstacle, later
+            # centered observations legitimately move the exit farther along
+            # the mapped mission axis.  Keep the farthest credible observation;
+            # final use is still guarded by the current front-wall scan.
+            if (
+                    exit_progress < old_progress + 2.0
+                    and lateral_error > old_lateral_error + 0.60):
                 return
         self._last_provisional_exit_xy = xy
         self.get_logger().info(
@@ -1689,6 +2221,25 @@ class StateMachineNode(Node):
         if self._is_door_id_opened(door.door_id):
             return True
         return False
+
+    def _blue_door_survives_axis_adjusted_opened_filter(
+            self, door: DoorInfo) -> bool:
+        """Reject blue remnants after applying the final wall-parking pose."""
+        if door.door_color != 'blue' or not self._door_has_map_identity(door):
+            return False
+        adjusted = self._door_with_axis_aligned_approach(door)
+        if self._is_door_opened_for_observation(adjusted):
+            return False
+        for xy in self._blue_evidence_points(adjusted):
+            if self._is_blue_position_opened(xy):
+                return False
+            if self._is_blue_xy_opened_same_wall_remnant(
+                    xy,
+                    label='Axis-adjusted blue candidate'):
+                return False
+            if self._is_blue_xy_opposite_opened_station(xy):
+                return False
+        return True
 
     def _is_blue_same_id_opened_in_exit_tail(self, door: DoorInfo) -> bool:
         if door.door_color != 'blue' or not self._door_has_map_identity(door):
@@ -1892,6 +2443,7 @@ class StateMachineNode(Node):
             self.get_logger().info('Navigation succeeded.')
             self._nav_done   = True
             self._nav_failed = False
+            self._local_obstacle_escape_attempts = 0
         else:
             self.get_logger().warn('Navigation failed.')
             self._nav_failed = True
@@ -1988,15 +2540,18 @@ class StateMachineNode(Node):
     def _semantic_blue_landmark_confirmed(
             self,
             landmark: dict[str, float],
-            xy: tuple[float, float] | None = None) -> bool:
+            xy: tuple[float, float] | None = None,
+            *,
+            check_pre_exit_fresh: bool = True) -> bool:
         blue_count, red_count, green_count = self._semantic_landmark_color_votes(landmark)
         total_color_votes = max(1, blue_count + red_count + green_count)
         min_blue_count = max(
             self._semantic_blue_min_observations,
             self._observed_blue_min_observations)
-        if xy is not None and (
-                self._is_blue_xy_in_pre_exit_zone(xy)
-                or self._is_blue_xy_in_exit_search_tail(xy)):
+        if (
+                xy is not None
+                and check_pre_exit_fresh
+                and self._blue_xy_requires_pre_nav_exit_fresh_evidence(xy)):
             min_blue_count = max(
                 min_blue_count,
                 self._semantic_exit_tail_blue_min_observations)
@@ -2116,7 +2671,8 @@ class StateMachineNode(Node):
         landmark = self._find_semantic_door_landmark(xy)
         if landmark is None:
             return False
-        return not self._semantic_blue_landmark_confirmed(landmark, xy)
+        return not self._semantic_blue_landmark_confirmed(
+            landmark, xy, check_pre_exit_fresh=False)
 
     def _mark_semantic_door_opened(self, door: DoorInfo):
         if not self._semantic_door_memory_enabled:
@@ -2188,6 +2744,9 @@ class StateMachineNode(Node):
 
     # ── FSM 루프 ──────────────────────────────────────────
     def fsm_loop(self):
+        if self._run_local_obstacle_escape():
+            self._publish_state()
+            return
         if   self.state == State.IDLE:             self._on_idle()
         elif self.state == State.EXPLORING:        self._on_exploring()
         elif self.state == State.NAVIGATING:       self._on_navigating()
@@ -2221,6 +2780,7 @@ class StateMachineNode(Node):
             self._semantic_door_landmarks.clear()
             self._observed_red_door_positions.clear()
             self._detected_blue_origin_by_id.clear()
+            self._last_projection_open_failure_progress = None
             self._clear_locked_blue_anchor()
             self._post_open_reorient_pending = False
             self._post_open_reorient_start_time = None
@@ -2254,6 +2814,7 @@ class StateMachineNode(Node):
             self._observed_blue_door_id_to_cluster.clear()
             self._semantic_door_landmarks.clear()
             self._observed_red_door_positions.clear()
+            self._last_projection_open_failure_progress = None
             self._mission_progress_x = self._current_mission_progress()
             self._post_open_reorient_pending = False
             self._post_open_reorient_start_time = None
@@ -2285,13 +2846,15 @@ class StateMachineNode(Node):
         # 개방 완료 + 실패 블랙리스트 제외한 파란 문 후보
         blue_candidates, raw_safe_doors, safe_doors = (
             self._target_subfsm.explore_blue_candidates())
-        if safe_doors:
-            self._explore_observation_wait_start_time = None
-        elif self._run_explore_observation_wait():
+        if not safe_doors and self._run_explore_observation_wait():
             return
         if not safe_doors:
             stable_revisit_doors = self._stable_unopened_detected_blue_doors(
                 [d for d in blue_candidates if self._door_has_map_identity(d)])
+            stable_revisit_doors = [
+                d for d in stable_revisit_doors
+                if self._blue_door_survives_axis_adjusted_opened_filter(d)
+            ]
             if stable_revisit_doors:
                 safe_doors = stable_revisit_doors
                 self.get_logger().warn(
@@ -2311,6 +2874,22 @@ class StateMachineNode(Node):
             if self._run_final_scan_before_exit():
                 return
             self._force_final_scan_before_exit = False
+            # A recovery scan after waypoint failures does not prove that the
+            # unseen corridor was covered. Re-check spatial coverage first.
+            if not self._exit_scan_allowed_by_exploration():
+                failure_limit = max(
+                    1, self._max_explore_nav_failures_before_exit)
+                if self._explore_nav_failure_count >= failure_limit:
+                    self._explore_nav_failure_count = 0
+                self._explore_start_time = self.get_clock().now()
+                self.get_logger().info(
+                    'Final exit scan finished, but forward corridor coverage '
+                    'is still incomplete. Continuing observation-based '
+                    'exploration.')
+                if self._send_explore_waypoint():
+                    return
+                self._rotate_to_scan()
+                return
             if self._target_refreshed_blue_after_final_scan('final exit scan'):
                 return
             if not safe_doors:
@@ -2480,6 +3059,16 @@ class StateMachineNode(Node):
                 self._rotate_to_scan()
             return
 
+        safe_doors = [
+            d for d in safe_doors
+            if self._blue_door_survives_axis_adjusted_opened_filter(d)
+        ]
+        if not safe_doors:
+            if self._send_explore_waypoint():
+                return
+            self._rotate_to_scan()
+            return
+
         # 파란 문이 관측되면 탐색 waypoint를 더 보내지 않고 가장 가까운 문을
         pending_retry_doors = [
             d for d in safe_doors
@@ -2523,6 +3112,13 @@ class StateMachineNode(Node):
             self._rotate_to_scan()
             return
         self.target_door = self._door_with_axis_aligned_approach(selected_door)
+        if not self._blue_door_survives_axis_adjusted_opened_filter(self.target_door):
+            self.target_door = None
+            self._explore_start_time = self.get_clock().now()
+            if self._send_explore_waypoint():
+                return
+            self._rotate_to_scan()
+            return
         self._set_locked_blue_anchor(self.target_door)
 
         if self._run_pre_nav_scan(self.target_door):
@@ -2533,6 +3129,8 @@ class StateMachineNode(Node):
         if invalid_reason:
             rejected = self.target_door
             rejected_id = rejected.door_id if rejected is not None else '(unknown)'
+            if rejected is not None:
+                self._retire_exit_tail_blue_target(rejected, invalid_reason)
             if (
                     rejected is not None
                     and self._blue_target_invalid_reason_counts_as_approach_failure(
@@ -2541,7 +3139,9 @@ class StateMachineNode(Node):
                     rejected,
                     failure_kind='approach',
                     require_fresh_retry=(
-                        '현재 카메라 blue evidence 없음' in invalid_reason),
+                        self._blue_target_invalid_reason_requires_fresh_retry(
+                            invalid_reason)),
+                    fresh_retry_reason=invalid_reason,
                     log=False)
                 if abandoned:
                     self._add_door_id_keys(self._failed_door_ids, rejected_id)
@@ -2552,6 +3152,12 @@ class StateMachineNode(Node):
             self.get_logger().warn(
                 f'사전 스캔 후 파란 문 목표 {rejected_id} 제외: '
                 f'{invalid_reason}. 새 관측 후보를 다시 선택합니다.')
+            # Resume spatial exploration immediately. Otherwise a persistent
+            # projected candidate can be selected again on the next timer tick
+            # before the robot has moved enough to gather a different view.
+            if self._send_explore_waypoint():
+                return
+            self._rotate_to_scan()
             return
         if self._defer_far_target_door(self.target_door):
             return
@@ -2576,6 +3182,13 @@ class StateMachineNode(Node):
         if not blue_candidates:
             return False
 
+        blue_candidates = [
+            d for d in blue_candidates
+            if self._blue_door_survives_axis_adjusted_opened_filter(d)
+        ]
+        if not blue_candidates:
+            return False
+
         forward_candidates = self._filter_forward_doors(blue_candidates)
         if forward_candidates:
             blue_candidates = forward_candidates
@@ -2583,8 +3196,12 @@ class StateMachineNode(Node):
             revisit_candidates = [
                 d for d in blue_candidates
                 if d.door_id.startswith('observed_blue_')
-                and not self._blue_target_station_behind_opened_floor(d)
-                and not self._observed_blue_door_behind_opened_without_fresh(d)
+                and (
+                    self._observed_blue_door_is_stable_unopened_revisit(d)
+                    or (
+                        not self._blue_target_station_behind_opened_floor(d)
+                        and not self._observed_blue_door_behind_opened_without_fresh(d)
+                    ))
             ]
             if not revisit_candidates:
                 return False
@@ -2607,12 +3224,20 @@ class StateMachineNode(Node):
         if invalid_reason:
             rejected = self.target_door
             rejected_id = rejected.door_id if rejected is not None else '(unknown)'
+            if rejected is not None:
+                self._retire_exit_tail_blue_target(rejected, invalid_reason)
             if (
                     rejected is not None
                     and self._blue_target_invalid_reason_counts_as_approach_failure(
                         invalid_reason)):
                 abandoned = self._record_observed_blue_door_failure(
-                    rejected, failure_kind='approach', log=False)
+                    rejected,
+                    failure_kind='approach',
+                    require_fresh_retry=(
+                        self._blue_target_invalid_reason_requires_fresh_retry(
+                            invalid_reason)),
+                    fresh_retry_reason=invalid_reason,
+                    log=False)
                 if abandoned:
                     self._add_door_id_keys(self._failed_door_ids, rejected_id)
             self._clear_locked_blue_anchor()
@@ -2642,9 +3267,23 @@ class StateMachineNode(Node):
                 or self._door_open_align_start_time is not None
                 or self._door_open_settle_start_time is not None):
             return False
+        if not self._nav_start_center_recovery_enabled:
+            self._nav_start_pose_recovery_active = False
+            self._nav_start_center_recovery_abort_reason = ''
+            return False
         pose = self._current_map_pose()
         if pose is None:
             return False
+
+        if (
+                not self._nav_start_pose_recovery_active
+                and self._nav_start_time is not None
+                and self._nav_start_center_recovery_window_sec > 0.0):
+            elapsed = (
+                self.get_clock().now() - self._nav_start_time
+            ).nanoseconds / 1e9
+            if elapsed > self._nav_start_center_recovery_window_sec:
+                return False
 
         x, y, _yaw = pose
         lateral = self._axis_lateral_xy(x, y)
@@ -2668,6 +3307,7 @@ class StateMachineNode(Node):
                     self.target_door,
                     failure_kind='approach',
                     require_fresh_retry=True,
+                    fresh_retry_reason='fresh_open_confirmation_missing',
                     log=False)
                 if abandoned:
                     self._add_door_id_keys(self._failed_door_ids, failed_id)
@@ -2712,6 +3352,8 @@ class StateMachineNode(Node):
                 self.target_door)
             if invalid_reason:
                 target_id = self.target_door.door_id
+                self._retire_exit_tail_blue_target(
+                    self.target_door, invalid_reason)
                 self._record_observed_blue_door_failure(
                     self.target_door, failure_kind='approach', log=False)
                 self.cmd_vel_pub.publish(Twist())
@@ -2724,6 +3366,9 @@ class StateMachineNode(Node):
                     f'{invalid_reason}. 새 관측 후보를 다시 선택합니다.')
                 self._transition(State.EXPLORING)
                 return
+
+        if self._run_door_retarget_backoff():
+            return
 
         if self._recover_blue_nav_start_if_needed():
             return
@@ -2797,6 +3442,31 @@ class StateMachineNode(Node):
                     return
             if (self.target_door is not None
                     and self.target_door.door_color == 'blue'
+                    and self._refresh_observed_blue_target_before_opening()):
+                return
+            if (self.target_door is not None
+                    and self.target_door.door_color == 'blue'
+                    and self._door_target_has_current_strict_non_blue_conflict(
+                        self.target_door)):
+                target_id = self.target_door.door_id
+                self._record_observed_blue_door_failure(
+                    self.target_door,
+                    failure_kind='approach',
+                    require_fresh_retry=True,
+                    fresh_retry_reason='current_non_blue_conflict',
+                    log=False)
+                self.cmd_vel_pub.publish(Twist())
+                self._clear_locked_blue_anchor()
+                self.target_door = None
+                self._nav_retry_count = 0
+                self._door_opening_in_progress = False
+                self.get_logger().warn(
+                    f'문 열기 직전 현재 non-blue 관측 충돌: {target_id}. '
+                    '색상 충돌이 사라지고 파란 문이 다시 확인될 때까지 개방하지 않습니다.')
+                self._transition(State.EXPLORING)
+                return
+            if (self.target_door is not None
+                    and self.target_door.door_color == 'blue'
                     and not self.target_door.door_id.startswith('observed_blue_')
                     and self._blue_pose_handle_opposite_wall(self.target_door)):
                 target_id = self.target_door.door_id
@@ -2820,12 +3490,15 @@ class StateMachineNode(Node):
                     and self._blue_target_needs_fresh_open_confirmation(self.target_door)
                     and not self._blue_target_has_safe_open_memory(self.target_door)
                     and not self._observed_blue_target_has_stable_open_evidence(self.target_door)
+                    and not self._locked_target_has_converged_visual_servo_evidence(
+                        self.target_door)
                     and not self._door_target_has_fresh_blue_evidence(self.target_door)):
                 target_id = self.target_door.door_id
                 abandoned = self._record_observed_blue_door_failure(
                     self.target_door,
                     failure_kind='approach',
                     require_fresh_retry=True,
+                    fresh_retry_reason='fresh_open_confirmation_missing',
                     log=False)
                 if abandoned:
                     self.get_logger().warn(
@@ -2852,6 +3525,7 @@ class StateMachineNode(Node):
                         self.target_door,
                         failure_kind='approach',
                         require_fresh_retry=True,
+                        fresh_retry_reason=open_strength_reason,
                         log=False)
                     self.cmd_vel_pub.publish(Twist())
                     self._clear_locked_blue_anchor()
@@ -2873,6 +3547,7 @@ class StateMachineNode(Node):
                         self.target_door,
                         failure_kind='approach',
                         require_fresh_retry=True,
+                        fresh_retry_reason='fresh_open_confirmation_missing',
                         log=False)
                     self.cmd_vel_pub.publish(Twist())
                     self._clear_locked_blue_anchor()
@@ -2907,16 +3582,38 @@ class StateMachineNode(Node):
                         f'{workspace_reason}. 후보를 버리고 재스캔합니다.')
                     self._transition(State.EXPLORING)
                     return
-            if (self.target_door is not None
+            recent_non_blue_blocks_opening = False
+            if (
+                    self.target_door is not None
                     and self.target_door.door_color == 'blue'
-                    and self._door_target_has_recent_non_blue_conflict(self.target_door)
                     and not self._blue_target_has_safe_open_memory(self.target_door)
-                    and not self._observed_blue_target_has_stable_open_evidence(self.target_door)):
+                    and self._door_target_has_recent_non_blue_conflict(
+                        self.target_door)):
+                recent_non_blue_blocks_opening = True
+                if self.target_door.door_id.startswith('observed_blue_'):
+                    open_strength_reason = (
+                        self._observed_blue_target_open_strength_invalid_reason(
+                            self.target_door))
+                    if (
+                            not open_strength_reason
+                            and self._observed_blue_non_blue_conflict_can_yield_for_opening(
+                                self.target_door)):
+                        recent_non_blue_blocks_opening = False
+                else:
+                    _strong, blue_confidence, blue_count = (
+                        self._blue_target_observation_strength(self.target_door))
+                    if self._aligned_live_wall_blue_overrides_stale_red_memory(
+                            self.target_door,
+                            blue_confidence,
+                            blue_count):
+                        recent_non_blue_blocks_opening = False
+            if recent_non_blue_blocks_opening:
                 target_id = self.target_door.door_id
                 self._record_observed_blue_door_failure(
                     self.target_door,
                     failure_kind='approach',
-                    require_fresh_retry=True)
+                    require_fresh_retry=True,
+                    fresh_retry_reason='non_blue_conflict')
                 self.cmd_vel_pub.publish(Twist())
                 self._clear_locked_blue_anchor()
                 self.target_door = None
@@ -2925,6 +3622,38 @@ class StateMachineNode(Node):
                 self.get_logger().warn(
                     f'문 열기 직전 non-blue 충돌 관측: {target_id}. '
                     '빨간/출구 오탐 가능성이 있어 후보를 버리고 재스캔합니다.')
+                self._transition(State.EXPLORING)
+                return
+            if (
+                    self.target_door is not None
+                    and self.target_door.door_color == 'blue'
+                    and self.target_door.door_id.startswith('observed_blue_')
+                    and not self._door_target_has_current_live_blue_evidence(
+                        self.target_door,
+                        max(0.35, self._door_open_fresh_blue_min_confidence))
+                    and not self._locked_target_has_converged_visual_servo_evidence(
+                        self.target_door,
+                        max_age_sec=max(
+                            4.0,
+                            min(
+                                7.5,
+                                self._door_open_fresh_blue_max_age_sec * 0.75)))):
+                target_id = self.target_door.door_id
+                self._record_observed_blue_door_failure(
+                    self.target_door,
+                    failure_kind='approach',
+                    require_fresh_retry=True,
+                    fresh_retry_reason='fresh_open_confirmation_missing',
+                    log=False)
+                self.cmd_vel_pub.publish(Twist())
+                self._clear_locked_blue_anchor()
+                self.target_door = None
+                self._nav_retry_count = 0
+                self._door_opening_in_progress = False
+                self.get_logger().warn(
+                    f'문 개방 서비스 직전 live blue 최종 확인 실패: '
+                    f'{target_id}. 누적 projection만으로는 개방하지 않고 '
+                    '현재 카메라/LiDAR 관측으로 다시 선택합니다.')
                 self._transition(State.EXPLORING)
                 return
             self._door_opening_in_progress = False
@@ -2954,6 +3683,38 @@ class StateMachineNode(Node):
         self.get_logger().info(
             f'Republishing active navigation target: {self.target_door.door_id}',
             throttle_duration_sec=3.0)
+
+    def _run_door_retarget_backoff(self) -> bool:
+        until = self._door_retarget_backoff_until
+        if until is None:
+            return False
+        if self.target_door is None or self.target_door.door_color != 'blue':
+            self._door_retarget_backoff_until = None
+            self.cmd_vel_pub.publish(Twist())
+            return False
+
+        now = self.get_clock().now()
+        if now < until:
+            twist = Twist()
+            twist.linear.x = self._door_retarget_backoff_linear_x
+            self.cmd_vel_pub.publish(twist)
+            self.get_logger().info(
+                f'Close-station correction backoff: {self.target_door.door_id}, '
+                f'cmd_x={twist.linear.x:.2f}',
+                throttle_duration_sec=0.8)
+            return True
+
+        self._door_retarget_backoff_until = None
+        self.cmd_vel_pub.publish(Twist())
+        self._nav_done = False
+        self._nav_failed = False
+        self._nav_start_time = now
+        self._reset_door_nav_stuck_watch()
+        self.get_logger().info(
+            f'Door navigation backoff complete; replanning to '
+            f'{self.target_door.door_id}.')
+        self.target_door_pub.publish(self.target_door)
+        return True
 
     def _request_navigation_cancel_for_manual_control(self, reason: str):
         msg = Bool()
@@ -3023,10 +3784,13 @@ class StateMachineNode(Node):
         pose = self._current_map_pose()
         self._door_nav_last_progress = (
             self._axis_progress_xy(pose[0], pose[1]) if pose is not None else None)
+        self._door_nav_last_motion_xy = (
+            (pose[0], pose[1]) if pose is not None else None)
 
     def _clear_door_nav_stuck_watch(self):
         self._door_nav_wall_start_time = None
         self._door_nav_last_progress = None
+        self._door_nav_last_motion_xy = None
         self._door_nav_last_progress_wall_time = None
 
     def _door_nav_wall_stuck(self) -> bool:
@@ -3067,6 +3831,16 @@ class StateMachineNode(Node):
 
         progress = self._axis_progress_xy(pose[0], pose[1])
         min_progress = max(0.01, self._door_nav_stuck_min_progress_m)
+        motion_xy = self._door_nav_last_motion_xy
+        if motion_xy is None:
+            self._door_nav_last_motion_xy = (pose[0], pose[1])
+        elif math.hypot(pose[0] - motion_xy[0], pose[1] - motion_xy[1]) > min_progress:
+            # Nav2's failure-only BackUp intentionally moves opposite the
+            # mission axis. Count that translation as recovery progress so the
+            # FSM does not cancel the new plan immediately after backing out.
+            self._door_nav_last_motion_xy = (pose[0], pose[1])
+            self._door_nav_last_progress_wall_time = now_wall
+            return False
         last_progress = self._door_nav_last_progress
         if last_progress is None or progress > last_progress + min_progress:
             self._door_nav_last_progress = progress
@@ -3090,6 +3864,9 @@ class StateMachineNode(Node):
         return False
 
     def _on_exploring_navigating(self):
+        if self._run_explore_nav_backoff():
+            return
+
         if self._interrupt_explore_waypoint_for_blue_door():
             return
 
@@ -3104,6 +3881,11 @@ class StateMachineNode(Node):
             return
         if self._nav_failed:
             self._nav_failed = False
+            if self._start_explore_nav_backoff():
+                return
+            if self._start_local_obstacle_escape(
+                    'repeated explore Nav2 start-cell failure'):
+                return
             self._remember_failed_explore_goal()
             if self._handle_explore_nav_failure_limit():
                 return
@@ -3113,9 +3895,12 @@ class StateMachineNode(Node):
             return
 
         if self._explore_waypoint_wall_stuck():
+            self._request_navigation_cancel_for_manual_control(
+                'explore waypoint stuck replanning')
+            self.cmd_vel_pub.publish(Twist())
+            self._remember_failed_explore_goal()
             if self._handle_explore_nav_failure_limit():
                 return
-            self._remember_failed_explore_goal()
             self._flip_explore_lane_after_failure()
             self._nav_done = False
             self._nav_failed = False
@@ -3132,14 +3917,94 @@ class StateMachineNode(Node):
             if elapsed > self._explore_nav_timeout_sec:
                 self.get_logger().warn(
                     f'탐색 waypoint 이동 timeout ({elapsed:.1f}s). 반대 차선으로 다시 스캔합니다.')
+                self._request_navigation_cancel_for_manual_control(
+                    'explore waypoint timeout replanning')
+                self.cmd_vel_pub.publish(Twist())
+                self._remember_failed_explore_goal()
                 if self._handle_explore_nav_failure_limit():
                     return
-                self._remember_failed_explore_goal()
                 self._flip_explore_lane_after_failure()
                 self._nav_done = False
                 self._nav_failed = False
                 self._transition(State.EXPLORING)
                 return
+
+    def _start_explore_nav_backoff(self) -> bool:
+        goal_id = self._explore_nav_goal_id
+        if (
+                not goal_id
+                or self._explore_nav_goal_xy is None
+                or self._explore_nav_backoff_goal_id == goal_id
+                or self._door_retarget_backoff_sec <= 0.0
+                or self._door_retarget_backoff_linear_x >= 0.0
+                or self._latest_scan is None):
+            return False
+
+        rear_left = self._sector_min(
+            self._latest_scan, math.radians(150.0), math.pi)
+        rear_right = self._sector_min(
+            self._latest_scan, -math.pi, math.radians(-150.0))
+        rear_clearance = min(rear_left, rear_right)
+        required_clearance = max(
+            0.55,
+            self._explore_obstacle_stop_m,
+            abs(self._door_retarget_backoff_linear_x)
+            * self._door_retarget_backoff_sec + 0.35)
+        if rear_clearance < required_clearance:
+            return False
+
+        now = self.get_clock().now()
+        self._explore_nav_backoff_until = Time(
+            nanoseconds=(
+                now.nanoseconds + int(self._door_retarget_backoff_sec * 1e9)),
+            clock_type=now.clock_type)
+        self._explore_nav_backoff_goal_id = goal_id
+        self._nav_done = False
+        self._nav_failed = False
+        self._request_navigation_cancel_for_manual_control(
+            'LiDAR-cleared explore start-cell backoff')
+        self.get_logger().warn(
+            f'Explore Nav2 start cell recovery: rear LiDAR clearance '
+            f'{rear_clearance:.2f}m >= {required_clearance:.2f}m; '
+            'backing away briefly before replanning the same waypoint.')
+        return True
+
+    def _run_explore_nav_backoff(self) -> bool:
+        until = self._explore_nav_backoff_until
+        if until is None:
+            return False
+        now = self.get_clock().now()
+        if now < until:
+            twist = Twist()
+            twist.linear.x = self._door_retarget_backoff_linear_x
+            self.cmd_vel_pub.publish(twist)
+            return True
+
+        self._explore_nav_backoff_until = None
+        self.cmd_vel_pub.publish(Twist())
+        if self._explore_nav_goal_xy is None or not self._explore_nav_goal_id:
+            return False
+
+        goal = DoorInfo()
+        stamp = now.to_msg()
+        goal.header.stamp = stamp
+        goal.header.frame_id = 'map'
+        goal.door_id = self._explore_nav_goal_id
+        goal.door_color = 'explore'
+        goal.confidence = 1.0
+        goal.door_pose.header.stamp = stamp
+        goal.door_pose.header.frame_id = 'map'
+        goal.door_pose.pose.position.x = self._explore_nav_goal_xy[0]
+        goal.door_pose.pose.position.y = self._explore_nav_goal_xy[1]
+        goal.door_pose.pose.orientation.w = 1.0
+        self._nav_done = False
+        self._nav_failed = False
+        self._nav_start_time = now
+        self._reset_explore_nav_stuck_watch()
+        self.get_logger().info(
+            f'Explore navigation backoff complete; replanning to {goal.door_id}.')
+        self.target_door_pub.publish(goal)
+        return True
 
     def _reset_explore_nav_stuck_watch(self):
         now_wall = time.monotonic()
@@ -3171,6 +4036,13 @@ class StateMachineNode(Node):
         if self._explore_nav_wall_start_time is None:
             self._reset_explore_nav_stuck_watch()
             return False
+        wall_elapsed = now_wall - self._explore_nav_wall_start_time
+        absolute_wall_timeout = max(30.0, timeout * 4.0)
+        if wall_elapsed > absolute_wall_timeout:
+            self.get_logger().warn(
+                f'Explore waypoint absolute wall timeout: {wall_elapsed:.1f}s '
+                f'> {absolute_wall_timeout:.1f}s.')
+            return True
 
         pose = self._current_map_pose()
         if pose is None:
@@ -3191,20 +4063,26 @@ class StateMachineNode(Node):
         if self._explore_nav_goal_xy is not None:
             gx, gy = self._explore_nav_goal_xy
             goal_dist = math.hypot(gx - pose[0], gy - pose[1])
-            near_goal = max(0.65, self._explore_obstacle_stop_m + 0.10)
-            if goal_dist <= near_goal:
-                self._explore_nav_last_progress = progress
-                self._explore_nav_last_goal_dist = goal_dist
-                self._explore_nav_last_yaw = pose[2]
-                self._explore_nav_last_progress_wall_time = now_wall
-                return False
         last_goal_dist = self._explore_nav_last_goal_dist
         goal_dist_improved = (
             goal_dist is not None
             and (last_goal_dist is None or goal_dist < last_goal_dist - min_progress))
+        last_yaw = self._explore_nav_last_yaw
+        yaw_progress = False
+        if (
+                last_yaw is not None
+                and self._explore_nav_goal_xy is not None
+                and goal_dist is not None
+                and goal_dist > 0.20):
+            gx, gy = self._explore_nav_goal_xy
+            desired_yaw = math.atan2(gy - pose[1], gx - pose[0])
+            old_error = abs(self._normalize_angle(desired_yaw - last_yaw))
+            new_error = abs(self._normalize_angle(desired_yaw - pose[2]))
+            yaw_progress = old_error - new_error >= math.radians(8.0)
         if (last_progress is None
                 or progress > last_progress + min_progress
-                or goal_dist_improved):
+                or goal_dist_improved
+                or yaw_progress):
             self._explore_nav_last_progress = progress
             self._explore_nav_last_goal_dist = goal_dist
             self._explore_nav_last_yaw = pose[2]
@@ -3262,12 +4140,39 @@ class StateMachineNode(Node):
                 min_conf,
                 self._blue_target_immediate_min_confidence)
             if confidence < direct_min_conf:
-                self.get_logger().info(
-                    f'Blue candidate {door.door_id} is waiting for stronger '
-                    f'direct evidence before interrupting exploration '
-                    f'(conf={confidence:.2f}/{direct_min_conf:.2f}).',
-                    throttle_duration_sec=3.0)
-                return False
+                cluster = self._observed_cluster_for_blue_door(
+                    door,
+                    merge_dist=max(
+                        self._observed_candidate_merge_dist(),
+                        self._door_open_fresh_blue_max_dist_m))
+                cluster_count = int(cluster.get('count', 0.0)) if cluster else 0
+                cluster_confidence = (
+                    float(cluster.get('confidence', 0.0)) if cluster else 0.0)
+                has_stable_wall_memory = (
+                    cluster is not None
+                    and cluster_count >= max(3, self._observed_blue_min_observations + 1)
+                    and self._observed_blue_cluster_has_recheckable_wall_memory(cluster))
+                relaxed_direct_min_conf = max(0.30, direct_min_conf - 0.22)
+                relaxed_memory_min_conf = max(0.42, direct_min_conf - 0.10)
+                if (
+                        has_stable_wall_memory
+                        and confidence >= relaxed_direct_min_conf
+                        and cluster_confidence >= relaxed_memory_min_conf):
+                    self.get_logger().info(
+                        f'Blue candidate {door.door_id} interrupts exploration '
+                        'using repeated wall-side map memory '
+                        f'(conf={confidence:.2f}/{direct_min_conf:.2f}, '
+                        f'cluster={cluster_confidence:.2f}/'
+                        f'{relaxed_memory_min_conf:.2f}, '
+                        f'cluster_count={cluster_count}).',
+                        throttle_duration_sec=3.0)
+                else:
+                    self.get_logger().info(
+                        f'Blue candidate {door.door_id} is waiting for stronger '
+                        f'direct evidence before interrupting exploration '
+                        f'(conf={confidence:.2f}/{direct_min_conf:.2f}).',
+                        throttle_duration_sec=3.0)
+                    return False
 
         if min_conf <= 0.0 or confidence >= min_conf:
             if max_dist <= 0.0 or dist is None or dist <= max_dist:
@@ -3315,6 +4220,7 @@ class StateMachineNode(Node):
             blue_candidates = [
                 d for d in blue_candidates
                 if self._is_blue_door_before_current_exit(d)
+                and self._exit_interrupt_blue_candidate_allowed(d)
             ]
             opened_progress = self._farthest_resolved_blue_progress()
             if opened_progress is not None:
@@ -3394,6 +4300,7 @@ class StateMachineNode(Node):
             self.get_logger().warn(
                 f'탐색 waypoint 실패 {self._explore_nav_failure_count}회 누적. '
                 '비상구 전 최종 파란 문 스캔으로 복귀합니다.')
+            self._explore_nav_failure_count = 0
             self._force_final_scan_before_exit = True
             self._transition(State.EXPLORING)
             return True
@@ -3401,10 +4308,59 @@ class StateMachineNode(Node):
 
     def _handle_nav_failure(self, reason: str = ''):
         door_id = self.target_door.door_id if self.target_door else '(unknown)'
+        if reason in ('door_nav_stuck', 'timeout'):
+            self._request_navigation_cancel_for_manual_control(
+                f'door navigation {reason} recovery')
+            self.cmd_vel_pub.publish(Twist())
         self._nav_retry_count += 1
         self.get_logger().warn(
             f'Nav failure [{reason}] → {door_id}. '
             f'재시도 {self._nav_retry_count}/{self._max_nav_retries}')
+
+        if (
+                reason in ('nav2_failure', 'door_nav_stuck')
+                and self._nav_retry_count < self._max_nav_retries
+                and self.target_door is not None
+                and self.target_door.door_color == 'blue'
+                and self._door_retarget_backoff_until is None
+                and self._door_retarget_backoff_sec > 0.0
+                and self._door_retarget_backoff_linear_x < 0.0
+                and self._latest_scan is not None):
+            rear_left = self._sector_min(
+                self._latest_scan, math.radians(150.0), math.pi)
+            rear_right = self._sector_min(
+                self._latest_scan, -math.pi, math.radians(-150.0))
+            rear_clearance = min(rear_left, rear_right)
+            required_clearance = max(
+                0.55,
+                self._explore_obstacle_stop_m,
+                abs(self._door_retarget_backoff_linear_x)
+                * self._door_retarget_backoff_sec + 0.35)
+            if rear_clearance >= required_clearance:
+                now = self.get_clock().now()
+                self._door_retarget_backoff_until = Time(
+                    nanoseconds=(
+                        now.nanoseconds
+                        + int(self._door_retarget_backoff_sec * 1e9)),
+                    clock_type=now.clock_type)
+                self._nav_done = False
+                self._nav_failed = False
+                self._request_navigation_cancel_for_manual_control(
+                    'LiDAR-cleared Nav2 start-cell backoff')
+                self.get_logger().warn(
+                    f'Nav2 start cell recovery: rear LiDAR clearance '
+                    f'{rear_clearance:.2f}m >= {required_clearance:.2f}m; '
+                    'backing away briefly before replanning the locked blue door.')
+                return
+
+        if (
+                reason in ('nav2_failure', 'door_nav_stuck')
+                and self._nav_retry_count >= 2
+                and self.target_door is not None
+                and self.target_door.door_color == 'blue'
+                and self._start_local_obstacle_escape(
+                    f'repeated blue-door Nav2 failure ({reason})')):
+            return
 
         if (
                 reason == 'door_nav_stuck'
@@ -3438,12 +4394,31 @@ class StateMachineNode(Node):
                 if self.target_door.door_color == 'blue':
                     failed_door = self.target_door
                     failed_id = failed_door.door_id
+                    failed_method = str(
+                        getattr(
+                            failed_door,
+                            'handle_detection_method',
+                            '') or '').lower()
+                    projection_nav_failure = (
+                        failed_door.door_id.startswith('observed_blue_')
+                        and failed_method in (
+                            'direct_wall_projection',
+                            'observed_wall_projection',
+                            'observed_wall_memory',
+                            'observed_map_memory',
+                        ))
                     abandoned = self._record_observed_blue_door_failure(
                         failed_door,
                         failure_kind='approach',
                         require_fresh_retry=(
-                            reason == 'door_nav_stuck'
-                            and failed_door.door_id.startswith('observed_blue_')))
+                            projection_nav_failure
+                            or (
+                                reason == 'door_nav_stuck'
+                                and failed_door.door_id.startswith(
+                                    'observed_blue_'))),
+                        fresh_retry_reason=(
+                            'projection_nav_failure'
+                            if projection_nav_failure else ''))
                     self._clear_locked_blue_anchor()
                     self.target_door = None
                     self._nav_retry_count = 0
@@ -3470,8 +4445,19 @@ class StateMachineNode(Node):
                         self._door_identity_xy(self.target_door))):
                 failed_door = self.target_door
                 failed_id = failed_door.door_id
+                missing_live_after_alignment = (
+                    reason == 'door_not_aligned'
+                    and failed_door.door_id.startswith('observed_blue_')
+                    and not self._door_target_has_current_live_blue_evidence(
+                        failed_door,
+                        max(0.30, self._door_open_fresh_blue_min_confidence)))
                 abandoned = self._record_observed_blue_door_failure(
-                    failed_door, failure_kind='approach')
+                    failed_door,
+                    failure_kind='approach',
+                    require_fresh_retry=missing_live_after_alignment,
+                    fresh_retry_reason=(
+                        'fresh_open_confirmation_missing'
+                        if missing_live_after_alignment else ''))
                 if abandoned:
                     self._add_door_id_keys(self._failed_door_ids, failed_id)
                     self.get_logger().warn(
@@ -3512,7 +4498,7 @@ class StateMachineNode(Node):
 
         self._door_opening_in_progress = True
         req               = OpenDoor.Request()
-        req.door_id       = self.target_door.door_id
+        req.door_id       = self._door_open_request_id(self.target_door)
         req.handle_position = self.target_door.handle_position
         req.handle_detected = bool(
             getattr(self.target_door, 'handle_detected', False))
@@ -3531,6 +4517,28 @@ class StateMachineNode(Node):
         future = self.open_door_client.call_async(req)
         future.add_done_callback(self._door_open_result)
 
+    def _door_open_request_id(self, door: DoorInfo) -> str:
+        door_id = str(getattr(door, 'door_id', '') or '')
+        if door.door_color != 'blue' or not self._door_has_map_identity(door):
+            return door_id
+        try:
+            handle_xy = self._door_handle_xy(door)
+            handle_progress = self._axis_progress_xy(handle_xy[0], handle_xy[1])
+            handle_lateral = self._axis_lateral_xy(handle_xy[0], handle_xy[1])
+        except Exception:
+            return door_id
+        if not math.isfinite(handle_progress) or not math.isfinite(handle_lateral):
+            return door_id
+        return (
+            f'{door_id}__axis_'
+            f'{self._axis_hint_token(handle_progress)}_'
+            f'{self._axis_hint_token(handle_lateral)}')
+
+    @staticmethod
+    def _axis_hint_token(value: float) -> str:
+        sign = 'm' if value < 0.0 else 'p'
+        return sign + f'{abs(value):.2f}'.replace('.', 'p')
+
     def _door_open_result(self, future):
         self._door_opening_in_progress = False
         try:
@@ -3540,18 +4548,75 @@ class StateMachineNode(Node):
             self._handle_door_open_failure(f'service error: {e}')
             return
 
-        if result.success:
-            self._mark_door_opened(self.target_door)
+        result_message = str(getattr(result, 'message', '') or '')
+        idempotent_all_open = (
+            result.success
+            and 'already open' in result_message.lower()
+            and self.target_door is not None
+            and self.target_door.door_color == 'blue')
+
+        if idempotent_all_open:
+            self._mark_door_abandoned(self.target_door)
+            self._nav_retry_count = 0
+            self.get_logger().info(
+                f'중복 문 개방 요청 완료 처리: {self.target_door.door_id}  '
+                f'누적 개방 유지: {self._resolved_blue_door_count()}개')
+            self._transition(State.DOOR_OPENED)
+        elif result.success:
+            opened_door = self.target_door
+            if self._use_sim_open_feedback_for_memory:
+                opened_door = self._door_with_sim_open_feedback(
+                    self.target_door, result_message)
+            if opened_door is None:
+                self.get_logger().error('문 개방 성공 응답을 받았지만 target_door가 없음.')
+                self._transition(State.EMERGENCY_STOP)
+                return
+            self._mark_door_opened(opened_door)
             if self.target_door is not None:
                 self._clear_observed_blue_door_failures(self.target_door)
             self._nav_retry_count = 0   # 성공 시 재시도 카운터 리셋
             self.get_logger().info(
-                f'문 개방 성공: {self.target_door.door_id}  '
+                f'문 개방 성공: {opened_door.door_id}  '
                 f'누적 개방: {self._resolved_blue_door_count()}개')
             self._transition(State.DOOR_OPENED)
         else:
             self.get_logger().error(f'문 개방 실패: {result.message}')
             self._handle_door_open_failure(result.message)
+
+    def _door_with_sim_open_feedback(
+            self,
+            door: DoorInfo | None,
+            result_message: str) -> DoorInfo | None:
+        if door is None or door.door_color != 'blue':
+            return door
+        match = re.search(
+            r'(?:^|\s)sim_xy=([-+]?\d+(?:\.\d+)?),([-+]?\d+(?:\.\d+)?)',
+            result_message or '')
+        if match is None:
+            return door
+        try:
+            sim_x = float(match.group(1))
+            sim_y = float(match.group(2))
+        except ValueError:
+            return door
+        if not (math.isfinite(sim_x) and math.isfinite(sim_y)):
+            return door
+        adjusted = copy.deepcopy(door)
+        adjusted.door_pose.header.frame_id = 'map'
+        adjusted.door_pose.pose.position.x = sim_x
+        adjusted.door_pose.pose.position.y = sim_y
+        adjusted.handle_position.header.frame_id = 'map'
+        adjusted.handle_position.point.x = sim_x
+        adjusted.handle_position.point.y = sim_y
+        adjusted.handle_detection_method = 'sim_physical_feedback'
+        adjusted.handle_confidence = max(
+            float(getattr(adjusted, 'handle_confidence', 0.0)),
+            float(getattr(adjusted, 'confidence', 0.0)))
+        self.get_logger().info(
+            f'Simulation opened-door feedback aligned FSM memory: '
+            f'{door.door_id} -> ({sim_x:.2f}, {sim_y:.2f}).',
+            throttle_duration_sec=3.0)
+        return adjusted
 
     def _on_door_opened(self):
         # 즉시 다음 파란 문 탐색으로 전환
@@ -3576,7 +4641,6 @@ class StateMachineNode(Node):
                 or self._post_open_side_retreat_m <= 0.0):
             self._finish_post_open_side_retreat('disabled')
             return False
-
         pose = self._current_map_pose()
         if pose is None:
             self.cmd_vel_pub.publish(Twist())
@@ -3799,6 +4863,8 @@ class StateMachineNode(Node):
         opened_count = self._opened_exit_ready_count()
         if opened_count <= 0:
             return False
+        if opened_count >= 1:
+            return True
         if self._exit_xy_for_blue_candidate_filter() is not None:
             return True
         if self._min_opened_doors_before_exit > 0:
@@ -3912,6 +4978,10 @@ class StateMachineNode(Node):
                 recenter_progress, lateral, explore_limit_progress, min_forward_step)
 
         preferred_lane_sign, preferred_reason = self._preferred_lane_sign()
+        blue_lane_active = (
+            preferred_lane_sign != 0.0
+            and preferred_reason.startswith('가장 가까운 파란 문')
+        )
         radar_lane_sign, radar_reason = self._radar_clear_lane_sign()
         front_avoid_sign, front_avoid_reason = self._front_obstacle_avoid_lane_sign(
             x, y, yaw)
@@ -3955,6 +5025,17 @@ class StateMachineNode(Node):
                 'LiDAR+camera 측면 스캔을 우선합니다.')
             return False
         step_m = self._explore_nav_step_m
+        if self._opened_blue_door_positions and not blue_lane_active:
+            post_open_scan_step = max(
+                min_forward_step,
+                min(
+                    self._explore_nav_step_m,
+                    max(0.55, self._axis_door_side_standoff_m * 0.75)))
+            if post_open_scan_step < step_m:
+                step_m = post_open_scan_step
+                lane_reason += (
+                    f' | 개방 후 미탐색 문 확인을 위해 전진 스캔 간격 '
+                    f'{step_m:.2f}m')
         if (math.isfinite(selected_clearance)
                 and selected_clearance < self._explore_nav_reduce_step_clearance_m):
             safe_step = selected_clearance - self._explore_nav_goal_clearance_margin_m
@@ -4316,7 +5397,9 @@ class StateMachineNode(Node):
                     target,
                     failure_kind='approach',
                     require_fresh_retry=(
-                        '현재 카메라 blue evidence 없음' in invalid_reason),
+                        self._blue_target_invalid_reason_requires_fresh_retry(
+                            invalid_reason)),
+                    fresh_retry_reason=invalid_reason,
                     log=False)
                 if abandoned:
                     self._add_door_id_keys(self._failed_door_ids, target_id)
@@ -4328,7 +5411,10 @@ class StateMachineNode(Node):
             self.get_logger().warn(
                 f'보류 중이던 파란 문 목표 {target_id} 제외: '
                 f'{invalid_reason}. 새 관측 후보를 다시 선택합니다.')
-            return False
+            if self._send_explore_waypoint():
+                return True
+            self._rotate_to_scan()
+            return True
         if self._defer_far_target_door(target):
             return True
 
@@ -4348,10 +5434,29 @@ class StateMachineNode(Node):
         now = self.get_clock().now()
         target_key = self._pre_nav_scan_key(target)
         if self._pre_nav_scan_start_time is None:
-            self._pending_nav_scan_target_id = target_key
-            self._pre_nav_scan_start_time = now
-            self.get_logger().info(
-            f'LiDAR+camera segment map 사전 스캔 시작: {target.door_id}')
+            last_start = self._last_pre_nav_scan_start_time
+            resumed = False
+            if (
+                    self._last_pre_nav_scan_key == target_key
+                    and last_start is not None):
+                elapsed_from_last = (now - last_start).nanoseconds / 1e9
+                resume_window_sec = max(0.0, self._pre_nav_scan_sec) + 2.0
+                if 0.0 <= elapsed_from_last <= resume_window_sec:
+                    self._pending_nav_scan_target_id = target_key
+                    self._pre_nav_scan_start_time = last_start
+                    resumed = True
+                    self.get_logger().debug(
+                        f'LiDAR+camera segment map 사전 스캔 재개: '
+                        f'{target.door_id}',
+                        throttle_duration_sec=2.0)
+            if not resumed:
+                self._pending_nav_scan_target_id = target_key
+                self._pre_nav_scan_start_time = now
+                self._last_pre_nav_scan_key = target_key
+                self._last_pre_nav_scan_start_time = now
+                self.get_logger().info(
+                    f'LiDAR+camera segment map 사전 스캔 시작: '
+                    f'{target.door_id}')
         elif self._pending_nav_scan_target_id != target_key:
             # The same physical door can be re-issued with a slightly different
             # projected map key while the robot is waiting. Keep the locked
@@ -4403,9 +5508,10 @@ class StateMachineNode(Node):
             if target.door_id.startswith('observed_blue_')
             else xy)
         exit_sensitive_target = (
-            self._is_blue_xy_in_pre_exit_zone(sensitivity_xy)
-            or self._is_blue_xy_in_exit_search_tail(sensitivity_xy)
-            or self._is_blue_xy_near_detected_exit(sensitivity_xy))
+            self._blue_xy_requires_pre_nav_exit_fresh_evidence(sensitivity_xy))
+        if self._exit_sensitive_observed_blue_target_lacks_current_evidence(
+                target, sensitivity_xy):
+            return '출구 근처 observed 후보지만 현재 카메라 blue evidence 없음'
         if (
                 exit_sensitive_target
                 and self._door_open_requires_fresh_blue
@@ -4438,6 +5544,16 @@ class StateMachineNode(Node):
             else:
                 return '출구/열린 문/실패 후보 억제 조건과 충돌'
         if self._is_blue_candidate_blocked_by_red(target):
+            if (
+                    self._opened_blue_door_count() >= 2
+                    and target.door_id.startswith('observed_blue_')
+                    and not bool(getattr(target, 'handle_detected', False))
+                    and not self._observed_blue_target_has_same_side_live_wall_evidence(
+                        target,
+                        min_confidence=max(
+                            0.40,
+                            self._door_open_fresh_blue_min_confidence))):
+                return '사전 스캔 중 빨간문 근처 projection 후보'
             if (
                     self._blue_target_has_recheckable_unopened_map_memory(target)
                     or self._pre_exit_live_side_wall_blue_overrides_memory_conflict(target)):
@@ -4463,6 +5579,8 @@ class StateMachineNode(Node):
             return '이미 접근 실패로 제외된 물리 문'
         if self._blue_target_station_behind_opened_floor(target):
             return '이미 연 가장 앞 파란문보다 뒤쪽의 문 station 후보'
+        if not self._is_blue_door_at_valid_wall_position(target):
+            return '벽면 문 위치 조건 불일치'
         handle_reason = self._direct_blue_target_handle_invalid_reason(target)
         if handle_reason:
             return f'direct 파란문 손잡이 검증 실패: {handle_reason}'
@@ -4476,9 +5594,10 @@ class StateMachineNode(Node):
             if target.door_id.startswith('observed_blue_')
             else xy)
         exit_sensitive_target = (
-            self._is_blue_xy_in_pre_exit_zone(sensitivity_xy)
-            or self._is_blue_xy_in_exit_search_tail(sensitivity_xy)
-            or self._is_blue_xy_near_detected_exit(sensitivity_xy))
+            self._blue_xy_requires_pre_nav_exit_fresh_evidence(sensitivity_xy))
+        if self._exit_sensitive_observed_blue_target_lacks_current_evidence(
+                target, sensitivity_xy):
+            return '출구 근처 observed 후보지만 현재 카메라 blue evidence 없음'
         if (
                 exit_sensitive_target
                 and self._door_open_requires_fresh_blue
@@ -4512,6 +5631,16 @@ class StateMachineNode(Node):
                 return '출구/열린 문/실패 후보 억제 조건과 충돌'
         if self._is_blue_candidate_blocked_by_red(target):
             if (
+                    self._opened_blue_door_count() >= 2
+                    and target.door_id.startswith('observed_blue_')
+                    and not bool(getattr(target, 'handle_detected', False))
+                    and not self._observed_blue_target_has_same_side_live_wall_evidence(
+                        target,
+                        min_confidence=max(
+                            0.40,
+                            self._door_open_fresh_blue_min_confidence))):
+                return '사전 스캔 중 빨간문 근처 projection 후보'
+            if (
                     self._blue_target_has_recheckable_unopened_map_memory(target)
                     or self._pre_exit_live_side_wall_blue_overrides_memory_conflict(target)):
                 self.get_logger().info(
@@ -4531,6 +5660,26 @@ class StateMachineNode(Node):
             '최종 스캔 중 출구 근처 direct blue confidence 부족',
         )
         return not any(fragment in reason for fragment in non_counting_fragments)
+
+    def _blue_target_invalid_reason_requires_fresh_retry(
+            self, reason: str) -> bool:
+        fresh_retry_fragments = (
+            '현재 카메라 blue evidence 없음',
+            '관측 색상 메모리에서 비파란 문 우세',
+            '벽면 문 위치 조건 불일치',
+            '문 손잡이로 보기엔 중앙에 가까움',
+            '조작에 사용할 handle 좌표가 관측된 문 벽 band 밖에 있음',
+        )
+        return any(fragment in reason for fragment in fresh_retry_fragments)
+
+    def _blue_target_invalid_reason_requires_valid_wall_retry(
+            self, reason: str) -> bool:
+        wall_retry_fragments = (
+            '벽면 문 위치 조건 불일치',
+            '문 손잡이로 보기엔 중앙에 가까움',
+            '조작에 사용할 handle 좌표가 관측된 문 벽 band 밖에 있음',
+        )
+        return any(fragment in reason for fragment in wall_retry_fragments)
 
     def _final_scan_low_confidence_blue_reason(self, door: DoorInfo | None) -> str:
         if door is None or door.door_color != 'blue':
@@ -4572,7 +5721,36 @@ class StateMachineNode(Node):
             return '관측된 비상구 직전 tail 후보지만 반복 관측 메모리 부족'
         return ''
 
+    def _retire_exit_tail_blue_target(self, target: DoorInfo, reason: str):
+        if (
+                target.door_color != 'blue'
+                or not self._door_has_map_identity(target)
+                or '관측된 비상구' not in reason):
+            return
+        if (
+                self._blue_target_has_recheckable_unopened_map_memory(target)
+                and not self._is_blue_xy_at_or_after_observed_exit(
+                    self._door_identity_xy(target))):
+            return
+        cluster = self._observed_cluster_for_blue_door(
+            target,
+            merge_dist=max(
+                self._observed_candidate_merge_dist(),
+                self._door_open_fresh_blue_max_dist_m))
+        if cluster is None:
+            cluster = self._find_observed_blue_cluster(
+                self._door_identity_xy(target),
+                merge_dist=self._observed_candidate_merge_dist())
+        if cluster is None:
+            return
+        self._mark_observed_blue_cluster_abandoned(
+            cluster,
+            f'{reason}: 출구 이후/tail 후보가 반복 재선택되지 않도록 폐기',
+            mark_physical=False)
+
     def _pre_nav_scan_key(self, target: DoorInfo) -> str:
+        if target.door_color == 'blue' and target.door_id.startswith('observed_blue_'):
+            return f'{target.door_color}:{target.door_id}'
         if target.door_color == 'blue' and self._door_has_map_identity(target):
             x, y = self._door_identity_xy(target)
             progress = self._axis_progress_xy(x, y)
@@ -4645,22 +5823,12 @@ class StateMachineNode(Node):
                 if self._no_blue_exit_mode():
                     progress = self._axis_progress_xy(pose[0], pose[1])
                     exit_progress = self._axis_progress_xy(xy[0], xy[1])
-                    observed_exit_gate = max(
-                        max(0.0, self._observed_exit_explore_grace_m),
-                        max(0.0, self._exit_visible_nav_max_dist_m),
-                        max(0.0, self._front_wall_exit_max_range_m))
-                    observed_exit_min_progress = max(
-                        0.0, exit_progress - observed_exit_gate)
                     min_forward = max(0.0, self._no_blue_exit_min_robot_forward_m)
-                    required_progress = min_forward
-                    if observed_exit_gate > 0.0:
-                        required_progress = min(
-                            required_progress, observed_exit_min_progress)
-                    if progress < required_progress:
+                    if progress < min_forward:
                         self.get_logger().info(
                             f'Exit scan deferred in no-blue mode: '
                             f'progress={progress:.2f}m < '
-                            f'{required_progress:.2f}m '
+                            f'{min_forward:.2f}m '
                             f'(observed_exit_progress={exit_progress:.2f}m, '
                             f'distance={distance_to_exit:.2f}m). '
                             'Continuing observation-based blue-door search.',
@@ -4696,18 +5864,76 @@ class StateMachineNode(Node):
                 throttle_duration_sec=3.0)
             return True
 
-        failure_limit = max(1, self._max_explore_nav_failures_before_exit)
-        if self._explore_nav_failure_count >= failure_limit:
-            self.get_logger().warn(
-                f'Exit scan allowed after repeated explore navigation '
-                f'failures ({self._explore_nav_failure_count}/{failure_limit}); '
-                'continuing with a final observation scan from the current pose.')
-            return True
-
         progress = self._axis_progress_xy(pose[0], pose[1])
         progress_floor = self._farthest_resolved_blue_progress()
         if progress_floor is not None and progress < progress_floor:
             progress = progress_floor
+        rescan_floor = self._projection_failure_rescan_required_progress()
+        if rescan_floor is not None and progress < rescan_floor:
+            self.get_logger().info(
+                'Exit scan deferred: projection 기반 파란문 후보 실패 이후 '
+                '전방 구간을 충분히 재관측하지 않았습니다 '
+                f'(progress={progress:.2f}, required={rescan_floor:.2f}).',
+                throttle_duration_sec=3.0)
+            return False
+        stored_exit_xy = self._last_valid_exit_xy
+        if stored_exit_xy is None:
+            stored_exit_xy = self._provisional_exit_xy_for_blue_suppression()
+        if stored_exit_xy is None:
+            stored_exit_xy = self._semantic_green_exit_xy()
+        if stored_exit_xy is not None:
+            exit_progress = self._axis_progress_xy(
+                stored_exit_xy[0], stored_exit_xy[1])
+            stop_before_exit = max(0.45, self._exit_nav_standoff_m)
+            relaxed_after_opened = self._exit_candidate_relaxed_after_opened_scan(
+                stored_exit_xy)
+            if relaxed_after_opened:
+                covered_exit_gap = exit_progress - progress
+                required_scan_window = max(
+                    2.5,
+                    self._explore_nav_scan_lookahead_m
+                    + self._observed_exit_explore_grace_m,
+                    self._exit_nav_standoff_m + self._observed_exit_explore_grace_m)
+                if covered_exit_gap > required_scan_window:
+                    farthest_opened = self._farthest_resolved_blue_progress()
+                    if farthest_opened is not None:
+                        observed_after_last_opened = progress - farthest_opened
+                        min_observed_after_opened = max(
+                            2.4,
+                            self._exit_nav_standoff_m
+                            + self._observed_exit_explore_grace_m,
+                            self._detected_exit_min_robot_past_opened_blue_m)
+                        if (
+                                observed_after_last_opened >= min_observed_after_opened
+                                and not self._stable_unopened_observed_blue_targets()):
+                            self.get_logger().info(
+                                'Exit scan still deferred despite scanning past '
+                                'the farthest opened blue door: the observed '
+                                'green exit is farther than the current blue-door '
+                                'search window, so the robot will keep exploring '
+                                'the remaining corridor '
+                                f'(observed_after_last_opened='
+                                f'{observed_after_last_opened:.2f}/'
+                                f'{min_observed_after_opened:.2f}m).',
+                                throttle_duration_sec=3.0)
+                    self.get_logger().info(
+                        'Exit scan deferred: green exit is visible but the '
+                        'corridor before it has not been observed closely '
+                        f'enough for missed blue doors '
+                        f'(progress={progress:.2f}, '
+                        f'exit_progress={exit_progress:.2f}, '
+                        f'gap={covered_exit_gap:.2f}/'
+                        f'{required_scan_window:.2f}m).',
+                        throttle_duration_sec=3.0)
+                    return False
+            if (
+                    progress >= exit_progress - stop_before_exit
+                    or relaxed_after_opened):
+                self.get_logger().info(
+                    'Exit scan allowed from accumulated green-exit memory: '
+                    f'progress={progress:.2f}, exit_progress={exit_progress:.2f}.',
+                    throttle_duration_sec=3.0)
+                return True
         exit_xy = self._exit_xy_for_blue_candidate_filter()
         if exit_xy is None:
             exit_xy = self._semantic_green_exit_xy()
@@ -4721,26 +5947,6 @@ class StateMachineNode(Node):
                     f'stop_before={stop_before_exit:.2f}.',
                     throttle_duration_sec=3.0)
                 return True
-            if self._opened_blue_door_positions:
-                farthest_opened = max(
-                    self._axis_progress_xy(x, y)
-                    for x, y in self._opened_blue_door_positions)
-                post_open_scan = max(
-                    0.35,
-                    self._explore_nav_min_step_m + 0.15)
-                if self._max_explore_past_last_opened_blue_m > 0.0:
-                    post_open_scan = min(
-                        post_open_scan,
-                        self._max_explore_past_last_opened_blue_m)
-                if progress >= farthest_opened + post_open_scan:
-                    self.get_logger().info(
-                        f'Exit scan allowed after post-open blue search: '
-                        f'progress={progress:.2f}, '
-                        f'farthest_opened={farthest_opened:.2f}, '
-                        f'required_after={post_open_scan:.2f}.',
-                        throttle_duration_sec=3.0)
-                    return True
-
         limit = self._explore_limit_progress()
         if not math.isfinite(limit):
             return False
@@ -4762,6 +5968,10 @@ class StateMachineNode(Node):
         return True
 
     def _ready_to_start_navigation(self) -> bool:
+        if not self._nav_start_center_recovery_enabled:
+            self._nav_start_pose_recovery_active = False
+            self._nav_start_center_recovery_abort_reason = ''
+            return True
         pose = self._current_map_pose()
         if pose is None:
             self._nav_start_pose_recovery_active = False
@@ -4770,8 +5980,17 @@ class StateMachineNode(Node):
         lateral = self._axis_lateral_xy(x, y)
         lateral_error = lateral - self._explore_center_y
         heading_error = abs(self._normalize_angle(self._mission_forward_yaw() - yaw))
-        if abs(lateral_error) > self._nav_start_max_abs_y_m:
+        recovery_target_abs = max(
+            0.05, self._nav_start_center_recovery_target_abs_y_m)
+        needs_center_recovery = (
+            abs(lateral_error) > self._nav_start_max_abs_y_m
+            or (
+                self._nav_start_pose_recovery_active
+                and abs(lateral_error) > recovery_target_abs))
+        if needs_center_recovery:
             if self._run_nav_start_center_recovery(pose, lateral_error):
+                return False
+            if self._handle_nav_start_recovery_abort():
                 return False
             self.get_logger().info(
                 f'Nav2 목표 대기: 중앙 복귀 중 '
@@ -4781,10 +6000,52 @@ class StateMachineNode(Node):
         self._nav_start_pose_recovery_active = False
         if heading_error > self._nav_start_max_heading_error:
             self.get_logger().info(
-                f'Nav2 목표 대기: 진행 방향 정렬 중 '
+                f'Nav2 목표 전송: 시작 heading 차이는 Nav2 회전 제어로 처리 '
                 f'(heading_error={math.degrees(heading_error):.0f}deg)',
                 once=True)
+        return True
+
+    def _handle_nav_start_recovery_abort(self) -> bool:
+        reason = self._nav_start_center_recovery_abort_reason
+        if not reason:
             return False
+        self._nav_start_center_recovery_abort_reason = ''
+
+        target = self.target_door
+        if target is None or target.door_color != 'blue':
+            self.get_logger().warn(
+                f'Nav2 시작 자세 복구 시간 초과: {reason} '
+                '현재 목표 없이 재스캔합니다.',
+                throttle_duration_sec=2.0)
+            self.cmd_vel_pub.publish(Twist())
+            return True
+
+        failed_id = target.door_id
+        abandoned = self._record_observed_blue_door_failure(
+            target,
+            failure_kind='approach',
+            require_fresh_retry=True,
+            fresh_retry_reason='nav_start_center_recovery_timeout',
+            log=False)
+        if abandoned:
+            self._add_door_id_keys(self._failed_door_ids, failed_id)
+            self.get_logger().warn(
+                f'파란 문 시작 자세 복구 반복 실패: {failed_id}. '
+                '접근 실패 예산을 채워 해당 후보를 제외합니다.')
+        else:
+            self.get_logger().warn(
+                f'파란 문 시작 자세 복구 시간 초과: {failed_id}. '
+                f'{reason} 같은 위치를 계속 밀지 않고 재관측/재계획합니다.')
+
+        self._pre_nav_scan_start_time = None
+        self._pending_nav_scan_target_id = None
+        self._clear_locked_blue_anchor()
+        self.target_door = None
+        self._nav_retry_count = 0
+        self._door_opening_in_progress = False
+        self._explore_start_time = self.get_clock().now()
+        self.cmd_vel_pub.publish(Twist())
+        self._transition(State.EXPLORING)
         return True
 
     def _run_nav_start_center_recovery(
@@ -4793,17 +6054,29 @@ class StateMachineNode(Node):
             self._nav_start_pose_recovery_active = False
             self._nav_start_center_recovery_backoff_until = None
             self._nav_start_center_recovery_start_time = None
+            self._nav_start_center_recovery_axis_escape_start_xy = None
+            self._nav_start_center_recovery_axis_escape_used = False
+            self._nav_start_center_recovery_motion_ref_xy = None
+            self._nav_start_center_recovery_motion_ref_time = None
             return False
         target_abs = max(0.05, self._nav_start_center_recovery_target_abs_y_m)
         if abs(lateral_error) <= target_abs:
             self._nav_start_pose_recovery_active = False
             self._nav_start_center_recovery_backoff_until = None
             self._nav_start_center_recovery_start_time = None
+            self._nav_start_center_recovery_axis_escape_start_xy = None
+            self._nav_start_center_recovery_axis_escape_used = False
+            self._nav_start_center_recovery_motion_ref_xy = None
+            self._nav_start_center_recovery_motion_ref_time = None
             return False
         now = self.get_clock().now()
         if (not self._nav_start_pose_recovery_active
                 or self._nav_start_center_recovery_start_time is None):
             self._nav_start_center_recovery_start_time = now
+            self._nav_start_center_recovery_axis_escape_start_xy = None
+            self._nav_start_center_recovery_axis_escape_used = False
+            self._nav_start_center_recovery_motion_ref_xy = None
+            self._nav_start_center_recovery_motion_ref_time = None
         elif self._nav_start_center_recovery_max_sec > 0.0:
             elapsed = (
                 now - self._nav_start_center_recovery_start_time
@@ -4813,6 +6086,10 @@ class StateMachineNode(Node):
                 self._nav_start_pose_recovery_active = False
                 self._nav_start_center_recovery_backoff_until = None
                 self._nav_start_center_recovery_start_time = None
+                self._nav_start_center_recovery_axis_escape_start_xy = None
+                self._nav_start_center_recovery_axis_escape_used = False
+                self._nav_start_center_recovery_motion_ref_xy = None
+                self._nav_start_center_recovery_motion_ref_time = None
                 self._nav_start_center_recovery_abort_reason = (
                     f'elapsed={elapsed:.1f}s, lateral_error={lateral_error:.2f}m, '
                     f'target_abs={target_abs:.2f}m.')
@@ -4829,6 +6106,72 @@ class StateMachineNode(Node):
                     throttle_duration_sec=0.8)
                 return True
             self._nav_start_center_recovery_backoff_until = None
+
+        if self._nav_start_center_recovery_axis_escape_start_xy is not None:
+            start_x, start_y = self._nav_start_center_recovery_axis_escape_start_xy
+            axis_escape_distance = max(
+                0.0,
+                self._axis_progress_xy(pose[0], pose[1])
+                - self._axis_progress_xy(start_x, start_y))
+            required_escape_distance = 0.55
+            if axis_escape_distance >= required_escape_distance:
+                self._nav_start_center_recovery_axis_escape_start_xy = None
+                self._nav_start_center_recovery_motion_ref_xy = None
+                self._nav_start_center_recovery_motion_ref_time = None
+                self.get_logger().warn(
+                    f'Nav2 시작 위치 진행축 이탈 완료: '
+                    f'{axis_escape_distance:.2f}m 이동. 중앙 복귀를 재개합니다.')
+            else:
+                _, _, yaw = pose
+                forward_yaw = self._mission_forward_yaw()
+                yaw_error = self._normalize_angle(forward_yaw - yaw)
+                twist = Twist()
+                escape_yaw_tolerance = math.radians(18.0)
+                if abs(yaw_error) > escape_yaw_tolerance:
+                    twist.angular.z = math.copysign(
+                        abs(self._nav_start_center_recovery_angular_vel),
+                        yaw_error)
+                else:
+                    front_clearance = (
+                        self._sector_min(
+                            self._latest_scan,
+                            -self._explore_front_angle,
+                            self._explore_front_angle)
+                        if self._latest_scan is not None
+                        else float('inf'))
+                    required_clearance = max(
+                        0.55,
+                        self._explore_obstacle_stop_m)
+                    if front_clearance < required_clearance:
+                        self.cmd_vel_pub.publish(Twist())
+                        self._nav_start_pose_recovery_active = False
+                        self._nav_start_center_recovery_backoff_until = None
+                        self._nav_start_center_recovery_start_time = None
+                        self._nav_start_center_recovery_axis_escape_start_xy = None
+                        self._nav_start_center_recovery_axis_escape_used = False
+                        self._nav_start_center_recovery_motion_ref_xy = None
+                        self._nav_start_center_recovery_motion_ref_time = None
+                        self._nav_start_center_recovery_abort_reason = (
+                            '진행축 이탈 경로도 LiDAR 장애물로 막힘 '
+                            f'(front={front_clearance:.2f}m, '
+                            f'required={required_clearance:.2f}m).')
+                        return False
+                    twist.linear.x = abs(
+                        self._nav_start_center_recovery_linear_vel)
+                    angular_limit = abs(
+                        self._nav_start_center_recovery_angular_vel)
+                    twist.angular.z = max(
+                        -angular_limit,
+                        min(angular_limit, 0.8 * yaw_error))
+                self.cmd_vel_pub.publish(twist)
+                self.get_logger().warn(
+                    '중앙 복귀 경로 장애물 우회: 복도 진행축으로 먼저 '
+                    f'이탈 중 ({axis_escape_distance:.2f}/'
+                    f'{required_escape_distance:.2f}m, '
+                    f'yaw_error={math.degrees(yaw_error):.0f}deg, '
+                    f'cmd=({twist.linear.x:.2f}, {twist.angular.z:.2f}))',
+                    throttle_duration_sec=1.0)
+                return True
 
         was_active = self._nav_start_pose_recovery_active
         reverse_available = (
@@ -4860,9 +6203,87 @@ class StateMachineNode(Node):
         twist = Twist()
         yaw_tolerance = max(0.01, self._nav_start_center_recovery_yaw_tolerance)
         if abs(yaw_error) > yaw_tolerance:
+            self._nav_start_center_recovery_motion_ref_xy = None
+            self._nav_start_center_recovery_motion_ref_time = None
             twist.angular.z = math.copysign(
                 abs(self._nav_start_center_recovery_angular_vel), yaw_error)
         else:
+            front_clearance = (
+                self._sector_min(
+                    self._latest_scan,
+                    -self._explore_front_angle,
+                    self._explore_front_angle)
+                if self._latest_scan is not None
+                else float('inf'))
+            required_clearance = max(0.55, self._explore_obstacle_stop_m)
+            if front_clearance < required_clearance:
+                if not self._nav_start_center_recovery_axis_escape_used:
+                    self._nav_start_center_recovery_axis_escape_used = True
+                    self._nav_start_center_recovery_axis_escape_start_xy = (
+                        pose[0], pose[1])
+                    self.get_logger().warn(
+                        'Nav2 중앙 복귀 직선이 LiDAR 장애물로 막혀 '
+                        '복도 진행축 우회를 먼저 수행합니다: '
+                        f'front={front_clearance:.2f}m, '
+                        f'required={required_clearance:.2f}m.')
+                    return self._run_nav_start_center_recovery(
+                        pose, lateral_error)
+                self.cmd_vel_pub.publish(Twist())
+                self._nav_start_pose_recovery_active = False
+                self._nav_start_center_recovery_backoff_until = None
+                self._nav_start_center_recovery_start_time = None
+                self._nav_start_center_recovery_axis_escape_start_xy = None
+                self._nav_start_center_recovery_axis_escape_used = False
+                self._nav_start_center_recovery_motion_ref_xy = None
+                self._nav_start_center_recovery_motion_ref_time = None
+                self._nav_start_center_recovery_abort_reason = (
+                    '진행축 우회 후 중앙 복귀 경로가 다시 막힘 '
+                    f'(front={front_clearance:.2f}m, '
+                    f'required={required_clearance:.2f}m).')
+                return False
+            if (
+                    self._nav_start_center_recovery_motion_ref_xy is None
+                    or self._nav_start_center_recovery_motion_ref_time is None):
+                self._nav_start_center_recovery_motion_ref_xy = (pose[0], pose[1])
+                self._nav_start_center_recovery_motion_ref_time = now
+            else:
+                motion_elapsed = (
+                    now - self._nav_start_center_recovery_motion_ref_time
+                ).nanoseconds / 1e9
+                motion_distance = math.hypot(
+                    pose[0] - self._nav_start_center_recovery_motion_ref_xy[0],
+                    pose[1] - self._nav_start_center_recovery_motion_ref_xy[1])
+                if motion_elapsed >= 1.6:
+                    if motion_distance < 0.035:
+                        if not self._nav_start_center_recovery_axis_escape_used:
+                            self._nav_start_center_recovery_axis_escape_used = True
+                            self._nav_start_center_recovery_axis_escape_start_xy = (
+                                pose[0], pose[1])
+                            self._nav_start_center_recovery_motion_ref_xy = None
+                            self._nav_start_center_recovery_motion_ref_time = None
+                            self.get_logger().warn(
+                                'Nav2 중앙 복귀 명령에 위치 변화가 없어 '
+                                '복도 진행축 우회로 전환합니다: '
+                                f'moved={motion_distance:.3f}m/'
+                                f'{motion_elapsed:.1f}s.')
+                            return self._run_nav_start_center_recovery(
+                                pose, lateral_error)
+                        self.cmd_vel_pub.publish(Twist())
+                        self._nav_start_pose_recovery_active = False
+                        self._nav_start_center_recovery_backoff_until = None
+                        self._nav_start_center_recovery_start_time = None
+                        self._nav_start_center_recovery_axis_escape_start_xy = None
+                        self._nav_start_center_recovery_axis_escape_used = False
+                        self._nav_start_center_recovery_motion_ref_xy = None
+                        self._nav_start_center_recovery_motion_ref_time = None
+                        self._nav_start_center_recovery_abort_reason = (
+                            '진행축 우회 후 중앙 복귀 명령에도 위치 변화 없음 '
+                            f'(moved={motion_distance:.3f}m/'
+                            f'{motion_elapsed:.1f}s).')
+                        return False
+                    self._nav_start_center_recovery_motion_ref_xy = (
+                        pose[0], pose[1])
+                    self._nav_start_center_recovery_motion_ref_time = now
             twist.linear.x = abs(self._nav_start_center_recovery_linear_vel)
             angular_limit = abs(self._nav_start_center_recovery_angular_vel)
             twist.angular.z = max(-angular_limit, min(angular_limit, 0.8 * yaw_error))
@@ -4932,6 +6353,7 @@ class StateMachineNode(Node):
                 and (
                     opened_progress_floor is None
                     or self._door_station_progress(d) > opened_progress_floor
+                    or self._observed_blue_door_is_stable_unopened_revisit(d)
                 )
             ]
             if near_revisit:
@@ -4943,11 +6365,9 @@ class StateMachineNode(Node):
                 return combined
 
             # A stable observed_blue_* cluster means the robot has mapped an
-            # unopened physical blue door. Keep it selectable only while it is
-            # still ahead of the last physically opened station. Once a door has
-            # been opened, candidates behind that progress are usually stale
-            # re-observations from the scan history and can pull the robot back
-            # into already-cleared side-wall space.
+            # unopened physical blue door. It may be behind the current robot
+            # progress if the first sweep missed it, so keep stable revisit
+            # candidates selectable until they are opened or explicitly abandoned.
             revisit = [
                 d for d in candidates
                 if d.door_id.startswith('observed_blue_')
@@ -4955,6 +6375,7 @@ class StateMachineNode(Node):
                 and (
                     opened_progress_floor is None
                     or self._door_station_progress(d) > opened_progress_floor
+                    or self._observed_blue_door_is_stable_unopened_revisit(d)
                 )
             ]
             if revisit:
@@ -5095,7 +6516,10 @@ class StateMachineNode(Node):
             return
 
         if (self._active_exit_goal is not None
-                and (self._nav_failed or self._nav_start_pose_recovery_active)
+                and (
+                    self._nav_failed
+                    or self._nav_start_pose_recovery_active
+                    or self._exit_obstacle_recovery_start_time is not None)
                 and self._recover_exit_nav_start_if_needed()):
             return
 
@@ -5107,6 +6531,17 @@ class StateMachineNode(Node):
                 self._start_exit_crossing()
         elif self._nav_failed:
             if self._active_exit_goal is not None:
+                self._record_exit_nav_failure_for_current_goal()
+                if self._exit_nav_failure_allows_direct_crossing():
+                    self._nav_failed = False
+                    self._exit_force_direct_crossing = True
+                    self._prepare_observed_exit_direct_crossing_goal()
+                    self.get_logger().warn(
+                        'Observed exit Nav2 alignment failed repeatedly after '
+                        'all currently mapped blue doors were resolved; '
+                        'finishing with short odom-based exit crossing.')
+                    self._start_exit_crossing()
+                    return
                 if not self._ready_for_direct_exit_crossing():
                     if self._exit_retry_ready():
                         self._nav_failed = False
@@ -5128,10 +6563,34 @@ class StateMachineNode(Node):
                 self._send_exit_goal()
 
     def _recover_exit_nav_start_if_needed(self) -> bool:
+        if not self._nav_start_center_recovery_enabled:
+            self._nav_start_pose_recovery_active = False
+            self._nav_start_center_recovery_abort_reason = ''
+            return False
         pose = self._current_map_pose()
         if pose is None:
             self._nav_start_pose_recovery_active = False
             return False
+        if self._continue_exit_obstacle_recovery(pose):
+            return True
+        if self._nav_failed and self._latest_scan is not None:
+            front_min = self._sector_min(
+                self._latest_scan,
+                -self._explore_front_angle,
+                self._explore_front_angle)
+            if front_min < self._exit_nav_obstacle_recovery_trigger_m:
+                self._nav_failed = False
+                self._request_navigation_cancel_for_manual_control(
+                    'LiDAR-cleared exit start-cell recovery')
+                self._exit_obstacle_recovery_start_time = self.get_clock().now()
+                self._exit_obstacle_recovery_start_progress = (
+                    self._axis_progress_xy(pose[0], pose[1]))
+                self.get_logger().warn(
+                    'Exit Nav2 start cell is blocked by a nearby obstacle; '
+                    'using the live LiDAR clear side for a bounded escape '
+                    f'before replanning (front={front_min:.2f}m).')
+                self._rotate_to_scan()
+                return True
         x, y, _yaw = pose
         lateral = self._axis_lateral_xy(x, y)
         lateral_error = lateral - self._explore_center_y
@@ -5149,7 +6608,59 @@ class StateMachineNode(Node):
         self._send_exit_goal()
         return True
 
+    def _continue_exit_obstacle_recovery(
+            self, pose: tuple[float, float, float]) -> bool:
+        start_time = self._exit_obstacle_recovery_start_time
+        if start_time is None:
+            return False
+        now = self.get_clock().now()
+        elapsed = (now - start_time).nanoseconds / 1e9
+        start_progress = self._exit_obstacle_recovery_start_progress
+        progress = 0.0
+        if start_progress is not None:
+            progress = max(
+                0.0,
+                self._axis_progress_xy(pose[0], pose[1]) - start_progress)
+        front_min = (
+            self._sector_min(
+                self._latest_scan,
+                -self._explore_front_angle,
+                self._explore_front_angle)
+            if self._latest_scan is not None
+            else 0.0)
+        clear_to_replan = front_min >= max(
+            self._exit_nav_obstacle_recovery_trigger_m,
+            self._explore_obstacle_slow_m)
+        recovery_complete = (
+            progress >= self._exit_nav_obstacle_recovery_progress_m
+            and clear_to_replan)
+        recovery_timeout = elapsed >= self._exit_nav_obstacle_recovery_sec
+        if recovery_complete or recovery_timeout:
+            self.cmd_vel_pub.publish(Twist())
+            self._exit_obstacle_recovery_start_time = None
+            self._exit_obstacle_recovery_start_progress = None
+            self._nav_start_pose_recovery_active = False
+            self._nav_failed = False
+            self.get_logger().warn(
+                'Exit obstacle escape finished; replanning the observed exit '
+                f'(progress={progress:.2f}m, front={front_min:.2f}m, '
+                f'elapsed={elapsed:.1f}s).')
+            self._send_exit_goal()
+            return True
+        self._rotate_to_scan()
+        self.get_logger().warn(
+            'Exit obstacle escape in progress using live LiDAR '
+            f'(progress={progress:.2f}/'
+            f'{self._exit_nav_obstacle_recovery_progress_m:.2f}m, '
+            f'front={front_min:.2f}m, elapsed={elapsed:.1f}s).',
+            throttle_duration_sec=1.0)
+        return True
+
     def _ready_to_send_exit_goal(self) -> bool:
+        if not self._nav_start_center_recovery_enabled:
+            self._nav_start_pose_recovery_active = False
+            self._nav_start_center_recovery_abort_reason = ''
+            return True
         pose = self._current_map_pose()
         if pose is None:
             self._nav_start_pose_recovery_active = False
@@ -5183,6 +6694,76 @@ class StateMachineNode(Node):
             '비상구 목표를 취소하고 문 개방 순서로 복귀합니다.')
         return True
 
+    def _exit_interrupt_blue_candidate_allowed(self, door: DoorInfo) -> bool:
+        if not self._exit_reentry_guard_active:
+            return True
+        if door.door_color != 'blue' or not self._door_has_map_identity(door):
+            return False
+
+        cluster = self._observed_cluster_for_blue_door(
+            door,
+            merge_dist=max(
+                self._observed_candidate_merge_dist(),
+                self._door_open_fresh_blue_max_dist_m))
+        points = self._unique_xy_points(self._blue_evidence_points(door))
+        if cluster is not None:
+            points = self._unique_xy_points(
+                points + [self._cluster_xy(cluster), self._cluster_target_xy(cluster)])
+        if not points:
+            points = [self._door_identity_xy(door)]
+
+        for point in points:
+            if (
+                    self._is_blue_position_opened(point)
+                    or self._is_blue_xy_opened_same_wall_remnant(
+                        point, label=f'Exit interrupt candidate {door.door_id}')
+                    or self._blue_xy_opened_station_relation(point) is not None):
+                self.get_logger().info(
+                    f'Blue candidate {door.door_id} ignored during exit: '
+                    'the candidate or its projected station overlaps an '
+                    'already opened blue door.',
+                    throttle_duration_sec=3.0)
+                return False
+
+        if self._observed_blue_revisit_has_exit_sensitive_non_blue_conflict(door):
+            self.get_logger().info(
+                f'Blue candidate {door.door_id} ignored during exit: '
+                'nearby red/green semantic memory is stronger than the blue '
+                'revisit candidate.',
+                throttle_duration_sec=3.0)
+            return False
+
+        min_live_conf = max(
+            0.55,
+            max(0.0, self._pre_exit_blue_min_confidence),
+            max(0.0, self._door_open_fresh_blue_min_confidence) + 0.20,
+            max(0.0, self._exit_interrupt_blue_min_confidence))
+        if not self._door_target_has_current_live_blue_evidence(
+                door, min_live_conf):
+            self.get_logger().info(
+                f'Blue candidate {door.door_id} ignored during exit: '
+                'current live blue evidence does not match the same physical '
+                f'station strongly enough (min_conf={min_live_conf:.2f}).',
+                throttle_duration_sec=3.0)
+            return False
+
+        if door.door_id.startswith('observed_blue_'):
+            target_xy = self._door_handle_xy(door)
+            min_conf = max(
+                0.50,
+                max(0.0, self._door_open_fresh_blue_min_confidence),
+                max(0.0, self._exit_interrupt_blue_min_confidence))
+            if not self._observed_blue_target_has_direct_open_frame(
+                    door, target_xy, min_confidence=min_conf):
+                self.get_logger().info(
+                    f'Blue candidate {door.door_id} ignored during exit: '
+                    'no current direct blue frame confirms the mapped handle '
+                    'station before interrupting the exit goal.',
+                    throttle_duration_sec=3.0)
+                return False
+
+        return True
+
     def _on_mission_complete(self):
         self.get_logger().info(
             f'미션 완료! 개방한 문: {self._resolved_blue_door_count()}개. '
@@ -5205,6 +6786,9 @@ class StateMachineNode(Node):
                 exit_progress = self._axis_progress_xy(xy[0], xy[1])
             else:
                 return False
+        elif self._last_valid_exit_xy is not None:
+            exit_progress = self._axis_progress_xy(
+                self._last_valid_exit_xy[0], self._last_valid_exit_xy[1])
         elif self._allow_fallback_exit_goal:
             exit_progress = self._axis_progress_xy(self._exit_x, self._exit_y)
         else:
@@ -5249,12 +6833,20 @@ class StateMachineNode(Node):
         self._exit_crossing_start_time = self.get_clock().now()
         self._exit_crossing_start_odom_xy = None
         self._exit_crossing_required_odom_m = 0.0
+        force_direct = self._exit_force_direct_crossing
+        self._exit_force_direct_crossing = False
         odom_pose = self._current_odom_pose()
         map_pose = self._current_map_pose()
         goal = self._active_exit_goal
         if odom_pose is not None:
             self._exit_crossing_start_odom_xy = (odom_pose[0], odom_pose[1])
-        if map_pose is not None and goal is not None:
+        if force_direct:
+            self._exit_crossing_required_odom_m = max(
+                0.60,
+                min(
+                    1.20,
+                    max(0.0, self._exit_pass_through_m) + 0.30))
+        elif map_pose is not None and goal is not None:
             start_progress = self._axis_progress_xy(map_pose[0], map_pose[1])
             goal_progress = self._axis_progress_xy(goal[0], goal[1])
             self._exit_crossing_required_odom_m = max(
@@ -5263,6 +6855,48 @@ class StateMachineNode(Node):
         self.get_logger().info(
             '비상구 앞 정렬 완료. 마지막 통과 구간은 목표점 방향으로 보정 주행합니다.')
         self.cmd_vel_pub.publish(Twist())
+
+    def _record_exit_nav_failure_for_current_goal(self):
+        if self._exit_nav_failure_counted_for_goal:
+            return
+        self._exit_nav_failure_count += 1
+        self._exit_nav_failure_counted_for_goal = True
+
+    def _exit_nav_failure_allows_direct_crossing(self) -> bool:
+        if self._exit_nav_failures_before_direct_crossing <= 0:
+            return False
+        if self._exit_nav_failure_count < self._exit_nav_failures_before_direct_crossing:
+            return False
+        if self._active_exit_goal is None:
+            return False
+        if self._exit_blocking_unopened_blue_doors():
+            return False
+        if not self._ready_for_direct_exit_crossing():
+            return False
+        return (
+            self._valid_detected_exit()
+            or self._last_valid_exit_xy is not None
+            or self._provisional_exit_xy_for_blue_suppression() is not None
+            or self._semantic_green_exit_xy() is not None
+        )
+
+    def _prepare_observed_exit_direct_crossing_goal(self):
+        pose = self._current_map_pose()
+        if pose is None:
+            return
+        goal = self._active_exit_goal
+        yaw = goal[2] if goal is not None else self._mission_forward_yaw()
+        robot_progress = self._axis_progress_xy(pose[0], pose[1])
+        goal_progress = (
+            self._axis_progress_xy(goal[0], goal[1])
+            if goal is not None else robot_progress)
+        direct_progress = max(
+            goal_progress,
+            robot_progress + max(0.60, self._exit_pass_through_m))
+        direct_x, direct_y = self._axis_to_map_xy(
+            direct_progress,
+            self._explore_center_y)
+        self._active_exit_goal = (direct_x, direct_y, yaw)
 
     def _ready_for_direct_exit_crossing(self) -> bool:
         dist = self._active_exit_goal_distance()
@@ -5280,6 +6914,18 @@ class StateMachineNode(Node):
             self.get_logger().warn(
                 f'비상구 직접 통과 보류: 목표까지 {dist:.2f}m 남음 '
                 f'(limit={max_dist:.2f}m). Nav2 정렬을 재시도합니다.',
+                throttle_duration_sec=2.0)
+            return False
+        pose = self._current_map_pose()
+        if pose is None:
+            return False
+        lateral_error = abs(
+            self._axis_lateral_xy(pose[0], pose[1]) - self._explore_center_y)
+        lateral_limit = max(0.65, self._detected_exit_max_center_y_m)
+        if lateral_error > lateral_limit:
+            self.get_logger().warn(
+                f'비상구 직접 통과 보류: 중앙선 오차 {lateral_error:.2f}m '
+                f'> {lateral_limit:.2f}m. Nav2 정렬을 재시도합니다.',
                 throttle_duration_sec=2.0)
             return False
         return True
@@ -5310,6 +6956,29 @@ class StateMachineNode(Node):
             self.get_logger().warn(
                 f'비상구 직진 통과 제한시간 {elapsed:.1f}s 초과. 출구 목표를 다시 보냅니다.')
             self._send_exit_goal()
+            return
+
+        if self._latest_scan is None:
+            self.cmd_vel_pub.publish(Twist())
+            self.get_logger().warn(
+                '비상구 직접 통과 대기: 최신 LiDAR scan이 없습니다.',
+                throttle_duration_sec=2.0)
+            return
+        front_min = self._sector_min(
+            self._latest_scan,
+            -self._post_open_clearance_front_angle,
+            self._post_open_clearance_front_angle)
+        front_stop_m = max(
+            0.45,
+            self._post_open_clearance_front_min_m,
+            self._explore_obstacle_stop_m)
+        if front_min < front_stop_m:
+            self.cmd_vel_pub.publish(Twist())
+            self.get_logger().warn(
+                f'비상구 직접 통과 정지: LiDAR 전방 장애물 '
+                f'{front_min:.2f}m < {front_stop_m:.2f}m. '
+                '제한시간 후 Nav2 재계획을 요청합니다.',
+                throttle_duration_sec=2.0)
             return
 
         twist = Twist()
@@ -5349,7 +7018,9 @@ class StateMachineNode(Node):
         dx = pose[0] - self._exit_crossing_start_odom_xy[0]
         dy = pose[1] - self._exit_crossing_start_odom_xy[1]
         traveled = math.hypot(dx, dy)
-        complete = traveled >= self._exit_crossing_required_odom_m
+        complete = (
+            traveled >= self._exit_crossing_required_odom_m
+            and self._past_exit_line())
         if complete:
             self.get_logger().info(
                 f'비상구 odom 통과 완료: traveled={traveled:.2f}m/'
@@ -5479,6 +7150,7 @@ class StateMachineNode(Node):
         msg.door_pose.pose.orientation.w = math.cos(exit_nav_goal[2] / 2.0)
         self.target_door_pub.publish(msg)
         self._last_exit_goal_time = self.get_clock().now()
+        self._exit_nav_failure_counted_for_goal = False
         self._nav_done   = False
         self._nav_failed = False
         return True
@@ -5532,6 +7204,120 @@ class StateMachineNode(Node):
                 'no_blue_axis_exit_observed'))
         return True
 
+    def _has_unopened_blue_memory_for_exit_guard(self) -> bool:
+        for cluster in self._observed_blue_doors:
+            if int(cluster.get('count', 0.0)) < self._observed_blue_min_observations:
+                continue
+            if cluster.get('opened', 0.0) >= 1.0 or cluster.get('abandoned', 0.0) >= 1.0:
+                continue
+            raw_xy = self._cluster_xy(cluster)
+            target_xy = self._cluster_target_xy(cluster)
+            cluster_points = self._unique_xy_points([raw_xy, target_xy])
+            if (
+                    self._is_blue_position_opened(raw_xy)
+                    or self._is_blue_position_abandoned(raw_xy)
+                    or self._is_blue_position_opened(target_xy)
+                    or self._is_blue_position_abandoned(target_xy)
+                    or self._is_blue_xy_near_abandoned_station(target_xy)):
+                continue
+            exit_reference_points: list[tuple[float, float]] = []
+            if self._exit_door is not None:
+                exit_xy = self._exit_observation_xy(self._exit_door)
+                if exit_xy is not None:
+                    exit_reference_points.append(exit_xy)
+            if self._last_valid_exit_xy is not None:
+                exit_reference_points.append(self._last_valid_exit_xy)
+            if self._last_provisional_exit_xy is not None:
+                exit_reference_points.append(self._last_provisional_exit_xy)
+            if exit_reference_points:
+                exit_overlap = False
+                progress_slack = max(0.25, self._observed_candidate_merge_dist())
+                lateral_slack = max(
+                    self._detected_exit_max_y_error_m,
+                    self._observed_blue_fresh_evidence_max_lateral_gap_m)
+                near_dist = max(0.75, self._door_open_fresh_blue_max_dist_m)
+                for point in cluster_points:
+                    point_progress = self._axis_progress_xy(point[0], point[1])
+                    point_lateral = self._axis_lateral_xy(point[0], point[1])
+                    for exit_xy in exit_reference_points:
+                        exit_progress = self._axis_progress_xy(exit_xy[0], exit_xy[1])
+                        exit_lateral = self._axis_lateral_xy(exit_xy[0], exit_xy[1])
+                        if (
+                                math.hypot(point[0] - exit_xy[0],
+                                           point[1] - exit_xy[1]) <= near_dist
+                                or (
+                                    point_progress >= exit_progress - progress_slack
+                                    and abs(point_lateral - exit_lateral)
+                                    <= lateral_slack)):
+                            exit_overlap = True
+                            break
+                    if exit_overlap:
+                        break
+                if exit_overlap:
+                    continue
+            if (
+                    not self._observed_blue_cluster_ahead_of_opened_floor(
+                        cluster, slack=0.0)
+                    and not self._observed_blue_cluster_is_stable_unopened_revisit(
+                        cluster)):
+                continue
+            if self._observed_blue_projection_root_is_opened_remnant(
+                    cluster,
+                    label='Exit guard blue projection'):
+                continue
+            if self._is_blue_xy_opened_same_wall_remnant(
+                    target_xy,
+                    label='Exit guard blue target station'):
+                continue
+            wall_lateral = abs(
+                self._axis_lateral_xy(target_xy[0], target_xy[1])
+                - self._explore_center_y)
+            min_lateral = max(
+                0.35,
+                self._observed_blue_min_abs_wall_y_m * 0.5)
+            max_lateral = max(0.0, self._observed_blue_max_abs_wall_y_m)
+            if wall_lateral < min_lateral:
+                continue
+            if (
+                    max_lateral > 0.0
+                    and wall_lateral
+                    > max_lateral + self._blue_handle_validation_overshoot_m):
+                continue
+            count = int(cluster.get('count', 0.0))
+            confidence = float(cluster.get('confidence', 0.0))
+            min_count = max(2, self._observed_blue_min_observations)
+            min_confidence = max(
+                0.30,
+                min(
+                    max(0.0, self._observed_blue_target_min_confidence),
+                    max(0.0, self._door_open_fresh_blue_min_confidence)))
+            if count >= min_count and confidence >= min_confidence:
+                return True
+        return False
+
+    def _exit_candidate_relaxed_after_opened_scan(
+            self,
+            xy: tuple[float, float],
+            *,
+            check_unopened_blue_memory: bool = True) -> bool:
+        if self._opened_exit_ready_count() < self._min_opened_doors_before_exit:
+            return False
+        if (
+                check_unopened_blue_memory
+                and self._has_unopened_blue_memory_for_exit_guard()):
+            return False
+        if not self._opened_blue_door_positions:
+            return self._no_blue_exit_mode()
+
+        exit_progress = self._axis_progress_xy(xy[0], xy[1])
+        farthest_opened = max(
+            self._axis_progress_xy(blue_x, blue_y)
+            for blue_x, blue_y in self._opened_blue_door_positions)
+        min_after = max(
+            0.8,
+            self._detected_exit_min_after_opened_blue_m * 0.5)
+        return exit_progress >= farthest_opened + min_after
+
     def _exit_candidate_axis_valid(
             self,
             xy: tuple[float, float],
@@ -5539,7 +7325,16 @@ class StateMachineNode(Node):
             clear_existing: bool = False,
             require_front_wall_confirmation: bool = True) -> bool:
         x, y = xy
+        relaxed_after_opened = self._exit_candidate_relaxed_after_opened_scan(
+            xy, check_unopened_blue_memory=False)
         max_lateral = self._detected_exit_max_abs_lateral_m
+        if relaxed_after_opened:
+            max_lateral = max(
+                max_lateral,
+                self._observed_blue_max_abs_wall_y_m
+                + self._detected_exit_max_y_error_m,
+                self._detected_exit_max_center_y_m
+                + self._observed_blue_fresh_evidence_max_lateral_gap_m)
         lateral = self._axis_lateral_xy(x, y)
         lateral_error = abs(lateral - self._explore_center_y)
         if max_lateral > 0.0 and lateral_error > max_lateral:
@@ -5555,6 +7350,11 @@ class StateMachineNode(Node):
             return False
 
         max_center_y = self._detected_exit_max_center_y_m
+        if relaxed_after_opened:
+            max_center_y = max(
+                max_center_y,
+                self._detected_exit_max_y_error_m,
+                self._observed_blue_fresh_evidence_max_lateral_gap_m * 0.75)
         center_error = self._exit_center_y_error(xy)
         if max_center_y > 0.0 and center_error > max_center_y:
             self.get_logger().info(
@@ -5611,7 +7411,7 @@ class StateMachineNode(Node):
                 robot_progress = self._axis_progress_xy(pose[0], pose[1])
                 exit_progress = self._axis_progress_xy(x, y)
                 if self._no_blue_exit_mode() and no_blue_fallback_exit:
-                    if robot_progress < min_forward:
+                    if robot_progress < min_forward and self.state != State.EXITING:
                         self.get_logger().info(
                             f'비상구 후보 {door_id or "(unknown)"} 제외: '
                             f'파란 문 없음 판단을 위해 로봇 진행축 '
@@ -5670,17 +7470,25 @@ class StateMachineNode(Node):
             if pose is not None and min_robot_past > 0.0:
                 robot_progress = self._axis_progress_xy(pose[0], pose[1])
                 if robot_progress < farthest_opened + min_robot_past:
-                    self.get_logger().info(
-                        f'Exit candidate {door_id or "(unknown)"} rejected: '
-                        f'robot progress {robot_progress:.1f}m has not scanned '
-                        f'past the last opened blue door at {farthest_opened:.1f}m '
-                        f'by {min_robot_past:.1f}m yet.',
-                        throttle_duration_sec=3.0)
-                    if clear_existing:
-                        self._exit_door = None
-                        self._last_valid_exit_xy = None
-                        self._last_valid_exit_from_front_wall = False
-                    return False
+                    if relaxed_after_opened:
+                        self.get_logger().warn(
+                            f'Exit candidate {door_id or "(unknown)"} accepted '
+                            'despite a backward localization progress estimate: '
+                            f'robot={robot_progress:.1f}m, opened_floor='
+                            f'{farthest_opened:.1f}m, exit={exit_progress:.1f}m.',
+                            throttle_duration_sec=3.0)
+                    else:
+                        self.get_logger().info(
+                            f'Exit candidate {door_id or "(unknown)"} rejected: '
+                            f'robot progress {robot_progress:.1f}m has not scanned '
+                            f'past the last opened blue door at {farthest_opened:.1f}m '
+                            f'by {min_robot_past:.1f}m yet.',
+                            throttle_duration_sec=3.0)
+                        if clear_existing:
+                            self._exit_door = None
+                            self._last_valid_exit_xy = None
+                            self._last_valid_exit_from_front_wall = False
+                        return False
 
         return True
 
@@ -5708,11 +7516,15 @@ class StateMachineNode(Node):
                 min_forward = max(0.0, self._no_blue_exit_min_robot_forward_m)
                 if robot_progress < min_forward:
                     return False
-        elif self._last_provisional_exit_xy is None:
+        elif (
+                self._last_valid_exit_xy is None
+                and self._semantic_green_exit_xy() is None
+                and not self._valid_detected_exit()):
             # In normal blue-door missions, do not treat an arbitrary LiDAR
-            # end wall/obstacle as the exit before a green exit observation has
-            # ever appeared. Otherwise a mid-corridor obstacle can suppress
-            # still-unopened blue doors as "past the exit".
+            # end wall/obstacle as the exit before a confirmed green exit
+            # observation exists. Rejected/provisional green blobs near side
+            # doors are not enough; otherwise a mid-corridor obstacle can
+            # suppress still-unopened blue doors as "past the exit".
             return False
         if not self._front_wall_exit_is_far_enough_after_opened_blue(wall_xy):
             return False
@@ -5939,11 +7751,24 @@ class StateMachineNode(Node):
         exit_progress = self._axis_progress_xy(exit_x, exit_y)
         exit_lateral = self._axis_lateral_xy(exit_x, exit_y)
         lateral_error = exit_lateral - self._explore_center_y
-        if (self._detected_exit_max_center_y_m > 0.0
-                and abs(lateral_error) <= self._detected_exit_max_center_y_m):
+        center_limit = self._detected_exit_max_center_y_m
+        relaxed_after_opened = self._exit_candidate_relaxed_after_opened_scan(
+            xy, check_unopened_blue_memory=False)
+        if relaxed_after_opened:
+            center_limit = max(
+                center_limit,
+                self._detected_exit_max_y_error_m,
+                self._observed_blue_fresh_evidence_max_lateral_gap_m * 0.75)
+        if center_limit > 0.0 and abs(lateral_error) <= center_limit:
             # The green panel is on the end wall; projection noise can shift its
             # apparent y. Approach along the mission axis, biased toward center.
-            exit_lateral = self._explore_center_y + lateral_error * 0.35
+            lateral_scale = 0.35
+            if (
+                    relaxed_after_opened
+                    and self._detected_exit_max_center_y_m > 0.0
+                    and abs(lateral_error) > self._detected_exit_max_center_y_m):
+                lateral_scale = 0.20
+            exit_lateral = self._explore_center_y + lateral_error * lateral_scale
             exit_x, exit_y = self._axis_to_map_xy(exit_progress, exit_lateral)
 
         yaw = self._mission_forward_yaw()
@@ -5975,6 +7800,35 @@ class StateMachineNode(Node):
             return farthest_opened + opened_margin
         return float('inf')
 
+    def _projection_failure_rescan_required_progress(self) -> float | None:
+        failed_progress = self._last_projection_open_failure_progress
+        if failed_progress is None:
+            return None
+
+        farthest_opened = self._farthest_resolved_blue_progress()
+        if (
+                farthest_opened is not None
+                and farthest_opened > failed_progress + max(
+                    0.40, self._observed_candidate_merge_dist() * 0.75)):
+            return None
+
+        rescan_margin = max(
+            self._observed_candidate_merge_dist()
+            + self._door_open_fresh_blue_max_dist_m,
+            self._explore_nav_scan_lookahead_m
+            + self._observed_exit_explore_grace_m,
+            self._axis_door_side_standoff_m
+            + self._door_open_fresh_blue_max_dist_m)
+        return failed_progress + rescan_margin
+
+    def _apply_projection_failure_rescan_limit(self, limit: float) -> float:
+        required = self._projection_failure_rescan_required_progress()
+        if required is None or not math.isfinite(required):
+            return limit
+        if not math.isfinite(limit):
+            return limit
+        return max(limit, required)
+
     def _explore_limit_progress(self) -> float:
         opened_limit = self._opened_blue_explore_limit_progress()
         if self._no_blue_exit_mode():
@@ -5985,7 +7839,8 @@ class StateMachineNode(Node):
         if self._valid_detected_exit():
             xy = self._exit_identity_xy()
             if xy is not None:
-                return self._axis_progress_xy(xy[0], xy[1]) - 0.6
+                return self._apply_projection_failure_rescan_limit(
+                    self._axis_progress_xy(xy[0], xy[1]) - 0.6)
         observed_exit_xy = self._exit_xy_for_blue_suppression()
         if observed_exit_xy is not None:
             grace = max(0.0, self._observed_exit_explore_grace_m)
@@ -5993,8 +7848,9 @@ class StateMachineNode(Node):
                 self._axis_progress_xy(observed_exit_xy[0], observed_exit_xy[1])
                 + grace)
             if math.isfinite(opened_limit):
-                return min(observed_limit, opened_limit)
-            return observed_limit
+                return self._apply_projection_failure_rescan_limit(
+                    min(observed_limit, opened_limit))
+            return self._apply_projection_failure_rescan_limit(observed_limit)
         if self._opened_blue_door_count() <= 0:
             return float('inf')
         if not self._allow_fallback_exit_goal:
@@ -6004,10 +7860,149 @@ class StateMachineNode(Node):
             return float('inf')
         fallback_limit = self._axis_progress_xy(self._exit_x, self._exit_y) - 1.0
         if math.isfinite(opened_limit):
-            return min(fallback_limit, opened_limit)
-        return fallback_limit
+            return self._apply_projection_failure_rescan_limit(
+                min(fallback_limit, opened_limit))
+        return self._apply_projection_failure_rescan_limit(fallback_limit)
 
     # ── 유틸 ─────────────────────────────────────────────
+    def _start_local_obstacle_escape(self, reason: str) -> bool:
+        if self._local_obstacle_escape_start_time is not None:
+            return True
+        if (
+                self._local_obstacle_escape_max_attempts <= 0
+                or self._local_obstacle_escape_attempts
+                >= self._local_obstacle_escape_max_attempts
+                or self._latest_scan is None):
+            return False
+        pose = self._current_map_pose()
+        if pose is None:
+            return False
+        self._request_navigation_cancel_for_manual_control(
+            'local LiDAR obstacle escape')
+        self.cmd_vel_pub.publish(Twist())
+        self._local_obstacle_escape_start_time = self.get_clock().now()
+        self._local_obstacle_escape_start_xy = (pose[0], pose[1])
+        self._local_obstacle_escape_resume_state = self.state
+        self._local_obstacle_escape_attempts += 1
+        left_min = self._sector_min(
+            self._latest_scan,
+            self._explore_front_angle,
+            self._explore_side_angle)
+        right_min = self._sector_min(
+            self._latest_scan,
+            -self._explore_side_angle,
+            -self._explore_front_angle)
+        preferred_sign, _reason = self._preferred_lane_sign()
+        clearance_delta = left_min - right_min
+        if abs(clearance_delta) > 0.15:
+            turn_sign = 1.0 if clearance_delta > 0.0 else -1.0
+        elif preferred_sign != 0.0:
+            turn_sign = preferred_sign
+        else:
+            turn_sign = 1.0
+        self._local_obstacle_escape_turn_sign = turn_sign
+        self._local_obstacle_escape_yaw = self._normalize_angle(
+            pose[2] + turn_sign * self._local_obstacle_escape_turn)
+        self._nav_done = False
+        self._nav_failed = False
+        self.get_logger().warn(
+            f'Local obstacle escape {self._local_obstacle_escape_attempts}/'
+            f'{self._local_obstacle_escape_max_attempts}: {reason}. '
+            f'Selected {"left" if turn_sign > 0.0 else "right"} from live '
+            f'LiDAR (left={left_min:.2f}m, right={right_min:.2f}m).')
+        return True
+
+    def _run_local_obstacle_escape(self) -> bool:
+        start_time = self._local_obstacle_escape_start_time
+        if start_time is None:
+            return False
+        if self.state in (State.MISSION_COMPLETE, State.EMERGENCY_STOP):
+            self._local_obstacle_escape_start_time = None
+            self._local_obstacle_escape_start_xy = None
+            self._local_obstacle_escape_resume_state = None
+            self._local_obstacle_escape_yaw = None
+            return False
+        pose = self._current_map_pose()
+        now = self.get_clock().now()
+        elapsed = (now - start_time).nanoseconds / 1e9
+        distance = 0.0
+        if pose is not None and self._local_obstacle_escape_start_xy is not None:
+            distance = math.hypot(
+                pose[0] - self._local_obstacle_escape_start_xy[0],
+                pose[1] - self._local_obstacle_escape_start_xy[1])
+        front_min = (
+            self._sector_min(
+                self._latest_scan,
+                -self._explore_front_angle,
+                self._explore_front_angle)
+            if self._latest_scan is not None
+            else 0.0)
+        clear_to_replan = front_min >= max(
+            self._explore_obstacle_stop_m + 0.15,
+            0.70)
+        complete = (
+            distance >= self._local_obstacle_escape_distance_m
+            and clear_to_replan)
+        timed_out = elapsed >= self._local_obstacle_escape_max_sec
+        if not complete and not timed_out:
+            twist = Twist()
+            target_yaw = self._local_obstacle_escape_yaw
+            if pose is None or target_yaw is None:
+                self.cmd_vel_pub.publish(twist)
+                return True
+            yaw_error = self._normalize_angle(target_yaw - pose[2])
+            if abs(yaw_error) > math.radians(14.0):
+                twist.angular.z = math.copysign(
+                    self._local_obstacle_escape_angular_vel,
+                    yaw_error)
+            elif front_min < self._explore_obstacle_stop_m:
+                self._local_obstacle_escape_yaw = self._normalize_angle(
+                    pose[2]
+                    + self._local_obstacle_escape_turn_sign * math.radians(25.0))
+                twist.angular.z = (
+                    self._local_obstacle_escape_turn_sign
+                    * self._local_obstacle_escape_angular_vel)
+            else:
+                twist.linear.x = self._local_obstacle_escape_linear_vel
+                angular = 1.0 * yaw_error
+                twist.angular.z = max(
+                    -self._local_obstacle_escape_angular_vel,
+                    min(self._local_obstacle_escape_angular_vel, angular))
+            self.cmd_vel_pub.publish(twist)
+            self.get_logger().warn(
+                'Local obstacle escape in progress '
+                f'(distance={distance:.2f}/'
+                f'{self._local_obstacle_escape_distance_m:.2f}m, '
+                f'front={front_min:.2f}m, '
+                f'yaw_error={math.degrees(yaw_error):.0f}deg, '
+                f'cmd=({twist.linear.x:.2f},{twist.angular.z:.2f}), '
+                f'elapsed={elapsed:.1f}s).',
+                throttle_duration_sec=1.0)
+            return True
+
+        resume_state = self._local_obstacle_escape_resume_state
+        self.cmd_vel_pub.publish(Twist())
+        self._local_obstacle_escape_start_time = None
+        self._local_obstacle_escape_start_xy = None
+        self._local_obstacle_escape_resume_state = None
+        self._local_obstacle_escape_yaw = None
+        self._nav_done = False
+        self._nav_failed = False
+        self.get_logger().warn(
+            'Local obstacle escape finished; requesting a fresh Nav2 plan '
+            f'(distance={distance:.2f}m, front={front_min:.2f}m, '
+            f'elapsed={elapsed:.1f}s, timeout={timed_out}).')
+        if resume_state == State.NAVIGATING and self.target_door is not None:
+            self._nav_retry_count = 0
+            self._nav_start_time = now
+            self._reset_door_nav_stuck_watch()
+            self.target_door_pub.publish(self.target_door)
+        elif resume_state == State.EXITING:
+            self._send_exit_goal()
+        else:
+            self._transition(State.EXPLORING)
+        return True
+
     def _rotate_to_scan(self):
         twist = Twist()
         scan = self._latest_scan
@@ -6187,6 +8182,22 @@ class StateMachineNode(Node):
             return self._axis_progress_xy(x, y)
         return self._door_progress(door)
 
+    def _blue_xy_before_mission_start_floor(
+            self,
+            xy: tuple[float, float],
+            label: str = 'blue candidate') -> bool:
+        progress = self._axis_progress_xy(xy[0], xy[1])
+        start_floor = self._mission_start_x - max(
+            0.35,
+            self._observed_candidate_merge_dist() * 0.25)
+        if progress >= start_floor:
+            return False
+        self.get_logger().info(
+            f'{label} rejected: progress={progress:.1f}m is behind the '
+            f'initial mission scan floor {start_floor:.1f}m.',
+            throttle_duration_sec=3.0)
+        return True
+
     def _door_lateral(self, door: DoorInfo) -> float:
         x, y = self._door_identity_xy(door)
         return self._axis_lateral_xy(x, y)
@@ -6272,6 +8283,19 @@ class StateMachineNode(Node):
             or door.door_pose.header.frame_id == 'map'
         )
 
+    @staticmethod
+    def _has_trusted_observed_handle(door: DoorInfo) -> bool:
+        method = str(
+            getattr(door, 'handle_detection_method', '') or '').lower()
+        return (
+            bool(getattr(door, 'handle_detected', False))
+            and float(getattr(door, 'handle_confidence', 0.0)) >= 0.45
+            and ('yolo' in method or 'hsv' in method)
+            and door.handle_position.header.frame_id == 'map'
+            and math.isfinite(float(door.handle_position.point.x))
+            and math.isfinite(float(door.handle_position.point.y))
+        )
+
     def _door_identity_xy(self, door: DoorInfo) -> tuple[float, float]:
         """Stable map point for duplicate/opened-door identity checks."""
         if door.door_color == 'blue':
@@ -6287,6 +8311,12 @@ class StateMachineNode(Node):
                     float(door.handle_position.point.x),
                     float(door.handle_position.point.y),
                 )
+
+            if (
+                    handle_xy is not None
+                    and self._has_trusted_observed_handle(door)
+                    and self._is_blue_xy_recordable_wall_observation(handle_xy)):
+                return handle_xy
 
             if pose_xy is not None and handle_xy is not None:
                 pose_lateral = abs(
@@ -6332,6 +8362,10 @@ class StateMachineNode(Node):
                 float(door.handle_position.point.y),
             )
             if (
+                    self._has_trusted_observed_handle(door)
+                    and self._is_blue_xy_recordable_wall_observation(handle_xy)):
+                return handle_xy
+            if (
                     self._is_xy_at_configured_wall_lateral(handle_xy)
                     and self._door_handle_consistent_with_pose(door, handle_xy)):
                 return handle_xy
@@ -6350,6 +8384,52 @@ class StateMachineNode(Node):
                 for xy in points):
             points.append(raw)
         return points
+
+    def _blue_non_blue_conflict_points(
+            self, door: DoorInfo) -> list[tuple[float, float]]:
+        """Stable blue-door points used only for red/green conflict checks."""
+        if door.door_color != 'blue':
+            return [self._door_handle_xy(door), self._door_identity_xy(door)]
+
+        identity_xy = self._door_identity_xy(door)
+        stable_points: list[tuple[float, float]] = [identity_xy]
+
+        memory_xy = self._stable_wall_memory_xy_for_direct_blue(door)
+        if memory_xy is not None:
+            mem_point = (float(memory_xy[0]), float(memory_xy[1]))
+            if all(math.hypot(mem_point[0] - xy[0], mem_point[1] - xy[1]) > 0.05
+                   for xy in stable_points):
+                stable_points.append(mem_point)
+            return stable_points
+
+        merge_dist = max(
+            self._observed_candidate_merge_dist(),
+            self._door_open_fresh_blue_max_dist_m)
+        for point in self._unique_xy_points(
+                [self._door_handle_xy(door), identity_xy]):
+            cluster = self._find_observed_blue_cluster(
+                point, merge_dist=merge_dist)
+            if (
+                    cluster is None
+                    or cluster.get('opened', 0.0) >= 1.0
+                    or cluster.get('abandoned', 0.0) >= 1.0
+                    or not self._observed_blue_cluster_has_recheckable_wall_memory(
+                        cluster)):
+                continue
+            for cluster_point in self._unique_xy_points([
+                    self._cluster_target_xy(cluster),
+                    self._cluster_xy(cluster)]):
+                if all(math.hypot(cluster_point[0] - xy[0],
+                                  cluster_point[1] - xy[1]) > 0.05
+                       for xy in stable_points):
+                    stable_points.append(cluster_point)
+            return stable_points
+
+        handle_xy = self._door_handle_xy(door)
+        if all(math.hypot(handle_xy[0] - xy[0], handle_xy[1] - xy[1]) > 0.05
+               for xy in stable_points):
+            stable_points.insert(0, handle_xy)
+        return stable_points
 
     def _raw_blue_handle_xy_for_evidence(
             self, door: DoorInfo) -> tuple[float, float] | None:
@@ -6380,6 +8460,123 @@ class StateMachineNode(Node):
         if max_wall > 0.0 and lateral_abs > max_wall + overshoot:
             return None
         return xy
+
+    def _blue_wall_intersection_from_observation(
+            self,
+            door: DoorInfo,
+            raw_xy: tuple[float, float] | None) -> tuple[float, float] | None:
+        """Intersect the observed camera ray with the mapped corridor wall.
+
+        A 2D scan ray can hit an obstacle in front of a visible side door.  Its
+        endpoint is then too close, but the ray direction is still useful.  The
+        initial corridor observation supplies the wall band; intersecting both
+        keeps the resulting door station observation-derived and independent of
+        Gazebo/world coordinates.
+        """
+        if raw_xy is None or door.door_color != 'blue':
+            return None
+        if (
+                self._is_blue_position_opened(raw_xy)
+                or self._is_blue_xy_opened_same_wall_remnant(
+                    raw_xy, label='Camera-ray wall projection')):
+            return None
+        pose = self._current_map_pose()
+        if pose is None:
+            return None
+
+        robot_progress = self._axis_progress_xy(pose[0], pose[1])
+        robot_lateral = self._axis_lateral_xy(pose[0], pose[1])
+        ray_progress = self._axis_progress_xy(raw_xy[0], raw_xy[1])
+        ray_lateral = self._axis_lateral_xy(raw_xy[0], raw_xy[1])
+        lateral_delta = ray_lateral - robot_lateral
+        if abs(lateral_delta) < 0.08:
+            return None
+
+        wall_abs = max(
+            0.0,
+            self._observed_blue_min_abs_wall_y_m,
+            self._door_open_axis_min_side_lateral_m,
+            self._axis_door_min_abs_lateral_m)
+        max_wall = max(0.0, self._observed_blue_max_abs_wall_y_m)
+        if max_wall > 0.0:
+            observed_wall = max(
+                wall_abs,
+                max_wall - max(0.0, self._blue_handle_max_wall_overshoot_m))
+            wall_abs = min(max_wall, observed_wall)
+        if wall_abs <= 0.0:
+            return None
+
+        wall_lateral = (
+            self._explore_center_y
+            + math.copysign(wall_abs, lateral_delta))
+        scale = (wall_lateral - robot_lateral) / lateral_delta
+        if not math.isfinite(scale) or scale < 0.45 or scale > 4.0:
+            return None
+
+        progress = robot_progress + scale * (ray_progress - robot_progress)
+        max_ray_progress = max(1.0, self._explore_nav_step_m) + 8.0
+        if progress < robot_progress - 0.60:
+            return None
+        if progress > robot_progress + max_ray_progress:
+            return None
+
+        projected_xy = self._axis_to_map_xy(progress, wall_lateral)
+        if not self._is_blue_xy_recordable_wall_observation(projected_xy):
+            return None
+        return projected_xy
+
+    def _direct_blue_candidate_is_only_opened_door_remnant(
+            self, door: DoorInfo) -> bool:
+        """True when every usable wall point belongs to an opened-door trail."""
+        if door.door_color != 'blue' or door.door_id.startswith('observed_blue_'):
+            return False
+        wall_side_threshold = max(
+            0.35,
+            self._observed_blue_min_abs_wall_y_m * 0.5)
+        wall_points: list[tuple[float, float]] = []
+        raw_xy = self._raw_blue_handle_xy_for_evidence(door)
+        for xy in self._unique_xy_points(
+                self._blue_evidence_points(door)
+                + ([raw_xy] if raw_xy is not None else [])):
+            lateral = abs(
+                self._axis_lateral_xy(xy[0], xy[1])
+                - self._explore_center_y)
+            if lateral >= wall_side_threshold:
+                wall_points.append(xy)
+        if not wall_points:
+            return False
+        return all(
+            self._is_blue_position_opened(xy)
+            or self._is_blue_xy_opened_same_wall_remnant(
+                xy, label='Live blue confirmation')
+            for xy in wall_points)
+
+    def _direct_blue_candidate_is_front_centered_for_open(
+            self, door: DoorInfo) -> bool:
+        """Require the live door ray to be inside the arm's frontal workspace."""
+        if door.door_color != 'blue' or door.door_id.startswith('observed_blue_'):
+            return False
+        pose = self._current_map_pose()
+        if pose is None:
+            return False
+        robot_x, robot_y, robot_yaw = pose
+        points = self._unique_xy_points(self._blue_evidence_points(door))
+        raw_xy = self._raw_blue_handle_xy_for_evidence(door)
+        if raw_xy is not None:
+            points = self._unique_xy_points(points + [raw_xy])
+        for point in points:
+            dx = point[0] - robot_x
+            dy = point[1] - robot_y
+            forward = math.cos(robot_yaw) * dx + math.sin(robot_yaw) * dy
+            lateral = -math.sin(robot_yaw) * dx + math.cos(robot_yaw) * dy
+            lateral_limit = max(0.30, min(0.65, forward * 0.65))
+            if 0.15 <= forward <= 2.20 and abs(lateral) <= lateral_limit:
+                return True
+        self.get_logger().info(
+            f'Blue candidate {door.door_id} cannot confirm opening: current '
+            'camera ray is outside the frontal manipulation workspace.',
+            throttle_duration_sec=3.0)
+        return False
 
     def _blue_physical_station_xy(self, door: DoorInfo) -> tuple[float, float]:
         """Best observed map point for opened/abandoned physical door memory."""
@@ -6790,12 +8987,13 @@ class StateMachineNode(Node):
         if abs(candidate_lateral) < wall_side_threshold:
             return False
 
-        remnant_window = max(
+        remnant_window = self._opened_same_wall_remnant_progress_window(max(
             self._opened_physical_door_merge_dist_m
-            + self._observed_candidate_merge_dist(),
+            + self._observed_candidate_merge_dist()
+            + 0.35,
             self._door_open_fresh_blue_max_dist_m
             + max(0.35, self._axis_door_side_standoff_m * 0.5),
-            self._opened_station_same_side_blue_suppression_progress_m)
+            self._opened_station_same_side_blue_suppression_progress_m))
         if remnant_window <= 0.0:
             return False
 
@@ -6811,7 +9009,15 @@ class StateMachineNode(Node):
             if not same_wall:
                 continue
             progress_gap = candidate_progress - opened_progress
-            if progress_gap < -self._opened_physical_door_merge_dist_m:
+            # An opened leaf can swing toward the already-travelled side and its
+            # camera/wall projection can land just behind the saved station.
+            # Keep the rear tolerance tied to the physical merge distance plus
+            # projection uncertainty so that leaf remnants are not registered as
+            # a new door, while genuinely separate stations remain revisit-able.
+            rear_remnant_window = max(
+                self._opened_physical_door_merge_dist_m + 0.35,
+                self._opened_station_same_side_blue_suppression_progress_m + 0.25)
+            if progress_gap < -rear_remnant_window:
                 continue
             if progress_gap > remnant_window:
                 continue
@@ -6835,11 +9041,115 @@ class StateMachineNode(Node):
         direct_pose_consistent = self._is_direct_blue_pose_lateral_consistent(door)
         opposite_wall_projection = self._blue_pose_handle_opposite_wall(door)
         identity_recordable = self._is_blue_xy_recordable_wall_observation(identity_xy)
-        if not valid_target_xy:
-            raw_recordable = (
-                raw_xy is not None
-                and self._is_blue_xy_recordable_wall_observation(raw_xy))
+        raw_recordable = (
+            raw_xy is not None
+            and self._is_blue_xy_recordable_wall_observation(raw_xy))
+        if raw_recordable:
+            identity_lateral = abs(
+                self._axis_lateral_xy(identity_xy[0], identity_xy[1])
+                - self._explore_center_y)
+            raw_lateral = abs(
+                self._axis_lateral_xy(raw_xy[0], raw_xy[1])
+                - self._explore_center_y)
+            identity_progress = self._axis_progress_xy(
+                identity_xy[0], identity_xy[1])
+            raw_progress = self._axis_progress_xy(raw_xy[0], raw_xy[1])
+            strong_wall_lateral = max(
+                1.10,
+                self._observed_blue_min_abs_wall_y_m + 0.20,
+                self._door_open_axis_min_side_lateral_m)
+            pose_handle_progress_conflict = abs(
+                raw_progress - identity_progress) > max(
+                    0.60,
+                    self._axis_door_max_handle_pose_progress_delta_m)
+            opposite_pose_is_interior = (
+                opposite_wall_projection
+                and identity_lateral < strong_wall_lateral
+                and raw_lateral >= identity_lateral + 0.65)
             if (
+                    raw_lateral >= strong_wall_lateral
+                    and raw_lateral >= identity_lateral + 0.35
+                    and pose_handle_progress_conflict
+                    and (
+                        not opposite_wall_projection
+                        or opposite_pose_is_interior)):
+                xy = raw_xy
+                valid_target_xy = self._is_blue_xy_at_valid_wall_position(xy)
+                handle_in_wall_band = True
+                self.get_logger().info(
+                    f'Blue candidate {door.door_id} recorded from the observed '
+                    'wall-side handle ray because the door-body depth conflicts '
+                    f'with the wall station (progress_delta='
+                    f'{abs(raw_progress - identity_progress):.2f}m).',
+                    throttle_duration_sec=3.0)
+        if not valid_target_xy:
+            ray_wall_xy = self._blue_wall_intersection_from_observation(
+                door, raw_xy)
+            if ray_wall_xy is not None:
+                xy = ray_wall_xy
+                valid_target_xy = self._is_blue_xy_at_valid_wall_position(xy)
+                handle_in_wall_band = True
+                self.get_logger().info(
+                    f'Blue candidate {door.door_id} recorded at camera-ray '
+                    'intersection with the observed corridor wall.',
+                    throttle_duration_sec=3.0)
+            pose_wall_xy: tuple[float, float] | None = None
+            if not valid_target_xy and door.door_pose.header.frame_id == 'map':
+                pose_x = float(door.door_pose.pose.position.x)
+                pose_y = float(door.door_pose.pose.position.y)
+                pose_progress = self._axis_progress_xy(pose_x, pose_y)
+                pose_lateral = (
+                    self._axis_lateral_xy(pose_x, pose_y)
+                    - self._explore_center_y)
+                wall_side_threshold = max(
+                    0.35,
+                    self._observed_blue_min_abs_wall_y_m * 0.5)
+                raw_lateral = None
+                if raw_xy is not None:
+                    raw_lateral = (
+                        self._axis_lateral_xy(raw_xy[0], raw_xy[1])
+                        - self._explore_center_y)
+                side_lateral = pose_lateral
+                # With an oblique side-camera view the door-body projection
+                # gives the reliable along-corridor station while the range at
+                # the representative handle pixel can land several metres
+                # behind it. Preserve the observed wall side from that ray,
+                # but never let it overwrite the body-derived progress.
+                if (
+                        raw_lateral is not None
+                        and abs(raw_lateral) >= wall_side_threshold
+                        and (
+                            opposite_wall_projection
+                            or abs(pose_lateral) < wall_side_threshold)):
+                    side_lateral = raw_lateral
+                if abs(side_lateral) >= wall_side_threshold:
+                    side = 1.0 if side_lateral > 0.0 else -1.0
+                    wall_abs = max(
+                        abs(side_lateral),
+                        max(0.0, self._observed_blue_min_abs_wall_y_m),
+                        max(0.0, self._door_open_axis_min_side_lateral_m))
+                    max_wall = max(0.0, self._observed_blue_max_abs_wall_y_m)
+                    if max_wall > 0.0:
+                        wall_abs = min(max_wall, wall_abs)
+                    pose_wall_xy = self._axis_to_map_xy(
+                        pose_progress,
+                        self._explore_center_y + side * wall_abs)
+            if (
+                    pose_wall_xy is not None
+                    and self._is_blue_xy_recordable_wall_observation(pose_wall_xy)
+                    and not self._is_blue_position_opened(pose_wall_xy)
+                    and not self._is_blue_position_abandoned(pose_wall_xy)):
+                xy = pose_wall_xy
+                valid_target_xy = self._is_blue_xy_at_valid_wall_position(xy)
+                handle_in_wall_band = True
+                self.get_logger().info(
+                    f'Blue candidate {door.door_id} recorded with door-body '
+                    'progress and observed wall side because its direct '
+                    'projection was center-biased or crossed the corridor.',
+                    throttle_duration_sec=3.0)
+            if (
+                    not valid_target_xy
+                    and
                     raw_recordable
                     and not opposite_wall_projection
                     and (not direct_pose_consistent or not identity_recordable)):
@@ -6864,9 +9174,14 @@ class StateMachineNode(Node):
         now_sec = self.get_clock().now().nanoseconds / 1e9
         confidence = float(door.confidence)
         cluster = self._observed_blue_door_id_to_cluster.get(door.door_id)
+        if cluster is not None and cluster.get('abandoned', 0.0) >= 1.0:
+            self._observed_blue_door_id_to_cluster.pop(door.door_id, None)
+            cluster = None
         if cluster is None:
             cluster = self._find_observed_blue_cluster(
                 xy, merge_dist=self._observed_candidate_merge_dist())
+            if cluster is not None and cluster.get('abandoned', 0.0) >= 1.0:
+                cluster = None
         else:
             old_x = float(cluster.get('x', xy[0]))
             old_y = float(cluster.get('y', xy[1]))
@@ -6892,28 +9207,55 @@ class StateMachineNode(Node):
                     '같은 물리 문 평균 갱신 대신 새 관찰로 분리합니다.')
                 cluster = self._find_observed_blue_cluster(
                     xy, merge_dist=self._observed_candidate_merge_dist())
+        if cluster is not None and cluster.get('abandoned', 0.0) >= 1.0:
+            cluster = None
         if cluster is not None:
             self._add_observed_blue_cluster_id(cluster, door.door_id)
             old_x = float(cluster.get('x', xy[0]))
             old_y = float(cluster.get('y', xy[1]))
             old_count = int(cluster.get('count', 1.0))
             new_count = min(old_count + 1, 999)
-            alpha = 1.0 / min(new_count, 5)
-            if valid_target_xy:
-                alpha = max(alpha, 0.35)
-            cluster['x'] = (1.0 - alpha) * old_x + alpha * xy[0]
-            cluster['y'] = (1.0 - alpha) * old_y + alpha * xy[1]
+            projection_rebase_pending = (
+                cluster.get('projection_rebase_pending', 0.0) >= 1.0)
+            rebase_accept_dist = max(
+                0.40,
+                min(0.80, self._observed_candidate_merge_dist() * 0.65))
+            accept_station_update = (
+                not projection_rebase_pending
+                or math.hypot(xy[0] - old_x, xy[1] - old_y)
+                <= rebase_accept_dist)
+            if accept_station_update:
+                alpha = 1.0 / min(new_count, 5)
+                if valid_target_xy:
+                    alpha = max(alpha, 0.35)
+                cluster['x'] = (1.0 - alpha) * old_x + alpha * xy[0]
+                cluster['y'] = (1.0 - alpha) * old_y + alpha * xy[1]
             cluster['count'] = float(new_count)
             cluster['last_seen'] = now_sec
             cluster['confidence'] = max(
                 float(cluster.get('confidence', 0.0)), confidence)
-            self._update_observed_blue_cluster_target_station(
-                cluster,
-                xy,
-                confidence,
-                valid_target_xy=valid_target_xy,
-                handle_in_wall_band=handle_in_wall_band)
-            cluster['fresh_retry_required'] = 0.0
+            if accept_station_update:
+                self._update_observed_blue_cluster_target_station(
+                    cluster,
+                    xy,
+                    confidence,
+                    valid_target_xy=valid_target_xy,
+                    handle_in_wall_band=handle_in_wall_band)
+                if projection_rebase_pending and valid_target_xy and handle_in_wall_band:
+                    cluster['projection_rebase_pending'] = 0.0
+                if (
+                        cluster.get('fresh_retry_requires_valid_wall', 0.0) >= 1.0
+                        and not (valid_target_xy and handle_in_wall_band)):
+                    cluster['fresh_retry_required'] = 1.0
+                else:
+                    cluster['fresh_retry_required'] = 0.0
+                    cluster['fresh_retry_requires_valid_wall'] = 0.0
+            else:
+                self.get_logger().info(
+                    f'Observed blue cluster projection update ignored after '
+                    f'failed approach: root=({old_x:.1f}, {old_y:.1f}), '
+                    f'new=({xy[0]:.1f}, {xy[1]:.1f}).',
+                    throttle_duration_sec=3.0)
             if not handle_in_wall_band:
                 cluster['bad_handle_count'] = float(
                     int(cluster.get('bad_handle_count', 0.0)) + 1)
@@ -6931,6 +9273,7 @@ class StateMachineNode(Node):
             'approach_failures': 0.0,
             'open_failures': 0.0,
             'fresh_retry_required': 0.0,
+            'fresh_retry_requires_valid_wall': 0.0,
             'origin_x': xy[0],
             'origin_y': xy[1],
             'target_x': xy[0],
@@ -7062,37 +9405,64 @@ class StateMachineNode(Node):
                     continue
                 if abs(xy_lateral - cluster_lateral) > lateral_limit:
                     continue
-            if math.hypot(
-                    xy[0] - float(cluster.get('x', 0.0)),
-                    xy[1] - float(cluster.get('y', 0.0))) <= dist_limit:
+            raw_cluster_xy = (
+                float(cluster.get('x', 0.0)),
+                float(cluster.get('y', 0.0)),
+            )
+            if (
+                    math.hypot(
+                        xy[0] - raw_cluster_xy[0],
+                        xy[1] - raw_cluster_xy[1]) <= dist_limit
+                    or math.hypot(
+                        xy[0] - cluster_xy[0],
+                        xy[1] - cluster_xy[1]) <= dist_limit):
                 return cluster
         return None
 
     def _add_observed_blue_cluster_id(self, cluster: dict[str, float], door_id: str):
-        ids = cluster.get('ids')
-        if isinstance(ids, set):
-            id_set = ids
-        elif isinstance(ids, (list, tuple)):
-            id_set = set(str(item) for item in ids)
-        elif isinstance(ids, str) and ids:
-            id_set = {ids}
-        else:
-            id_set = set()
+        id_set = self._observed_blue_cluster_id_values(cluster)
         id_set.update(self._door_id_keys(door_id))
         cluster['ids'] = id_set
 
-    def _observed_blue_cluster_has_id_in_set(
-            self, cluster: dict[str, float], target: set[str]) -> bool:
+    @staticmethod
+    def _observed_blue_cluster_id_values(
+            cluster: dict[str, float]) -> set[str]:
         ids = cluster.get('ids')
         if isinstance(ids, set):
-            id_iter = ids
-        elif isinstance(ids, (list, tuple)):
-            id_iter = ids
-        elif isinstance(ids, str) and ids:
-            id_iter = (ids,)
-        else:
+            return set(str(item) for item in ids if str(item))
+        if isinstance(ids, (list, tuple)):
+            return set(str(item) for item in ids if str(item))
+        if isinstance(ids, str) and ids:
+            return {ids}
+        return set()
+
+    def _observed_blue_cluster_has_id_in_set(
+            self, cluster: dict[str, float], target: set[str]) -> bool:
+        return any(
+            self._is_door_id_in_set(target, door_id)
+            for door_id in self._observed_blue_cluster_id_values(cluster))
+
+    def _observed_blue_cluster_matches_opened_lineage(
+            self, cluster: dict[str, float]) -> bool:
+        if (
+                not self._opened_blue_door_positions
+                or not self._observed_blue_cluster_has_id_in_set(
+                    cluster, self._opened_door_ids)):
             return False
-        return any(self._is_door_id_in_set(target, str(door_id)) for door_id in id_iter)
+        progress_window = max(
+            self._opened_physical_door_merge_dist_m,
+            self._observed_candidate_merge_dist())
+        cluster_points = self._unique_xy_points([
+            self._cluster_xy(cluster),
+            self._cluster_target_xy(cluster),
+        ])
+        return any(
+            abs(
+                self._axis_progress_xy(point[0], point[1])
+                - self._axis_progress_xy(opened_xy[0], opened_xy[1]))
+            <= progress_window
+            for point in cluster_points
+            for opened_xy in self._opened_blue_door_positions)
 
     def _stable_observed_blue_doors(self) -> list[dict[str, float]]:
         return [
@@ -7136,6 +9506,17 @@ class StateMachineNode(Node):
         behind = self._blue_xy_behind_distance_from_robot(xy)
         if behind is None or behind <= max_behind:
             return False
+        cluster = self._find_observed_blue_cluster(
+            xy, merge_dist=self._observed_candidate_merge_dist())
+        if (
+                cluster is not None
+                and self._observed_blue_cluster_is_stable_unopened_revisit(cluster)):
+            self.get_logger().warn(
+                f'파란 문 후보 ({xy[0]:.1f}, {xy[1]:.1f})는 현재 위치보다 '
+                f'{behind:.1f}m 뒤쪽이지만, 안정 미개방 관측 메모리라 '
+                '출구 전 재방문 후보로 유지합니다.',
+                throttle_duration_sec=3.0)
+            return False
         self.get_logger().info(
             f'파란 문 후보 ({xy[0]:.1f}, {xy[1]:.1f}) 제외: '
             f'현재 진행 위치보다 {behind:.1f}m 뒤쪽입니다 '
@@ -7151,6 +9532,13 @@ class StateMachineNode(Node):
         xy = self._cluster_xy(cluster)
         behind = self._blue_xy_behind_distance_from_robot(xy)
         if behind is None or behind <= max_behind:
+            return False
+        if self._observed_blue_cluster_is_stable_unopened_revisit(cluster):
+            self.get_logger().warn(
+                f'파란 문 후보 ({xy[0]:.1f}, {xy[1]:.1f})는 현재 위치보다 '
+                f'{behind:.1f}m 뒤쪽이지만, 안정 미개방 관측 메모리라 '
+                '출구 전 재방문 후보로 유지합니다.',
+                throttle_duration_sec=3.0)
             return False
         self.get_logger().info(
             f'파란 문 후보 ({xy[0]:.1f}, {xy[1]:.1f}) 제외: '
@@ -7246,6 +9634,10 @@ class StateMachineNode(Node):
             return False
         if self._observed_blue_cluster_behind_opened_without_fresh(cluster):
             return False
+        if self._observed_blue_projection_root_is_opened_remnant(
+                cluster,
+                label='Stable unopened blue projection'):
+            return False
         xy = self._cluster_xy(cluster)
         if self._is_blue_position_opened(xy) or self._is_blue_position_abandoned(xy):
             return False
@@ -7301,15 +9693,61 @@ class StateMachineNode(Node):
             self, cluster: dict[str, float]) -> bool:
         return False
 
+    def _observed_blue_projection_root_is_opened_remnant(
+            self,
+            cluster: dict[str, float],
+            label: str = 'Observed blue projection') -> bool:
+        root_xy = self._cluster_xy(cluster)
+        target_xy = self._cluster_target_xy(cluster)
+        projection_jump = math.hypot(
+            root_xy[0] - target_xy[0],
+            root_xy[1] - target_xy[1])
+        if projection_jump <= max(0.65, self._observed_candidate_merge_dist()):
+            return False
+        root_is_opened = (
+            self._is_blue_position_opened(root_xy)
+            or self._is_blue_xy_opened_same_wall_remnant(
+                root_xy,
+                label=f'{label} root')
+            or self._is_blue_xy_opposite_opened_station(root_xy))
+        if not root_is_opened:
+            return False
+        self._mark_observed_blue_cluster_abandoned(
+            cluster,
+            'projection target came from an already opened blue-door remnant',
+            mark_physical=True)
+        self.get_logger().info(
+            f'{label} rejected: root=({root_xy[0]:.1f},{root_xy[1]:.1f}) '
+            f'is an opened-door remnant while target='
+            f'({target_xy[0]:.1f},{target_xy[1]:.1f}) is a projected point.',
+            throttle_duration_sec=3.0)
+        return True
+
     def _stable_unopened_observed_blue_targets(self) -> list[DoorInfo]:
         targets: list[DoorInfo] = []
         for cluster in self._stable_observed_blue_doors():
+            if self._observed_blue_projection_root_is_opened_remnant(cluster):
+                continue
             xy = self._cluster_target_xy(cluster)
+            projected_xy = self._center_biased_observed_blue_wall_projection(cluster)
+            if projected_xy is not None:
+                xy = projected_xy
+            if self._blue_xy_before_mission_start_floor(
+                    xy, 'observed blue target station'):
+                self._mark_observed_blue_cluster_abandoned(
+                    cluster,
+                    'observed target is behind the initial mission scan floor',
+                    mark_physical=False)
+                continue
             if self._is_observed_blue_cluster_suppressed(cluster):
                 continue
             if self._is_blue_xy_opened_same_wall_remnant(
                     xy,
                     label='Observed blue target station'):
+                self._mark_observed_blue_cluster_abandoned(
+                    cluster,
+                    'opened door remnant projected to a same-wall target station',
+                    mark_physical=True)
                 continue
             if not self._observed_blue_cluster_is_target_ready(cluster):
                 continue
@@ -7337,7 +9775,6 @@ class StateMachineNode(Node):
                 cluster)
             exit_sensitive_cluster = (
                 self._is_blue_xy_in_pre_exit_zone(xy)
-                or self._is_blue_xy_in_exit_search_tail(xy)
                 or self._is_blue_xy_near_detected_exit(xy))
             if exit_sensitive_cluster and not fresh_direct:
                 self.get_logger().info(
@@ -7425,6 +9862,10 @@ class StateMachineNode(Node):
         msg.handle_position.point.x = x
         msg.handle_position.point.y = y
         msg.handle_position.point.z = 0.9
+        if cluster.get('target_projected_from_center_bias', 0.0) >= 1.0:
+            msg.handle_detected = False
+            msg.handle_detection_method = 'observed_wall_projection'
+            msg.handle_confidence = msg.confidence
         self._add_observed_blue_cluster_id(cluster, msg.door_id)
         self._observed_blue_door_id_to_cluster[msg.door_id] = cluster
         return msg
@@ -7468,7 +9909,7 @@ class StateMachineNode(Node):
             return True
         return any(
             self._blue_xy_matches_physical_station(
-                xy, old, self._opened_physical_door_merge_dist_m)
+                xy, old, self._abandoned_physical_door_merge_dist_m)
             for old in self._abandoned_blue_door_positions
         )
 
@@ -7569,19 +10010,47 @@ class StateMachineNode(Node):
             return False
         if cluster.get('opened', 0.0) >= 1.0 or cluster.get('abandoned', 0.0) >= 1.0:
             return False
+        xy = self._cluster_xy(cluster)
+        target_xy = self._cluster_target_xy(cluster)
+        for check_xy in self._unique_xy_points([xy, target_xy]):
+            if (
+                    self._is_blue_position_opened(check_xy)
+                    or self._is_blue_position_abandoned(check_xy)
+                    or self._blue_xy_opened_station_relation(check_xy) is not None):
+                self._mark_observed_blue_cluster_abandoned(
+                    cluster,
+                    'fresh retry 후보가 이미 열린/포기된 문 station 주변에서만 '
+                    '반복 관측됩니다',
+                    mark_physical=True)
+                return True
         fresh_min_conf = max(
             0.0,
             min(
                 max(0.0, self._pre_exit_blue_min_confidence),
                 max(0.0, self._door_open_fresh_blue_min_confidence),
                 max(0.0, self._observed_blue_target_min_confidence)))
+        fresh_retry_age = max(
+            1.0,
+            min(
+                max(1.0, self._door_open_fresh_blue_max_age_sec),
+                max(4.0, self._pre_exit_blue_fresh_max_age_sec * 1.5)))
         if self._observed_blue_cluster_has_fresh_live_detection(
                 cluster,
-                max(0.0, self._door_open_fresh_blue_max_age_sec),
+                fresh_retry_age,
                 fresh_min_conf):
-            xy = self._cluster_xy(cluster)
+            if cluster.get('fresh_retry_requires_valid_wall', 0.0) >= 1.0:
+                target = self._observed_blue_cluster_to_door(cluster)
+                if not self._is_blue_door_at_valid_wall_position(target):
+                    self.get_logger().info(
+                        f'Observed blue cluster ({xy[0]:.1f}, {xy[1]:.1f}) '
+                        'has fresh blue color, but it is still not a valid '
+                        'side-wall door/handle target; keeping fresh retry wait.',
+                        throttle_duration_sec=3.0)
+                    return True
             cluster['fresh_retry_required'] = 0.0
+            cluster['fresh_retry_requires_valid_wall'] = 0.0
             cluster['fresh_retry_since'] = 0.0
+            cluster['fresh_retry_expirations'] = 0.0
             self.get_logger().info(
                 f'Observed blue cluster ({xy[0]:.1f}, {xy[1]:.1f}) '
                 'fresh retry wait cleared by a current live blue observation '
@@ -7592,15 +10061,26 @@ class StateMachineNode(Node):
         if since > 0.0:
             now_sec = self.get_clock().now().nanoseconds / 1e9
             timeout = max(
-                12.0,
-                self._door_open_fresh_blue_max_age_sec,
+                8.0,
+                fresh_retry_age * 2.0,
                 self._pre_exit_blue_fresh_max_age_sec * 2.0)
             if now_sec - since >= timeout:
                 xy = self._cluster_xy(cluster)
                 exit_sensitive_cluster = (
-                    self._is_blue_xy_in_pre_exit_zone(xy)
-                    or self._is_blue_xy_in_exit_search_tail(xy)
-                    or self._is_blue_xy_near_detected_exit(xy))
+                    self._blue_xy_requires_pre_nav_exit_fresh_evidence(xy))
+                if cluster.get('fresh_retry_requires_valid_wall', 0.0) >= 1.0:
+                    self._mark_observed_blue_cluster_abandoned(
+                        cluster,
+                        'fresh blue는 재관측됐지만 열 수 있는 벽면 문/손잡이 '
+                        '좌표로 보정되지 않았습니다')
+                    return True
+                expirations = int(cluster.get('fresh_retry_expirations', 0.0)) + 1
+                cluster['fresh_retry_expirations'] = float(expirations)
+                if expirations >= 2:
+                    self._mark_observed_blue_cluster_abandoned(
+                        cluster,
+                        'fresh blue 재관측 없이 retry 대기시간이 반복 만료됐습니다')
+                    return True
                 if exit_sensitive_cluster:
                     self._mark_observed_blue_cluster_abandoned(
                         cluster,
@@ -7608,13 +10088,13 @@ class StateMachineNode(Node):
                         '같은 station에서 다시 확인되지 않았습니다')
                     return True
                 cluster['fresh_retry_required'] = 0.0
+                cluster['fresh_retry_requires_valid_wall'] = 0.0
                 cluster['fresh_retry_since'] = 0.0
                 self.get_logger().warn(
                     f'Observed blue cluster ({xy[0]:.1f}, {xy[1]:.1f}) '
                     'fresh retry wait expired; allowing one more mapped-door '
-                    'approach attempt.')
+                    f'approach attempt ({expirations}/2).')
                 return False
-        xy = self._cluster_xy(cluster)
         self.get_logger().info(
             f'Observed blue cluster ({xy[0]:.1f}, {xy[1]:.1f}) is waiting for '
             'fresh blue evidence before another approach retry.',
@@ -7626,6 +10106,15 @@ class StateMachineNode(Node):
         if cluster.get('opened', 0.0) >= 1.0:
             return True
         if cluster.get('abandoned', 0.0) >= 1.0:
+            return True
+        if self._observed_blue_cluster_matches_opened_lineage(cluster):
+            cluster['opened'] = 1.0
+            xy = self._cluster_target_xy(cluster)
+            self.get_logger().info(
+                f'Observed blue cluster ({xy[0]:.1f}, {xy[1]:.1f}) '
+                'suppressed as an opened-door projection alias with matching '
+                'detector lineage and corridor progress.',
+                throttle_duration_sec=3.0)
             return True
         if self._observed_blue_cluster_waiting_for_fresh_retry(cluster):
             return True
@@ -7645,9 +10134,7 @@ class StateMachineNode(Node):
         recheckable_wall_blue = (
             self._observed_blue_cluster_has_recheckable_wall_memory(cluster))
         exit_sensitive_zone = (
-            self._is_blue_xy_in_pre_exit_zone(xy)
-            or self._is_blue_xy_in_exit_search_tail(xy)
-            or self._is_blue_xy_near_detected_exit(xy))
+            self._blue_xy_requires_pre_nav_exit_fresh_evidence(xy))
         if self._semantic_blue_xy_suppressed(xy):
             if recheckable_wall_blue and not exit_sensitive_zone:
                 self.get_logger().info(
@@ -7685,13 +10172,16 @@ class StateMachineNode(Node):
         if self._is_blue_xy_near_observed_red(xy):
             if (
                     recheckable_wall_blue
+                    and not exit_sensitive_zone
                     and (
-                        not exit_sensitive_zone
+                        self._observed_blue_cluster_requires_resolution_before_exit(
+                            cluster)
                         or self._observed_blue_cluster_should_recheck_despite_red_memory(
                             cluster))):
                 self.get_logger().info(
                     f'Observed blue cluster ({xy[0]:.1f}, {xy[1]:.1f}) '
-                    'will be rechecked despite nearby red memory.',
+                    'will be rechecked because unresolved repeated blue evidence '
+                    'must be verified at the mapped station.',
                     throttle_duration_sec=3.0)
             else:
                 return True
@@ -7707,9 +10197,21 @@ class StateMachineNode(Node):
             self, cluster: dict[str, float]) -> bool:
         if cluster.get('opened', 0.0) >= 1.0 or cluster.get('abandoned', 0.0) >= 1.0:
             return False
-        xy = self._cluster_xy(cluster)
-        if self._is_blue_position_opened(xy) or self._is_blue_position_abandoned(xy):
+        raw_xy = self._cluster_xy(cluster)
+        target_xy = self._cluster_target_xy(cluster)
+        if (
+                self._blue_xy_before_mission_start_floor(
+                    raw_xy, 'Observed blue revisit root')
+                or self._blue_xy_before_mission_start_floor(
+                    target_xy, 'Observed blue revisit target')):
             return False
+        if (
+                self._is_blue_position_opened(raw_xy)
+                or self._is_blue_position_abandoned(raw_xy)
+                or self._is_blue_position_opened(target_xy)
+                or self._is_blue_position_abandoned(target_xy)):
+            return False
+        xy = target_xy
         wall_lateral = abs(
             self._axis_lateral_xy(xy[0], xy[1]) - self._explore_center_y)
         min_lateral = max(0.65, self._observed_blue_min_abs_wall_y_m)
@@ -7746,6 +10248,99 @@ class StateMachineNode(Node):
             else max(0.20, self._observed_candidate_merge_dist() * 0.5))
         return progress >= opened_progress - progress_slack
 
+    def _observed_blue_cluster_is_stable_unopened_revisit(
+            self,
+            cluster: dict[str, float]) -> bool:
+        if cluster.get('opened', 0.0) >= 1.0 or cluster.get('abandoned', 0.0) >= 1.0:
+            return False
+        raw_xy = self._cluster_xy(cluster)
+        target_xy = self._cluster_target_xy(cluster)
+        if (
+                self._is_blue_position_opened(raw_xy)
+                or self._is_blue_position_abandoned(raw_xy)
+                or self._is_blue_position_opened(target_xy)
+                or self._is_blue_position_abandoned(target_xy)
+                or self._blue_xy_opened_station_relation(raw_xy) is not None
+                or self._blue_xy_opened_station_relation(target_xy) is not None
+                or self._is_blue_xy_opened_same_wall_remnant(
+                    raw_xy, label='Stable revisit blue root')
+                or self._is_blue_xy_opened_same_wall_remnant(
+                    target_xy, label='Stable revisit blue target')
+                or self._is_blue_xy_near_abandoned_station(target_xy)):
+            return False
+        if not self._is_blue_xy_recordable_wall_observation(target_xy):
+            return False
+
+        # Revisiting behind the robot is expensive and can drag the robot away
+        # from the exit. Require stronger accumulated evidence than a normal
+        # forward candidate; this still preserves genuinely missed mapped doors
+        # while rejecting weak perspective projections left by an opened panel.
+        revisit_min_count = max(3, self._observed_blue_min_observations + 1)
+        revisit_min_confidence = max(
+            0.40,
+            min(
+                max(0.0, self._observed_blue_target_min_confidence),
+                max(0.0, self._door_open_fresh_blue_min_confidence) + 0.08))
+        if (
+                int(cluster.get('count', 0.0)) < revisit_min_count
+                or float(cluster.get('confidence', 0.0)) < revisit_min_confidence):
+            return False
+
+        if (
+                self._observed_blue_cluster_has_pre_exit_target_memory(cluster)
+                or self._observed_blue_cluster_has_persistent_exit_memory(cluster)):
+            return True
+        return self._observed_blue_cluster_has_recheckable_wall_memory(cluster)
+
+    def _observed_blue_cluster_requires_resolution_before_exit(
+            self, cluster: dict[str, float]) -> bool:
+        if cluster.get('opened', 0.0) >= 1.0 or cluster.get('abandoned', 0.0) >= 1.0:
+            return False
+        if int(cluster.get('non_blue_conflict_rechecks', 0.0)) <= 0:
+            return False
+        approach_failures = int(
+            cluster.get('approach_failures', cluster.get('failures', 0.0)))
+        open_failures = int(cluster.get('open_failures', 0.0))
+        if (
+                approach_failures >= self._max_door_approach_failures_before_abandon
+                or open_failures >= self._max_door_open_failures_before_abandon):
+            return False
+        return self._observed_blue_cluster_has_recheckable_wall_memory(cluster)
+
+    def _observed_blue_door_is_stable_unopened_revisit(
+            self,
+            door: DoorInfo,
+            cluster: dict[str, float] | None = None) -> bool:
+        if door.door_color != 'blue' or not door.door_id.startswith('observed_blue_'):
+            return False
+        if not self._door_has_map_identity(door):
+            return False
+        if cluster is None:
+            cluster = self._observed_cluster_for_blue_door(
+                door,
+                merge_dist=max(
+                    self._observed_candidate_merge_dist(),
+                    self._opened_physical_door_merge_dist_m))
+        if cluster is None:
+            return False
+        return self._observed_blue_cluster_is_stable_unopened_revisit(cluster)
+
+    def _observed_blue_cluster_has_current_live_target_evidence(
+            self,
+            cluster: dict[str, float],
+            *,
+            min_confidence: float | None = None) -> bool:
+        if cluster.get('opened', 0.0) >= 1.0 or cluster.get('abandoned', 0.0) >= 1.0:
+            return False
+        door = self._door_with_axis_aligned_approach(
+            self._observed_blue_cluster_to_door(cluster))
+        min_conf = (
+            max(0.0, float(min_confidence))
+            if min_confidence is not None
+            else max(0.35, self._pre_exit_blue_min_confidence))
+        return self._door_target_has_current_live_blue_evidence(
+            door, min_conf)
+
     def _observed_blue_cluster_behind_opened_without_fresh(
             self, cluster: dict[str, float]) -> bool:
         opened_progress = self._farthest_resolved_blue_progress()
@@ -7755,6 +10350,33 @@ class StateMachineNode(Node):
         progress = self._axis_progress_xy(xy[0], xy[1])
         progress_slack = max(0.20, self._observed_candidate_merge_dist() * 0.5)
         if progress >= opened_progress - progress_slack:
+            return False
+        if self._observed_blue_cluster_is_stable_unopened_revisit(cluster):
+            self.get_logger().warn(
+                f'Observed blue cluster ({xy[0]:.1f}, {xy[1]:.1f}) retained '
+                'for all-blue-door coverage even though it is behind the '
+                f'farthest opened station {opened_progress:.1f}m.',
+                throttle_duration_sec=3.0)
+            return False
+        pose = self._current_map_pose()
+        localization_behind = (
+            pose is not None
+            and self._axis_progress_xy(pose[0], pose[1]) < opened_progress - 1.50)
+        required_count = max(0, self._min_opened_doors_before_exit)
+        if (
+                localization_behind
+                and required_count > 0
+                and self._opened_exit_ready_count() < required_count
+                and cluster.get('opened', 0.0) < 1.0
+                and cluster.get('abandoned', 0.0) < 1.0
+                and int(cluster.get('count', 0.0)) >= self._observed_blue_min_observations
+                and float(cluster.get('confidence', 0.0))
+                >= self._observed_blue_target_min_confidence):
+            self.get_logger().warn(
+                f'Localization is behind the opened-door floor; retaining '
+                f'stable blue cluster ({xy[0]:.1f}, {xy[1]:.1f}) until the '
+                f'required door count is reached.',
+                throttle_duration_sec=3.0)
             return False
         self.get_logger().info(
             f'Observed blue cluster ({xy[0]:.1f}, {xy[1]:.1f}) suppressed: '
@@ -7769,16 +10391,49 @@ class StateMachineNode(Node):
         opened_progress = self._farthest_resolved_blue_progress()
         if opened_progress is None:
             return False
+        progress_slack = max(0.20, self._observed_candidate_merge_dist() * 0.5)
+        if door.door_id.startswith('observed_blue_'):
+            cluster = self._observed_cluster_for_blue_door(
+                door,
+                merge_dist=self._observed_candidate_merge_dist())
+            if cluster is not None:
+                if self._observed_blue_cluster_is_stable_unopened_revisit(cluster):
+                    self.get_logger().warn(
+                        f'Blue target {door.door_id} retained for revisit: '
+                        'stable unopened blue memory must be checked before exit '
+                        'even when it is behind the farthest opened station.',
+                        throttle_duration_sec=3.0)
+                    return False
+                root_xy = self._cluster_xy(cluster)
+                root_progress = self._axis_progress_xy(root_xy[0], root_xy[1])
+                if root_progress < opened_progress - progress_slack:
+                    self.get_logger().info(
+                        f'Blue target {door.door_id} suppressed: observed root '
+                        f'progress {root_progress:.1f}m is behind the farthest '
+                        f'opened blue station {opened_progress:.1f}m.',
+                        throttle_duration_sec=3.0)
+                    self._mark_observed_blue_cluster_abandoned(
+                        cluster,
+                        'observed root is behind the farthest opened blue station')
+                    return True
         station_xy = self._blue_physical_station_xy(door)
         station_progress = self._axis_progress_xy(station_xy[0], station_xy[1])
-        progress_slack = max(0.20, self._observed_candidate_merge_dist() * 0.5)
         if station_progress >= opened_progress - progress_slack:
             return False
+        behind_gap = opened_progress - station_progress
+        cluster = self._observed_cluster_for_blue_door(
+            door,
+            merge_dist=self._observed_candidate_merge_dist())
         self.get_logger().info(
             f'Blue target {door.door_id} suppressed: physical station '
             f'progress {station_progress:.1f}m is behind the farthest opened '
             f'blue station {opened_progress:.1f}m.',
             throttle_duration_sec=3.0)
+        if cluster is not None:
+            self._mark_observed_blue_cluster_abandoned(
+                cluster,
+                'observed station is behind the farthest opened blue station',
+                mark_physical=False)
         return True
 
     def _observed_blue_door_behind_opened_without_fresh(
@@ -7818,7 +10473,10 @@ class StateMachineNode(Node):
             strict_same_wall_red: bool = False) -> bool:
         if not self._observed_blue_cluster_has_recheckable_wall_memory(cluster):
             return False
-        if not self._observed_blue_cluster_ahead_of_opened_floor(cluster):
+        if (
+                not self._observed_blue_cluster_ahead_of_opened_floor(cluster)
+                and not self._observed_blue_cluster_is_stable_unopened_revisit(
+                    cluster)):
             return False
         xy = self._cluster_xy(cluster)
         if self._is_blue_xy_near_abandoned_station(xy):
@@ -7847,6 +10505,13 @@ class StateMachineNode(Node):
                     max(0.0, self._door_open_fresh_blue_min_confidence))
                 + 0.04))
         if not fresh:
+            if self._observed_blue_cluster_requires_resolution_before_exit(cluster):
+                self.get_logger().info(
+                    f'Observed blue cluster ({xy[0]:.1f}, {xy[1]:.1f}) will be '
+                    'revisited from unresolved map memory; opening still requires '
+                    'a new close-range blue confirmation.',
+                    throttle_duration_sec=3.0)
+                return True
             # A stale observed-blue cluster may be worth scanning again, but it
             # must not override recent red/green evidence all the way into the
             # door-opening phase. Require a current direct blue observation when
@@ -8001,6 +10666,9 @@ class StateMachineNode(Node):
         if door.door_id.startswith('observed_blue_'):
             return True
 
+        if self._direct_blue_target_requires_observed_map_promotion(door):
+            return False
+
         if self._semantic_blue_xy_confirmed(xy):
             return True
         if self._is_blue_door_observation_confirmed(door):
@@ -8032,6 +10700,53 @@ class StateMachineNode(Node):
             throttle_duration_sec=3.0)
         return False
 
+    def _direct_blue_target_requires_observed_map_promotion(
+            self, door: DoorInfo) -> bool:
+        if door.door_color != 'blue' or not self._door_has_map_identity(door):
+            return False
+        if door.door_id.startswith('observed_blue_'):
+            return False
+        if self._opened_exit_ready_count() < self._min_opened_doors_before_exit:
+            return False
+        xy = self._door_identity_xy(door)
+        if not (
+                self._observed_exit_memory_available()
+                or self._is_blue_xy_in_exit_search_tail(xy)
+                or self._is_blue_xy_in_pre_exit_zone(xy)):
+            return False
+
+        handle_detected = bool(getattr(door, 'handle_detected', False))
+        handle_confidence = float(getattr(door, 'handle_confidence', 0.0))
+        method = str(getattr(door, 'handle_detection_method', '') or '').lower()
+        trusted_handle_detection = (
+            handle_detected
+            and handle_confidence >= 0.35
+            and method not in (
+                '',
+                'estimated',
+                'hsv',
+                'observed_map_memory',
+                'observed_wall_memory',
+                'direct_wall_projection',
+                'observed_wall_projection',
+            ))
+        if trusted_handle_detection:
+            return False
+
+        opened_progress = self._farthest_resolved_blue_progress()
+        if opened_progress is not None:
+            if self._door_station_progress(door) <= opened_progress + max(
+                    0.35,
+                    self._opened_physical_door_merge_dist_m * 0.5):
+                return False
+
+        self.get_logger().info(
+            f'Blue candidate {door.door_id} waiting for observed map promotion '
+            'before navigation: exit-side direct detections with only estimated '
+            'handle geometry are not used as immediate goals.',
+            throttle_duration_sec=3.0)
+        return True
+
     def _is_door_recent_observation(self, door: DoorInfo) -> bool:
         if self._detected_door_max_age_sec <= 0.0:
             return True
@@ -8046,6 +10761,67 @@ class StateMachineNode(Node):
 
     def _is_blue_candidate_blocked_by_red(self, door: DoorInfo) -> bool:
         if not self._is_blue_candidate_near_recent_red(door):
+            return False
+        if self.state == State.EXITING or self._exit_reentry_guard_active:
+            self.get_logger().info(
+                f'Blue candidate {door.door_id} rejected during exit: '
+                'nearby red-door memory is not bypassed while returning to '
+                'a blue-door target from the exit goal.',
+                throttle_duration_sec=3.0)
+            return True
+        door_xy = self._door_handle_xy(door)
+        exit_context_seen = (
+            self._exit_door is not None
+            or self._last_valid_exit_xy is not None
+            or self._last_provisional_exit_xy is not None
+            or self._final_scan_start_time is not None
+            or self._is_blue_xy_in_pre_exit_zone(door_xy)
+            or self._is_blue_xy_in_exit_search_tail(door_xy)
+            or self._is_blue_xy_near_detected_exit(door_xy))
+        if (
+                not door.door_id.startswith('observed_blue_')
+                and not exit_context_seen
+                and self._blue_target_has_recheckable_unopened_map_memory(door)
+                and self._door_target_has_current_live_blue_evidence(
+                    door,
+                    max(0.35, self._door_open_fresh_blue_min_confidence))):
+            self.get_logger().info(
+                f'Blue candidate {door.door_id} kept despite nearby red '
+                'memory: repeated wall-map blue evidence is still visible and '
+                'will be verified at the door-front pose.',
+                throttle_duration_sec=3.0)
+            return False
+        if (
+                door.door_id.startswith('observed_blue_')
+                and self._blue_target_has_recheckable_unopened_map_memory(door)):
+            handle_detected = bool(getattr(door, 'handle_detected', False))
+            handle_confidence = float(getattr(door, 'handle_confidence', 0.0))
+            strong_blue, strong_confidence, strong_count = (
+                self._blue_target_observation_strength(door))
+            if (
+                    self._opened_blue_door_count() >= 2
+                    and not (handle_detected and handle_confidence >= 0.35)
+                    and not strong_blue):
+                self.get_logger().info(
+                    f'Blue candidate {door.door_id} rejected near recent red '
+                    'observation: after multiple doors are open, projection '
+                    'memory near a red door must be refreshed by a trusted '
+                    'handle detection before navigation.',
+                    throttle_duration_sec=3.0)
+                return True
+            if strong_blue and not (
+                    handle_detected and handle_confidence >= 0.35):
+                self.get_logger().info(
+                    f'Blue candidate {door.door_id} kept for close recheck despite '
+                    'nearby red memory: repeated blue wall observations are strong '
+                    f'(count={strong_count}, conf={strong_confidence:.2f}); final '
+                    'opening still requires a live aligned blue observation.',
+                    throttle_duration_sec=3.0)
+            self.get_logger().info(
+                f'Blue candidate {door.door_id} kept despite nearby red '
+                'memory: repeated unopened wall-map evidence must be checked '
+                'at the door before rejecting it.',
+                throttle_duration_sec=3.0)
             return False
         self.get_logger().info(
             f'Blue candidate {door.door_id} rejected near recent red observation '
@@ -8346,28 +11122,153 @@ class StateMachineNode(Node):
         )
 
     def _cluster_target_xy(self, cluster: dict[str, float]) -> tuple[float, float]:
+        raw_xy = self._cluster_xy(cluster)
         x = cluster.get('target_x')
         y = cluster.get('target_y')
         if x is None or y is None:
-            return self._cluster_xy(cluster)
+            return raw_xy
         try:
-            return (float(x), float(y))
+            target_xy = (float(x), float(y))
         except (TypeError, ValueError):
-            return self._cluster_xy(cluster)
+            return raw_xy
+
+        raw_lateral = (
+            self._axis_lateral_xy(raw_xy[0], raw_xy[1])
+            - self._explore_center_y)
+        target_lateral = (
+            self._axis_lateral_xy(target_xy[0], target_xy[1])
+            - self._explore_center_y)
+        wall_threshold = max(
+            0.35,
+            self._observed_blue_min_abs_wall_y_m * 0.5)
+        same_wall = (
+            abs(raw_lateral) >= wall_threshold
+            and abs(target_lateral) >= wall_threshold
+            and raw_lateral * target_lateral > 0.0)
+        raw_progress = self._axis_progress_xy(raw_xy[0], raw_xy[1])
+        target_progress = self._axis_progress_xy(target_xy[0], target_xy[1])
+        stale_backshift = max(
+            0.35,
+            min(0.65, self._observed_candidate_merge_dist() * 0.35))
+        if same_wall and raw_progress > target_progress + stale_backshift:
+            return raw_xy
+        return target_xy
+
+    def _center_biased_observed_blue_wall_projection(
+            self, cluster: dict[str, float]) -> tuple[float, float] | None:
+        if (
+                cluster.get('opened', 0.0) >= 1.0
+                or cluster.get('abandoned', 0.0) >= 1.0
+                or self._is_observed_blue_cluster_suppressed(cluster)):
+            return None
+
+        raw_xy = self._cluster_xy(cluster)
+        target_xy = self._cluster_target_xy(cluster)
+        if self._is_blue_xy_at_valid_wall_position(target_xy):
+            return target_xy
+        if self._observed_blue_cluster_has_recheckable_wall_memory(cluster):
+            return target_xy
+        if (
+                self._is_blue_position_opened(raw_xy)
+                or self._is_blue_position_abandoned(raw_xy)
+                or self._is_blue_position_opened(target_xy)
+                or self._is_blue_position_abandoned(target_xy)
+                or self._is_blue_xy_opened_same_wall_remnant(target_xy)):
+            return None
+
+        progress = self._axis_progress_xy(target_xy[0], target_xy[1])
+        lateral = self._axis_lateral_xy(target_xy[0], target_xy[1])
+        side = lateral - self._explore_center_y
+        soft_side_min = max(
+            0.45,
+            self._observed_blue_min_abs_wall_y_m * 0.55)
+        if abs(side) < soft_side_min:
+            return None
+
+        count = int(cluster.get('count', 0.0))
+        confidence = float(cluster.get('confidence', 0.0))
+        min_count = max(3, self._observed_blue_min_observations + 1)
+        min_conf = max(
+            0.30,
+            min(
+                max(0.0, self._observed_blue_target_min_confidence),
+                max(0.0, self._door_open_fresh_blue_min_confidence),
+                max(0.0, self._explore_interrupt_min_confidence)))
+        if count < min_count or confidence < min_conf:
+            return None
+        if not self._observed_blue_cluster_has_fresh_direct_evidence(cluster):
+            return None
+
+        wall_abs = max(
+            self._observed_blue_min_abs_wall_y_m,
+            self._door_open_axis_min_side_lateral_m,
+            self._axis_door_min_abs_lateral_m)
+        max_wall = max(0.0, self._observed_blue_max_abs_wall_y_m)
+        if max_wall > wall_abs:
+            wall_abs = max_wall
+        if wall_abs <= 0.0:
+            return None
+
+        projected_xy = self._axis_to_map_xy(
+            progress,
+            self._explore_center_y + math.copysign(wall_abs, side))
+        if (
+                self._is_blue_position_opened(projected_xy)
+                or self._is_blue_position_abandoned(projected_xy)
+                or self._is_blue_xy_opened_same_wall_remnant(projected_xy)
+                or self._is_blue_xy_opposite_opened_station(projected_xy)
+                or self._is_blue_xy_at_or_after_observed_exit(projected_xy)
+                or self._is_blue_xy_near_detected_exit(projected_xy)
+                or self._is_blue_xy_near_abandoned_station(projected_xy)):
+            return None
+        if not self._is_blue_xy_recordable_wall_observation(projected_xy):
+            return None
+        if self._is_blue_xy_near_observed_red(projected_xy):
+            return None
+
+        cluster['target_x'] = projected_xy[0]
+        cluster['target_y'] = projected_xy[1]
+        cluster['target_progress'] = progress
+        cluster['target_confidence'] = confidence
+        cluster['target_score'] = max(
+            float(cluster.get('target_score', 0.0)),
+            confidence + 0.08)
+        cluster['target_projected_from_center_bias'] = 1.0
+        self.get_logger().info(
+            f'Observed blue cluster projected to same-side wall station for '
+            f'recheck: raw=({target_xy[0]:.1f},{target_xy[1]:.1f}) '
+            f'wall=({projected_xy[0]:.1f},{projected_xy[1]:.1f}), '
+            f'count={count}, conf={confidence:.2f}.',
+            throttle_duration_sec=3.0)
+        return projected_xy
 
     def _observed_cluster_for_blue_door(
             self, door: DoorInfo,
             merge_dist: float | None = None) -> dict[str, float] | None:
         if door.door_color != 'blue' or not self._door_has_map_identity(door):
             return None
-        cluster = self._observed_blue_door_id_to_cluster.get(door.door_id)
-        if cluster is not None:
-            return cluster
         dist_limit = (
             self._observed_candidate_merge_dist()
             if merge_dist is None
             else merge_dist)
-        for point in self._unique_xy_points(self._blue_evidence_points(door)):
+        target_points = self._unique_xy_points(self._blue_evidence_points(door))
+        cluster = self._observed_blue_door_id_to_cluster.get(door.door_id)
+        if cluster is not None:
+            cluster_points = self._unique_xy_points([
+                self._cluster_xy(cluster),
+                self._cluster_target_xy(cluster),
+            ])
+            if any(
+                    math.hypot(point[0] - cluster_point[0],
+                               point[1] - cluster_point[1]) <= dist_limit
+                    for point in target_points
+                    for cluster_point in cluster_points):
+                return cluster
+            self.get_logger().info(
+                f'Observed blue cluster id mapping for {door.door_id} ignored: '
+                'mapped cluster drifted away from the current wall/handle target.',
+                throttle_duration_sec=3.0)
+        for point in target_points:
             cluster = self._find_observed_blue_cluster(
                 point, merge_dist=dist_limit)
             if cluster is not None:
@@ -8640,37 +11541,120 @@ class StateMachineNode(Node):
         if self._semantic_conflict_yields_to_live_side_wall_blue_target(
                 door, strong_blue, blue_confidence, blue_count):
             return False
-        fresh_min_conf = max(
-            0.0,
-            min(
-                max(0.0, self._pre_exit_blue_min_confidence),
-                max(0.0, self._door_open_fresh_blue_min_confidence),
-                max(0.0, self._observed_blue_target_min_confidence)))
-        for xy in self._unique_xy_points(self._blue_evidence_points(door)):
-            cluster = self._find_observed_blue_cluster(
-                xy,
-                merge_dist=self._observed_candidate_merge_dist())
-            if (
-                    cluster is not None
-                    and self._observed_blue_cluster_has_recheckable_wall_memory(cluster)
-                    and self._observed_blue_cluster_has_fresh_live_detection(
-                        cluster,
-                        max(0.0, self._pre_exit_blue_fresh_max_age_sec),
-                        fresh_min_conf)):
-                self.get_logger().info(
-                    f'Semantic non-blue conflict ignored for {door.door_id}: '
-                    'repeated wall-side blue map memory will be rechecked at the '
-                    'door before opening.',
-                    throttle_duration_sec=3.0)
-                return False
         for xy in self._unique_xy_points(self._blue_evidence_points(door)):
             if self._semantic_non_blue_conflict_blocks_blue_xy(
                     xy, strong_blue, blue_confidence, blue_count):
                 return True
         return False
 
+    def _observed_blue_target_should_recheck_despite_non_blue_conflict(
+            self, door: DoorInfo) -> bool:
+        if (
+                door.door_color != 'blue'
+                or not self._door_has_map_identity(door)):
+            return False
+        if self._is_door_opened_for_observation(door):
+            return False
+        if self._is_door_physically_abandoned(door):
+            return False
+        if self._opened_exit_ready_count() < self._min_opened_doors_before_exit:
+            return False
+
+        points = self._unique_xy_points(self._blue_evidence_points(door))
+        if not points:
+            return False
+        if all(
+                self._is_blue_position_opened(xy)
+                or self._is_blue_position_abandoned(xy)
+                for xy in points):
+            return False
+
+        search_dist = max(
+            self._observed_candidate_merge_dist(),
+            self._axis_door_side_standoff_m + 0.25)
+        clusters: list[dict[str, float]] = []
+        linked_cluster = self._observed_blue_door_id_to_cluster.get(door.door_id)
+        if linked_cluster is not None:
+            clusters.append(linked_cluster)
+        for xy in points:
+            cluster = self._find_observed_blue_cluster(xy, merge_dist=search_dist)
+            if cluster is not None and all(cluster is not old for old in clusters):
+                clusters.append(cluster)
+
+        progress_limit = max(
+            self._observed_blue_fresh_evidence_max_progress_gap_m,
+            self._observed_candidate_merge_dist(),
+            1.05)
+        lateral_limit = max(
+            self._observed_blue_fresh_evidence_max_lateral_gap_m,
+            self._axis_door_side_standoff_m,
+            1.05)
+        fresh_max_age = max(0.0, self._pre_exit_blue_fresh_max_age_sec)
+        fresh_min_conf = max(
+            0.0,
+            min(
+                max(0.0, self._pre_exit_blue_min_confidence),
+                max(0.0, self._door_open_fresh_blue_min_confidence),
+                max(0.0, self._observed_blue_target_min_confidence)))
+        min_count = max(
+            self._observed_blue_min_observations,
+            self._observed_blue_low_conf_target_min_observations)
+        min_conf = max(
+            0.28,
+            min(
+                max(0.0, self._observed_blue_target_min_confidence),
+                max(0.0, self._pre_exit_blue_min_confidence)))
+
+        for cluster in clusters:
+            if cluster.get('opened', 0.0) >= 1.0 or cluster.get('abandoned', 0.0) >= 1.0:
+                continue
+            if not self._observed_blue_cluster_has_recheckable_wall_memory(cluster):
+                continue
+            if not self._observed_blue_cluster_ahead_of_opened_floor(
+                    cluster, slack=0.0):
+                continue
+            cluster_points = self._unique_xy_points([
+                self._cluster_xy(cluster),
+                self._cluster_target_xy(cluster),
+            ])
+            if all(
+                    self._is_blue_position_opened(xy)
+                    or self._is_blue_position_abandoned(xy)
+                    for xy in cluster_points):
+                continue
+            aligned = False
+            for target_xy in points:
+                target_progress = self._axis_progress_xy(
+                    target_xy[0], target_xy[1])
+                target_lateral = self._axis_lateral_xy(
+                    target_xy[0], target_xy[1]) - self._explore_center_y
+                for cluster_xy in cluster_points:
+                    cluster_progress = self._axis_progress_xy(
+                        cluster_xy[0], cluster_xy[1])
+                    cluster_lateral = self._axis_lateral_xy(
+                        cluster_xy[0], cluster_xy[1]) - self._explore_center_y
+                    if (
+                            abs(target_progress - cluster_progress) <= progress_limit
+                            and abs(target_lateral - cluster_lateral) <= lateral_limit):
+                        aligned = True
+                        break
+                if aligned:
+                    break
+            if not aligned:
+                continue
+
+            count = int(cluster.get('count', 0.0))
+            confidence = float(cluster.get('confidence', 0.0))
+            fresh = self._observed_blue_cluster_has_fresh_live_detection(
+                cluster, fresh_max_age, fresh_min_conf)
+            if fresh or count >= min_count or confidence >= min_conf:
+                return True
+        return False
+
     def _pre_exit_live_side_wall_blue_overrides_memory_conflict(
             self, door: DoorInfo) -> bool:
+        if self._exit_reentry_guard_active:
+            return False
         if door.door_color != 'blue' or not self._door_has_map_identity(door):
             return False
         exit_xy = self._exit_xy_for_blue_candidate_filter()
@@ -8756,6 +11740,8 @@ class StateMachineNode(Node):
             strong_blue: bool,
             blue_confidence: float,
             blue_count: int) -> bool:
+        if self._exit_reentry_guard_active:
+            return False
         if door.door_color != 'blue' or not self._door_has_map_identity(door):
             return False
         if self._pre_exit_live_side_wall_blue_overrides_memory_conflict(door):
@@ -8991,6 +11977,15 @@ class StateMachineNode(Node):
             candidates.append(self._last_valid_exit_xy)
         if self._last_provisional_exit_xy is not None:
             candidates.append(self._last_provisional_exit_xy)
+        if self.state == State.EXITING and candidates:
+            if self._active_exit_goal is not None:
+                candidates.append((
+                    float(self._active_exit_goal[0]),
+                    float(self._active_exit_goal[1]),
+                ))
+            return min(
+                candidates,
+                key=lambda xy: self._axis_progress_xy(xy[0], xy[1]))
 
         wall_xy = None
         wall_progress = None
@@ -9073,9 +12068,12 @@ class StateMachineNode(Node):
         side_wall_projection_grace = max(
             0.75,
             self._observed_exit_blue_candidate_margin_m + 0.75)
-        if (
-                self._blue_xy_reliable_side_wall_candidate_near_exit(xy, exit_xy)
-                and candidate_progress <= exit_progress + side_wall_projection_grace):
+        if self._blue_xy_reliable_side_wall_candidate_near_exit(xy, exit_xy):
+            self.get_logger().info(
+                f'Blue candidate ({xy[0]:.1f}, {xy[1]:.1f}) kept despite '
+                'tentative observed green exit: repeated side-wall blue '
+                'memory must be opened or explicitly failed before exiting.',
+                throttle_duration_sec=3.0)
             return False
 
         self.get_logger().info(
@@ -9107,9 +12105,12 @@ class StateMachineNode(Node):
         side_wall_projection_grace = max(
             0.75,
             self._observed_exit_blue_candidate_margin_m + 0.75)
-        if (
-                self._blue_xy_reliable_side_wall_candidate_near_exit(xy, exit_xy)
-                and candidate_progress <= exit_progress + side_wall_projection_grace):
+        if self._blue_xy_reliable_side_wall_candidate_near_exit(xy, exit_xy):
+            self.get_logger().info(
+                f'파란 문 후보 ({xy[0]:.1f}, {xy[1]:.1f}) 유지: '
+                '반복 관측된 측면 벽 파란 문 후보라서 임시 출구 추정보다 '
+                '우선 재확인합니다.',
+                throttle_duration_sec=3.0)
             return False
         if candidate_progress >= exit_progress + 0.20:
             self.get_logger().info(
@@ -9137,13 +12138,16 @@ class StateMachineNode(Node):
         return count >= persistent_count and confidence >= persistent_conf
 
     def _observed_blue_cluster_has_pre_exit_target_memory(
-            self, cluster: dict[str, float]) -> bool:
+            self,
+            cluster: dict[str, float],
+            *,
+            check_semantic: bool = True) -> bool:
         if cluster.get('opened', 0.0) >= 1.0 or cluster.get('abandoned', 0.0) >= 1.0:
             return False
         xy = self._cluster_xy(cluster)
         if self._is_blue_position_opened(xy) or self._is_blue_position_abandoned(xy):
             return False
-        if self._semantic_blue_xy_suppressed(xy):
+        if check_semantic and self._semantic_blue_xy_suppressed(xy):
             return False
         if not self._is_blue_xy_recordable_wall_observation(xy):
             return False
@@ -9213,6 +12217,107 @@ class StateMachineNode(Node):
         min_conf = max(0.0, self._observed_blue_target_min_confidence)
         return count >= min_count or confidence >= min_conf
 
+    def _exit_reentry_blue_candidate_has_live_support(
+            self,
+            xy: tuple[float, float],
+            cluster: dict[str, float] | None) -> bool:
+        if self.state != State.EXITING and not self._exit_reentry_guard_active:
+            return True
+        if cluster is None:
+            self.get_logger().info(
+                f'Blue candidate ({xy[0]:.1f}, {xy[1]:.1f}) suppressed '
+                'during exit: no mapped blue cluster is linked to the live '
+                'observation.',
+                throttle_duration_sec=3.0)
+            return False
+
+        cluster_points = self._unique_xy_points([
+            xy,
+            self._cluster_xy(cluster),
+            self._cluster_target_xy(cluster),
+        ])
+        for point in cluster_points:
+            opened_relation = self._blue_xy_opened_station_relation(point)
+            if (
+                    self._is_blue_position_opened(point)
+                    or self._is_blue_xy_opened_same_wall_remnant(
+                        point, label='Exit reentry blue candidate')
+                    or opened_relation is not None):
+                self.get_logger().info(
+                    f'Blue candidate ({xy[0]:.1f}, {xy[1]:.1f}) suppressed '
+                    'during exit: its observed/projection station overlaps '
+                    'an already opened blue door.',
+                    throttle_duration_sec=3.0)
+                return False
+
+        now_sec = self.get_clock().now().nanoseconds / 1e9
+        last_seen = float(cluster.get('last_seen', 0.0))
+        max_age = max(1.0, self._pre_exit_blue_fresh_max_age_sec)
+        if last_seen <= 0.0 or now_sec - last_seen > max_age:
+            self.get_logger().info(
+                f'Blue candidate ({xy[0]:.1f}, {xy[1]:.1f}) suppressed '
+                'during exit: mapped blue memory is stale.',
+                throttle_duration_sec=3.0)
+            return False
+
+        count = int(cluster.get('count', 0.0))
+        confidence = float(cluster.get('confidence', 0.0))
+        min_count = max(4, self._observed_blue_min_observations + 2)
+        min_conf = max(
+            0.50,
+            max(0.0, self._pre_exit_blue_min_confidence),
+            max(0.0, self._door_open_fresh_blue_min_confidence),
+            max(0.0, self._exit_interrupt_blue_min_confidence))
+        if count < min_count or confidence < min_conf:
+            self.get_logger().info(
+                f'Blue candidate ({xy[0]:.1f}, {xy[1]:.1f}) suppressed '
+                f'during exit: evidence count/confidence is not strong '
+                f'enough ({count}/{min_count}, {confidence:.2f}/{min_conf:.2f}).',
+                throttle_duration_sec=3.0)
+            return False
+
+        if not self._observed_blue_cluster_has_fresh_live_detection(
+                cluster, max_age, min_conf):
+            self.get_logger().info(
+                f'Blue candidate ({xy[0]:.1f}, {xy[1]:.1f}) suppressed '
+                'during exit: no current direct blue door frame confirms the '
+                'same mapped station.',
+                throttle_duration_sec=3.0)
+            return False
+
+        conflict_dist = max(
+            self._blue_red_conflict_dist_m,
+            self._blue_red_conflict_after_exit_dist_m,
+            self._blue_red_conflict_strict_dist_m)
+        if self._blue_xy_conflicts_recent_red_memory(xy, conflict_dist):
+            self.get_logger().info(
+                f'Blue candidate ({xy[0]:.1f}, {xy[1]:.1f}) suppressed '
+                'during exit: it overlaps recent red-door memory.',
+                throttle_duration_sec=3.0)
+            return False
+
+        landmark = self._find_semantic_door_landmark(
+            xy, merge_dist=self._semantic_door_merge_dist_m)
+        if landmark is not None:
+            blue_count, red_count, green_count = (
+                self._semantic_landmark_color_votes(landmark))
+            if green_count >= self._semantic_exit_min_green_observations:
+                self.get_logger().info(
+                    f'Blue candidate ({xy[0]:.1f}, {xy[1]:.1f}) suppressed '
+                    'during exit: it overlaps confirmed green-exit memory '
+                    f'(blue={blue_count}, green={green_count}).',
+                    throttle_duration_sec=3.0)
+                return False
+            if red_count + green_count > blue_count:
+                self.get_logger().info(
+                    f'Blue candidate ({xy[0]:.1f}, {xy[1]:.1f}) suppressed '
+                    'during exit: non-blue semantic memory is stronger '
+                    f'(blue={blue_count}, red={red_count}, green={green_count}).',
+                    throttle_duration_sec=3.0)
+                return False
+
+        return True
+
     def _blue_xy_reliable_side_wall_candidate_near_exit(
             self,
             xy: tuple[float, float],
@@ -9239,16 +12344,17 @@ class StateMachineNode(Node):
                 f'station at {opened_progress:.1f}m.',
                 throttle_duration_sec=3.0)
             return False
+        if not self._exit_reentry_blue_candidate_has_live_support(xy, cluster):
+            return False
         if in_hard_exit_tail:
             if tail_gap < same_exit_face_gap:
                 if (
                         cluster is not None
-                        and (
-                            self._observed_blue_cluster_has_persistent_exit_memory(cluster)
-                            or self._observed_blue_cluster_has_pre_exit_target_memory(cluster))):
+                        and self._observed_blue_cluster_has_persistent_exit_memory(
+                            cluster)):
                     self.get_logger().info(
                         f'Blue candidate ({xy[0]:.1f}, {xy[1]:.1f}) kept in '
-                        'strict exit tail: repeated side-wall blue memory is '
+                        'strict exit tail: persistent side-wall blue memory is '
                         'stronger than the exit-face spill guard.',
                         throttle_duration_sec=3.0)
                     return True
@@ -9264,13 +12370,13 @@ class StateMachineNode(Node):
                 return True
             if (
                     cluster is not None
-                    and self._observed_blue_cluster_has_pre_exit_target_memory(cluster)):
+                    and self._observed_blue_cluster_has_pre_exit_target_memory(
+                        cluster, check_semantic=False)):
                 self.get_logger().info(
-                    f'Blue candidate ({xy[0]:.1f}, {xy[1]:.1f}) kept in '
-                    'strict exit tail: repeated unopened side-wall blue memory '
-                    'must be opened or explicitly failed before exiting.',
+                    f'Blue candidate ({xy[0]:.1f}, {xy[1]:.1f}) suppressed in '
+                    'strict exit tail: pre-exit memory is not persistent enough '
+                    'to override the observed exit.',
                     throttle_duration_sec=3.0)
-                return True
             return False
 
         candidate_lateral = self._axis_lateral_xy(xy[0], xy[1])
@@ -9286,13 +12392,14 @@ class StateMachineNode(Node):
             return False
         if (
                 cluster is not None
-                and self._observed_blue_cluster_has_pre_exit_target_memory(cluster)):
+                and self._observed_blue_cluster_has_pre_exit_target_memory(
+                    cluster, check_semantic=False)
+                and not self._observed_blue_cluster_has_persistent_exit_memory(cluster)):
             self.get_logger().info(
-                f'Blue candidate ({xy[0]:.1f}, {xy[1]:.1f}) kept near observed exit: '
-                'repeated unopened side-wall blue memory must be rechecked '
-                'before exit/red suppression.',
+                f'Blue candidate ({xy[0]:.1f}, {xy[1]:.1f}) held back near '
+                'observed exit: pre-exit memory is not persistent enough yet.',
                 throttle_duration_sec=3.0)
-            return True
+            return False
         red_conflict_dist = max(
             self._blue_red_conflict_dist_m,
             self._blue_red_conflict_after_exit_dist_m)
@@ -9364,7 +12471,9 @@ class StateMachineNode(Node):
             self,
             xy: tuple[float, float],
             door: DoorInfo | None = None,
-            cluster: dict[str, float] | None = None) -> bool:
+            cluster: dict[str, float] | None = None,
+            *,
+            allow_live_evidence_escape: bool = True) -> bool:
         exit_xy = self._exit_xy_for_blue_candidate_filter()
         if exit_xy is None:
             return False
@@ -9382,14 +12491,55 @@ class StateMachineNode(Node):
             return False
         if not self._is_xy_at_configured_wall_lateral(xy):
             return False
+
+        if cluster is None:
+            cluster = self._find_observed_blue_cluster(
+                xy,
+                merge_dist=self._observed_candidate_merge_dist())
+        persistent_tail_memory = (
+            cluster is not None
+            and self._observed_blue_cluster_has_persistent_exit_memory(cluster))
+        trusted_handle_detection = False
+        if door is not None:
+            try:
+                method = str(getattr(door, 'detection_method', '') or '')
+                handle_confidence = float(
+                    getattr(door, 'handle_confidence', 0.0) or 0.0)
+            except Exception:
+                method = ''
+                handle_confidence = 0.0
+            trusted_handle_detection = (
+                bool(getattr(door, 'handle_detected', False))
+                and handle_confidence >= 0.35
+                and method not in (
+                    'estimated_handle',
+                    'hsv_with_estimated_handle',
+                    'observed_wall_projection',
+                    'direct_wall_projection',
+                    'axis_wall_projection',
+                    'memory_wall_projection',
+                    'sim_fallback'))
+        if persistent_tail_memory or trusted_handle_detection:
+            self.get_logger().info(
+                f'Pre-exit blue candidate '
+                f'{door.door_id if door is not None else f"({xy[0]:.1f},{xy[1]:.1f})"} '
+                'kept: persistent blue memory or trusted handle detection '
+                'separates it from exit tail.',
+                throttle_duration_sec=3.0)
+            return False
+
         if self._blue_xy_reliable_side_wall_candidate_near_exit(xy, exit_xy):
             self.get_logger().info(
                 f'Pre-exit blue candidate '
                 f'{door.door_id if door is not None else f"({xy[0]:.1f},{xy[1]:.1f})"} '
-                'kept: live side-wall blue evidence separates it from exit tail.',
+                'rejected despite live side-wall color: it is in the strict '
+                'exit tail and has no persistent door memory or trusted handle.',
                 throttle_duration_sec=3.0)
-            return False
+            return True
+
         if (
+                allow_live_evidence_escape
+                and
                 door is not None
                 and self._blue_target_open_pose_aligned_for_safe_memory(door)
                 and self._door_target_has_live_blue_evidence_without_exit_tail(door)):
@@ -9419,10 +12569,6 @@ class StateMachineNode(Node):
                     f'(conf={confidence:.2f}/{min_direct_conf:.2f}).',
                     throttle_duration_sec=3.0)
                 return False
-        if cluster is None:
-            cluster = self._find_observed_blue_cluster(
-                xy,
-                merge_dist=self._observed_candidate_merge_dist())
         if (
                 cluster is not None
                 and self._observed_blue_cluster_has_pre_exit_target_memory(cluster)):
@@ -9448,11 +12594,15 @@ class StateMachineNode(Node):
         return True
 
     def _blue_target_in_strict_exit_tail_without_persistent_memory(
-            self, door: DoorInfo) -> bool:
+            self,
+            door: DoorInfo,
+            *,
+            allow_live_evidence_escape: bool = True) -> bool:
         if door.door_color != 'blue' or not self._door_has_map_identity(door):
             return False
         return self._blue_xy_in_strict_exit_tail_without_persistent_memory(
-            self._door_identity_xy(door), door)
+            self._door_identity_xy(door), door,
+            allow_live_evidence_escape=allow_live_evidence_escape)
 
     def _door_target_has_live_blue_evidence_without_exit_tail(
             self,
@@ -9497,6 +12647,133 @@ class StateMachineNode(Node):
                     self._is_door_physically_opened(candidate)
                     or self._is_door_opened_for_observation(candidate)):
                 continue
+            if self._direct_blue_candidate_is_only_opened_door_remnant(candidate):
+                continue
+            if (not self._is_direct_blue_pose_lateral_consistent(candidate)
+                    and not self._direct_blue_candidate_matches_observed_wall_memory(
+                        candidate, self._door_identity_xy(door))):
+                continue
+            if float(candidate.confidence) < min_conf:
+                continue
+            if max_age > 0.0:
+                try:
+                    stamp = Time.from_msg(candidate.header.stamp)
+                except Exception:
+                    stamp = None
+                if stamp is not None and stamp.nanoseconds > 0:
+                    age = (now - stamp).nanoseconds / 1e9
+                    if age > max_age:
+                        continue
+            if (
+                    door.door_id.startswith('observed_blue_')
+                    and self._blue_target_open_pose_aligned_for_safe_memory(door)):
+                opened_progress = self._farthest_resolved_blue_progress()
+                if opened_progress is not None:
+                    target_wall = self._door_handle_xy(door)
+                    target_progress = self._axis_progress_xy(
+                        target_wall[0], target_wall[1])
+                    near_opened_floor = (
+                        target_progress
+                        <= opened_progress
+                        + max(0.45, self._observed_candidate_merge_dist() * 0.5))
+                    if near_opened_floor:
+                        candidate_wall = self._door_handle_xy(candidate)
+                        raw_candidate_wall = (
+                            self._raw_blue_handle_xy_for_evidence(candidate))
+                        if (
+                                raw_candidate_wall is not None
+                                and math.hypot(
+                                    target_wall[0] - raw_candidate_wall[0],
+                                    target_wall[1] - raw_candidate_wall[1])
+                                < math.hypot(
+                                    target_wall[0] - candidate_wall[0],
+                                    target_wall[1] - candidate_wall[1])):
+                            candidate_wall = raw_candidate_wall
+                        progress_gap = abs(
+                            self._axis_progress_xy(
+                                candidate_wall[0], candidate_wall[1])
+                            - target_progress)
+                        lateral_gap = abs(
+                            self._axis_lateral_xy(
+                                candidate_wall[0], candidate_wall[1])
+                            - self._axis_lateral_xy(
+                                target_wall[0], target_wall[1]))
+                        max_station_progress_gap = max(
+                            0.60,
+                            min(
+                                self._observed_candidate_merge_dist(),
+                                self._observed_blue_fresh_evidence_max_progress_gap_m,
+                                self._door_open_fresh_blue_max_dist_m))
+                        max_station_lateral_gap = max(
+                            0.45,
+                            min(
+                                self._observed_candidate_merge_dist(),
+                                self._observed_blue_fresh_evidence_max_lateral_gap_m,
+                                self._axis_door_side_standoff_m + 0.35),
+                            self._observed_blue_max_abs_wall_y_m + 0.35)
+                        if (
+                                progress_gap > max_station_progress_gap
+                                or lateral_gap > max_station_lateral_gap):
+                            self.get_logger().info(
+                                f'Fresh blue evidence ignored for {door.door_id}: '
+                                'target is near an opened progress floor and '
+                                f'live candidate {candidate.door_id} is not the '
+                                'same station '
+                                f'(progress_gap={progress_gap:.2f}/'
+                                f'{max_station_progress_gap:.2f}, '
+                                f'lateral_gap={lateral_gap:.2f}/'
+                                f'{max_station_lateral_gap:.2f}).',
+                                throttle_duration_sec=3.0)
+                            continue
+            candidate_points = self._blue_evidence_points(candidate)
+            if self._target_subfsm.live_blue_evidence_matches_target(
+                    door, candidate, target_points, candidate_points, max_dist):
+                return True
+        return False
+
+    def _door_target_has_current_live_blue_evidence(
+            self,
+            door: DoorInfo,
+            min_confidence: float | None = None) -> bool:
+        if door.door_color != 'blue' or not self._door_has_map_identity(door):
+            return False
+        target_points = self._blue_evidence_points(door)
+        if not target_points:
+            target_points = [self._door_identity_xy(door)]
+        max_age = max(0.0, self._door_open_fresh_blue_max_age_sec)
+        max_dist = max(0.20, self._door_open_fresh_blue_max_dist_m)
+        if door.door_id.startswith('observed_blue_'):
+            max_dist = min(
+                max_dist,
+                max(
+                    0.75,
+                    min(
+                        max(0.20, self._door_open_fresh_blue_max_dist_m) * 0.70,
+                        self._observed_candidate_merge_dist() * 0.90,
+                        1.20)))
+        min_conf = (
+            max(0.0, float(min_confidence))
+            if min_confidence is not None
+            else max(0.0, self._pre_exit_blue_min_confidence))
+        if door.door_id.startswith('observed_blue_'):
+            min_conf = max(min_conf, 0.35)
+        else:
+            min_conf = max(min_conf, self._blue_target_immediate_min_confidence)
+
+        now = self.get_clock().now()
+        for candidate in self.detected_doors:
+            if candidate.door_color != 'blue':
+                continue
+            if candidate.door_id.startswith('observed_blue_'):
+                continue
+            if not self._door_has_map_identity(candidate):
+                continue
+            if (
+                    self._is_door_physically_opened(candidate)
+                    or self._is_door_opened_for_observation(candidate)):
+                continue
+            if self._direct_blue_candidate_is_only_opened_door_remnant(candidate):
+                continue
             if (not self._is_direct_blue_pose_lateral_consistent(candidate)
                     and not self._direct_blue_candidate_matches_observed_wall_memory(
                         candidate, self._door_identity_xy(door))):
@@ -9516,6 +12793,85 @@ class StateMachineNode(Node):
             if self._target_subfsm.live_blue_evidence_matches_target(
                     door, candidate, target_points, candidate_points, max_dist):
                 return True
+        return False
+
+    def _exit_sensitive_observed_blue_target_lacks_current_evidence(
+            self,
+            door: DoorInfo | None,
+            sensitivity_xy: tuple[float, float]) -> bool:
+        if door is None:
+            return False
+        if (
+                door.door_color != 'blue'
+                or not door.door_id.startswith('observed_blue_')
+                or not self._door_has_map_identity(door)):
+            return False
+        if not self._pre_exit_blue_requires_fresh_detection:
+            return False
+        if not self._observed_exit_memory_available():
+            return False
+        if not self._blue_xy_requires_pre_nav_exit_fresh_evidence(sensitivity_xy):
+            return False
+
+        opened_progress = self._farthest_resolved_blue_progress()
+        if opened_progress is not None:
+            candidate_progress = self._axis_progress_xy(
+                sensitivity_xy[0], sensitivity_xy[1])
+            progress_slack = max(0.20, self._observed_candidate_merge_dist() * 0.5)
+            if candidate_progress < opened_progress - progress_slack:
+                return False
+
+        if self._door_target_has_current_live_blue_evidence(
+                door, max(0.0, self._pre_exit_blue_min_confidence)):
+            return False
+        if self.state == State.EXITING or self._exit_reentry_guard_active:
+            self.get_logger().info(
+                f'Exit-sensitive observed blue target {door.door_id} suppressed: '
+                'exit reentry requires current live blue evidence at the same '
+                'physical station, not only accumulated map memory.',
+                throttle_duration_sec=3.0)
+            return True
+        if self._blue_target_has_recheckable_unopened_map_memory(door):
+            cluster = self._find_observed_blue_cluster(
+                sensitivity_xy,
+                merge_dist=self._observed_candidate_merge_dist())
+            if cluster is None:
+                cluster = self._find_observed_blue_cluster(
+                    self._door_handle_xy(door),
+                    merge_dist=self._observed_candidate_merge_dist())
+            if (
+                    cluster is not None
+                    and (
+                        self._observed_blue_cluster_has_pre_exit_target_memory(
+                            cluster)
+                        or self._observed_blue_cluster_has_persistent_exit_memory(
+                            cluster)
+                        or self._observed_blue_cluster_has_recheckable_wall_memory(
+                            cluster))):
+                xy = self._cluster_target_xy(cluster)
+                self.get_logger().info(
+                    f'Exit-sensitive observed blue target {door.door_id} kept: '
+                    'repeated unopened wall-map evidence remains before final '
+                    f'exit, target=({xy[0]:.1f},{xy[1]:.1f}).',
+                    throttle_duration_sec=3.0)
+                return False
+        self.get_logger().info(
+            f'Exit-sensitive observed blue target {door.door_id} suppressed: '
+            'mapped memory is not enough after the green exit is visible; '
+            'waiting for current live blue evidence at the same station.',
+            throttle_duration_sec=3.0)
+        return True
+
+    def _blue_xy_requires_pre_nav_exit_fresh_evidence(
+            self, xy: tuple[float, float]) -> bool:
+        if not self._pre_exit_blue_requires_fresh_detection:
+            return False
+        if self._is_blue_xy_at_or_after_observed_exit(xy):
+            return True
+        if self._is_blue_xy_near_detected_exit(xy):
+            return True
+        if self._is_blue_xy_in_pre_exit_zone(xy):
+            return True
         return False
 
     def _observed_exit_memory_available(self) -> bool:
@@ -9550,6 +12906,17 @@ class StateMachineNode(Node):
         candidate_progress = self._axis_progress_xy(xy[0], xy[1])
         merge_slack = max(0.12, self._observed_candidate_merge_dist() * 0.5)
         if candidate_progress >= opened_progress - merge_slack:
+            return False
+
+        cluster = self._observed_cluster_for_blue_door(
+            door,
+            merge_dist=max(
+                self._observed_candidate_merge_dist(),
+                self._opened_physical_door_merge_dist_m))
+        if (
+                cluster is not None
+                and self._observed_blue_cluster_requires_resolution_before_exit(
+                    cluster)):
             return False
 
         if self._observed_blue_revisit_has_exit_sensitive_non_blue_conflict(door):
@@ -9729,6 +13096,24 @@ class StateMachineNode(Node):
         # a mapped side-wall door that must be retried before exiting.
         count = int(cluster.get('count', 0.0))
         confidence = float(cluster.get('confidence', 0.0))
+        if self._observed_exit_memory_available():
+            opened_progress = self._farthest_resolved_blue_progress()
+            if opened_progress is not None:
+                candidate_progress = self._axis_progress_xy(xy[0], xy[1])
+                progress_slack = max(
+                    0.20, self._observed_candidate_merge_dist() * 0.5)
+                if candidate_progress >= opened_progress - progress_slack:
+                    min_conf = max(0.0, self._pre_exit_blue_min_confidence)
+                    max_age = max(0.0, self._pre_exit_blue_fresh_max_age_sec)
+                    if not self._observed_blue_cluster_has_fresh_live_detection(
+                            cluster, max_age, min_conf):
+                        self.get_logger().info(
+                            f'Blue candidate ({xy[0]:.1f}, {xy[1]:.1f}) '
+                            'suppressed near observed exit: mapped memory is '
+                            'waiting for current live blue confirmation '
+                            f'(count={count}, conf={confidence:.2f}).',
+                            throttle_duration_sec=3.0)
+                        return True
         strong_count = max(
             self._observed_blue_min_observations + 3,
             self._confirmed_blue_bypass_red_conflict_count)
@@ -9798,7 +13183,10 @@ class StateMachineNode(Node):
             cluster: dict[str, float],
             max_age: float,
             min_confidence: float) -> bool:
-        xy = self._cluster_xy(cluster)
+        cluster_points = self._unique_xy_points([
+            self._cluster_xy(cluster),
+            self._cluster_target_xy(cluster),
+        ])
         merge_dist = max(0.45, self._observed_candidate_merge_dist())
         now = self.get_clock().now()
         for door in self.detected_doors:
@@ -9819,9 +13207,13 @@ class StateMachineNode(Node):
                     age = (now - stamp).nanoseconds / 1e9
                     if age > max_age:
                         continue
-            door_xy = self._door_identity_xy(door)
-            if math.hypot(xy[0] - door_xy[0], xy[1] - door_xy[1]) <= merge_dist:
-                return True
+            for door_xy in self._unique_xy_points(self._blue_evidence_points(door)):
+                if any(
+                        math.hypot(
+                            cluster_xy[0] - door_xy[0],
+                            cluster_xy[1] - door_xy[1]) <= merge_dist
+                        for cluster_xy in cluster_points):
+                    return True
         return False
 
     def _observed_blue_target_has_locked_cluster_evidence(
@@ -9834,6 +13226,10 @@ class StateMachineNode(Node):
                 or not self._door_has_map_identity(door)):
             return False
         if not self._blue_target_open_pose_aligned_for_safe_memory(door):
+            return False
+        if self._blue_target_in_strict_exit_tail_without_persistent_memory(
+                door,
+                allow_live_evidence_escape=False):
             return False
         target_key = self._canonical_door_id(door.door_id)
         if self._locked_blue_anchor_key != target_key:
@@ -9865,9 +13261,20 @@ class StateMachineNode(Node):
         if best_cluster.get('opened', 0.0) >= 1.0 or best_cluster.get('abandoned', 0.0) >= 1.0:
             return False
 
-        cluster_xy = self._cluster_xy(best_cluster)
+        has_recheckable_wall_memory = (
+            self._observed_blue_cluster_has_recheckable_wall_memory(best_cluster))
+        handle_detected = bool(getattr(door, 'handle_detected', False))
+        handle_confidence = float(getattr(door, 'handle_confidence', 0.0))
+        trusted_handle_detected = handle_detected and handle_confidence >= 0.35
+        cluster_xy = (
+            self._cluster_target_xy(best_cluster)
+            if has_recheckable_wall_memory
+            else self._cluster_xy(best_cluster))
+        raw_cluster_xy = self._cluster_xy(best_cluster)
         if (
-                self._is_blue_position_opened(cluster_xy)
+                self._is_blue_position_opened(raw_cluster_xy)
+                or self._is_blue_position_abandoned(raw_cluster_xy)
+                or self._is_blue_position_opened(cluster_xy)
                 or self._is_blue_position_abandoned(cluster_xy)
                 or self._blue_xy_opened_station_relation(cluster_xy) is not None):
             return False
@@ -9881,13 +13288,16 @@ class StateMachineNode(Node):
         cluster_lateral = self._axis_lateral_xy(cluster_xy[0], cluster_xy[1])
         progress_gap = abs(cluster_progress - target_progress)
         lateral_gap = abs(cluster_lateral - target_lateral)
-        handle_detected = bool(getattr(door, 'handle_detected', False))
+        memory_progress_cap = (
+            1.20
+            if self._allow_mapped_memory_open_without_live
+            else (1.10 if handle_detected else 0.95))
         open_progress_limit = max(
             0.30,
             min(
                 self._observed_blue_fresh_evidence_max_progress_gap_m,
                 self._observed_candidate_merge_dist(),
-                1.10 if handle_detected else 0.95))
+                memory_progress_cap))
         open_lateral_limit = max(
             0.35,
             min(
@@ -9899,20 +13309,196 @@ class StateMachineNode(Node):
         if lateral_gap > open_lateral_limit:
             return False
 
+        method = str(getattr(door, 'handle_detection_method', '') or '').lower()
+        if (
+                self._opened_blue_door_count() > 0
+                and method.startswith('observed_')
+                and not self._observed_blue_target_has_live_open_confirmation(
+                    door,
+                    target_xy,
+                    min_confidence=max(
+                        0.50,
+                        self._door_open_fresh_blue_min_confidence))):
+            return False
+
         count = int(best_cluster.get('count', 0.0))
         confidence = float(best_cluster.get('confidence', 0.0))
+        now_sec = self.get_clock().now().nanoseconds / 1e9
+        last_seen = float(best_cluster.get('last_seen', 0.0))
+        max_memory_age = max(
+            45.0,
+            self._door_open_fresh_blue_max_age_sec * 1.5)
+        aligned_sim_memory_override = (
+            self._allow_mapped_memory_open_without_live
+            and self._opened_blue_door_count() > 0
+            and not has_recheckable_wall_memory
+            and not trusted_handle_detected
+            and count >= max(6, self._observed_blue_min_observations + 3)
+            and confidence >= max(
+                0.50,
+                self._door_open_fresh_blue_min_confidence + 0.18)
+            and last_seen > 0.0
+            and now_sec - last_seen <= max_memory_age
+            and self._is_blue_door_at_valid_wall_position(door)
+            and not self._semantic_non_blue_conflict_blocks_blue_target(door)
+            and not self._estimated_observed_blue_target_has_strict_non_blue_overlap(
+                door))
+        if aligned_sim_memory_override:
+            self.get_logger().info(
+                f'Observed blue target {door.door_id} accepted from bounded '
+                'aligned map memory after a close-camera dropout; Gazebo '
+                'physical-door matching remains the final simulation check '
+                f'(count={count}, conf={confidence:.2f}, '
+                f'age={now_sec - last_seen:.1f}s, '
+                f'progress_gap={progress_gap:.2f}m, '
+                f'lateral_gap={lateral_gap:.2f}m).',
+                throttle_duration_sec=3.0)
+            return True
+        map_memory_retry_override = (
+            self._allow_mapped_memory_open_without_live
+            and has_recheckable_wall_memory
+            and self._opened_blue_door_count() > 0
+            and best_cluster.get('map_memory_open_override', 0.0) >= 1.0
+            and count >= max(2, self._observed_blue_min_observations)
+            and confidence >= max(
+                0.44,
+                self._door_open_fresh_blue_min_confidence + 0.18)
+            and last_seen > 0.0
+            and now_sec - last_seen <= max_memory_age
+            and not self._semantic_non_blue_conflict_blocks_blue_target(door)
+            and not self._estimated_observed_blue_target_has_strict_non_blue_overlap(
+                door))
+        if map_memory_retry_override:
+            self.get_logger().info(
+                f'Observed blue target {door.door_id} accepted from bounded '
+                'map-memory retry after repeated door-front camera misses; '
+                'simulation manipulation matching will verify the physical '
+                f'door (count={count}, conf={confidence:.2f}, '
+                f'age={now_sec - last_seen:.1f}s, '
+                f'progress_gap={progress_gap:.2f}m, '
+                f'lateral_gap={lateral_gap:.2f}m).',
+                throttle_duration_sec=3.0)
+            return True
         min_count = max(
             4,
             self._observed_blue_low_conf_target_min_observations,
             self._observed_blue_min_observations * 3)
+        if has_recheckable_wall_memory:
+            min_count = min(
+                min_count,
+                max(3, self._observed_blue_min_observations + 1))
+            if self._opened_blue_door_count() > 0:
+                min_count = max(
+                    min_count,
+                    self._observed_blue_min_observations + 3,
+                    6)
         cluster_min_conf = max(
             0.50,
             min(
                 max(0.0, self._observed_blue_target_min_confidence) + 0.10,
                 max(0.0, min_confidence) + 0.08))
+        if has_recheckable_wall_memory:
+            cluster_min_conf = max(
+                0.36,
+                min(
+                    cluster_min_conf,
+                    max(0.0, self._observed_blue_target_min_confidence) + 0.04,
+                    max(0.0, self._door_open_fresh_blue_min_confidence) + 0.16))
+            if self._opened_blue_door_count() > 0:
+                cluster_min_conf = max(cluster_min_conf, 0.58)
         if count < min_count or confidence < cluster_min_conf:
-            return False
-        if self._observed_blue_cluster_has_recheckable_wall_memory(best_cluster):
+            map_memory_only_ready = (
+                self._allow_mapped_memory_open_without_live
+                and has_recheckable_wall_memory
+                and self._opened_blue_door_count() > 0
+                and count >= max(
+                    6,
+                    self._observed_blue_min_observations + 4,
+                    self._observed_blue_low_conf_target_min_observations + 1)
+                and confidence >= max(
+                    0.34,
+                    self._door_open_fresh_blue_min_confidence + 0.16)
+                and not self._semantic_non_blue_conflict_blocks_blue_target(door)
+                and not self._estimated_observed_blue_target_has_strict_non_blue_overlap(
+                    door))
+            if not map_memory_only_ready:
+                return False
+            if last_seen <= 0.0 or now_sec - last_seen > max_memory_age:
+                return False
+            self.get_logger().info(
+                f'Observed blue target {door.door_id} accepted from aligned '
+                'map-memory recheck while the live camera frame is momentarily '
+                'missing; manipulation/Gazebo matching will verify the physical '
+                f'door (count={count}, conf={confidence:.2f}, '
+                f'age={now_sec - last_seen:.1f}s, '
+                f'progress_gap={progress_gap:.2f}m, '
+                f'lateral_gap={lateral_gap:.2f}m).',
+                throttle_duration_sec=3.0)
+            return True
+        if has_recheckable_wall_memory:
+            direct_open_min_confidence = max(
+                cluster_min_conf,
+                max(0.0, min_confidence))
+            if self._opened_blue_door_count() > 0:
+                direct_open_min_confidence = max(
+                    direct_open_min_confidence,
+                    0.50,
+                    self._door_open_fresh_blue_min_confidence)
+            if (
+                    self._opened_blue_door_count() > 0
+                    and method.startswith('observed_')):
+                if not self._observed_blue_target_has_live_open_confirmation(
+                        door,
+                        target_xy,
+                        min_confidence=direct_open_min_confidence):
+                    now_sec = self.get_clock().now().nanoseconds / 1e9
+                    last_seen = float(best_cluster.get('last_seen', 0.0))
+                    max_memory_age = max(
+                        45.0,
+                        self._door_open_fresh_blue_max_age_sec * 1.5)
+                    map_memory_only_ready = (
+                        self._allow_mapped_memory_open_without_live
+                        and count >= max(
+                            8,
+                            self._observed_blue_min_observations + 5,
+                            self._observed_blue_low_conf_target_min_observations + 2)
+                        and confidence >= max(
+                            0.40,
+                            self._door_open_fresh_blue_min_confidence + 0.20)
+                        and last_seen > 0.0
+                        and now_sec - last_seen <= max_memory_age
+                        and not self._semantic_non_blue_conflict_blocks_blue_target(
+                            door)
+                        and not self._estimated_observed_blue_target_has_strict_non_blue_overlap(
+                            door))
+                    if not map_memory_only_ready:
+                        self.get_logger().info(
+                            f'Observed blue target {door.door_id} kept for mapping but '
+                            'not opened yet: after the first door, an accumulated wall '
+                            'projection must be refreshed by a same-station live blue frame '
+                            f'before manipulation (method={method}).',
+                            throttle_duration_sec=3.0)
+                        return False
+                    self.get_logger().info(
+                        f'Observed blue target {door.door_id} accepted from '
+                        'stable aligned map memory after the live camera frame '
+                        'dropped at the door-front pose; manipulation/Gazebo '
+                        f'matching will verify the physical door '
+                        f'(count={count}, conf={confidence:.2f}, '
+                        f'age={now_sec - last_seen:.1f}s).',
+                        throttle_duration_sec=3.0)
+            elif (
+                    self._opened_blue_door_count() > 0
+                    and not self._observed_blue_target_has_live_open_confirmation(
+                        door,
+                        target_xy,
+                        min_confidence=direct_open_min_confidence)):
+                self.get_logger().info(
+                    f'Observed blue target {door.door_id} kept for mapping but '
+                    'not opened yet: after at least one opened door, mapped wall '
+                    'memory needs a close live blue frame at the same station.',
+                    throttle_duration_sec=3.0)
+                return False
             red_sensitive_count = max(
                 6,
                 self._observed_blue_low_conf_target_min_observations,
@@ -9950,10 +13536,22 @@ class StateMachineNode(Node):
         return True
 
     def _blue_target_has_safe_open_memory(self, door: DoorInfo) -> bool:
-        if self._door_open_requires_fresh_blue:
-            return self._direct_blue_target_has_aligned_open_memory(door)
         if door.door_color != 'blue' or not self._door_has_map_identity(door):
             return False
+        if self._door_open_requires_fresh_blue:
+            if door.door_id.startswith('observed_blue_'):
+                min_conf = max(
+                    0.50,
+                    self._door_open_fresh_blue_min_confidence)
+                return (
+                    self._observed_blue_target_has_locked_cluster_evidence(
+                        door, min_conf)
+                    or self._observed_blue_target_has_stable_open_evidence(door)
+                    or self._observed_blue_target_has_live_open_confirmation(
+                        door,
+                        self._door_handle_xy(door),
+                        min_confidence=min_conf))
+            return self._direct_blue_target_has_aligned_open_memory(door)
         if door.door_id.startswith('observed_blue_'):
             return False
         xy = self._door_identity_xy(door)
@@ -10006,39 +13604,36 @@ class StateMachineNode(Node):
             return False
         if not self._blue_target_open_pose_aligned_for_safe_memory(door):
             return False
-        handle_detected = bool(getattr(door, 'handle_detected', False))
-        if not handle_detected:
-            memory = self._stable_wall_memory_xy_for_direct_blue(door)
-            min_memory_count = max(
-                6,
-                self._observed_blue_low_conf_target_min_observations,
-                self._observed_blue_min_observations * 3)
-            min_memory_confidence = max(
-                0.50,
-                self._observed_blue_stable_open_min_confidence - 0.02,
-                self._door_open_fresh_blue_min_confidence)
-            if memory is None:
-                self.get_logger().info(
-                    f'Blue target {door.door_id} rejected for direct opening: '
-                    'estimated handle has no repeated wall-memory confirmation.',
-                    throttle_duration_sec=3.0)
-                return False
-            _, _, memory_count, memory_confidence = memory
-            if (
-                    memory_count < min_memory_count
-                    or memory_confidence < min_memory_confidence):
-                self.get_logger().info(
-                    f'Blue target {door.door_id} rejected for direct opening: '
-                    'estimated handle wall-memory is not stable enough '
-                    f'(count={memory_count}, conf={memory_confidence:.2f}).',
-                    throttle_duration_sec=3.0)
-                return False
         confidence = abs(float(door.confidence))
         min_conf = max(
             0.45,
             self._blue_target_immediate_min_confidence,
             self._door_open_fresh_blue_min_confidence)
         if confidence < min_conf:
+            return False
+
+        handle_method = str(
+            getattr(door, 'handle_detection_method', '') or '').lower()
+        handle_confidence = float(getattr(door, 'handle_confidence', 0.0))
+        trusted_handle_detected = (
+            bool(getattr(door, 'handle_detected', False))
+            and handle_confidence >= 0.35
+            and handle_method not in (
+                '',
+                'estimated',
+                'hsv',
+                'observed_map_memory',
+                'observed_wall_memory',
+                'direct_wall_projection',
+                'observed_wall_projection',
+            ))
+        if not trusted_handle_detected:
+            self.get_logger().info(
+                f'Blue target {door.door_id} rejected for direct opening: '
+                'estimated direct wall projection must be re-promoted through '
+                'observed map memory or a trusted handle detection before '
+                'manipulation.',
+                throttle_duration_sec=3.0)
             return False
         conflict_dist = max(
             self._blue_red_conflict_strict_dist_m,
@@ -10079,6 +13674,32 @@ class StateMachineNode(Node):
             return False
         if not self._blue_target_open_pose_aligned_for_safe_memory(door):
             return False
+        method = str(getattr(door, 'handle_detection_method', '') or '').lower()
+        handle_detected = bool(getattr(door, 'handle_detected', False))
+        handle_confidence = float(getattr(door, 'handle_confidence', 0.0))
+        trusted_handle_detection = (
+            handle_detected
+            and handle_confidence >= 0.35
+            and method not in (
+                '',
+                'estimated',
+                'hsv',
+                'observed_map_memory',
+                'observed_wall_memory',
+                'direct_wall_projection',
+                'observed_wall_projection',
+            ))
+        if (
+                self._opened_blue_door_count() > 0
+                and (
+                    method.startswith('observed_')
+                    or not trusted_handle_detection)
+                and not self._observed_blue_target_has_live_open_confirmation(
+                    door,
+                    self._door_handle_xy(door),
+                    min_confidence=max(
+                        0.50, self._door_open_fresh_blue_min_confidence))):
+            return False
         xy = self._door_identity_xy(door)
         if self._is_blue_position_opened(xy) or self._is_blue_position_abandoned(xy):
             return False
@@ -10110,7 +13731,6 @@ class StateMachineNode(Node):
         lateral_gap = abs(
             self._axis_lateral_xy(cluster_xy[0], cluster_xy[1])
             - self._axis_lateral_xy(target_xy[0], target_xy[1]))
-        handle_detected = bool(getattr(door, 'handle_detected', False))
         if progress_gap > (0.75 if handle_detected else 0.60):
             return False
         if lateral_gap > (0.90 if handle_detected else 0.80):
@@ -10144,6 +13764,708 @@ class StateMachineNode(Node):
             throttle_duration_sec=3.0)
         return True
 
+    def _observed_blue_target_has_direct_open_frame(
+            self,
+            door: DoorInfo,
+            target_xy: tuple[float, float],
+            *,
+            min_confidence: float) -> bool:
+        if door.door_color != 'blue' or not door.door_id.startswith('observed_blue_'):
+            return False
+        max_age = max(0.0, self._door_open_fresh_blue_max_age_sec)
+        requested_min_conf = max(
+            0.0,
+            max(0.0, min_confidence),
+            self._door_open_fresh_blue_min_confidence)
+        min_conf = max(
+            0.34,
+            min(0.50, requested_min_conf))
+        progress_limit = max(
+            0.30,
+            min(
+                self._observed_candidate_merge_dist(),
+                self._observed_blue_fresh_evidence_max_progress_gap_m,
+                max(0.85, self._door_open_fresh_blue_max_dist_m)))
+        lateral_limit = max(
+            0.35,
+            min(
+                self._observed_candidate_merge_dist(),
+                self._observed_blue_fresh_evidence_max_lateral_gap_m,
+                self._axis_door_side_standoff_m + 0.55))
+        dist_limit = math.hypot(progress_limit, lateral_limit)
+        target_progress = self._axis_progress_xy(target_xy[0], target_xy[1])
+        target_lateral = self._axis_lateral_xy(target_xy[0], target_xy[1])
+        target_side = target_lateral - self._explore_center_y
+        wall_side_threshold = max(
+            0.35,
+            self._observed_blue_min_abs_wall_y_m * 0.5)
+        now = self.get_clock().now()
+
+        for candidate in self.detected_doors:
+            if candidate.door_color != 'blue':
+                continue
+            if candidate.door_id.startswith('observed_blue_'):
+                continue
+            if not self._door_has_map_identity(candidate):
+                continue
+            if (
+                    self._is_door_physically_opened(candidate)
+                    or self._is_door_opened_for_observation(candidate)
+                    or self._is_door_physically_abandoned(candidate)):
+                continue
+            if float(candidate.confidence) < min_conf:
+                continue
+            if max_age > 0.0:
+                try:
+                    stamp = Time.from_msg(candidate.header.stamp)
+                except Exception:
+                    stamp = None
+                if stamp is not None and stamp.nanoseconds > 0:
+                    age = (now - stamp).nanoseconds / 1e9
+                    if age > max_age:
+                        continue
+            if not self._direct_blue_candidate_is_front_centered_for_open(
+                    candidate):
+                continue
+
+            for point in self._unique_xy_points(self._blue_evidence_points(candidate)):
+                if (
+                        self._is_blue_position_opened(point)
+                        or self._is_blue_position_abandoned(point)
+                        or self._blue_xy_opened_station_relation(point) is not None):
+                    continue
+                point_progress = self._axis_progress_xy(point[0], point[1])
+                point_lateral = self._axis_lateral_xy(point[0], point[1])
+                point_side = point_lateral - self._explore_center_y
+                if (
+                        abs(target_side) >= wall_side_threshold
+                        and abs(point_side) >= wall_side_threshold
+                        and target_side * point_side < 0.0):
+                    continue
+                if abs(point_progress - target_progress) > progress_limit:
+                    continue
+                if abs(point_lateral - target_lateral) > lateral_limit:
+                    continue
+                if math.hypot(point[0] - target_xy[0], point[1] - target_xy[1]) > dist_limit:
+                    continue
+                return True
+        return False
+
+    def _observed_blue_target_has_same_side_live_wall_evidence(
+            self,
+            door: DoorInfo,
+            *,
+            min_confidence: float,
+            max_lateral_gap_override: float | None = None) -> bool:
+        if (
+                door.door_color != 'blue'
+                or not door.door_id.startswith('observed_blue_')
+                or not self._door_has_map_identity(door)):
+            return False
+        if not self._blue_target_open_pose_aligned_for_safe_memory(door):
+            return False
+
+        target_xy = self._door_handle_xy(door)
+        target_progress = self._axis_progress_xy(target_xy[0], target_xy[1])
+        target_lateral = self._axis_lateral_xy(target_xy[0], target_xy[1])
+        target_side = target_lateral - self._explore_center_y
+        wall_side_threshold = max(
+            0.35,
+            self._observed_blue_min_abs_wall_y_m * 0.5)
+        live_wall_lateral_min = max(
+            wall_side_threshold,
+            self._observed_blue_min_abs_wall_y_m * 0.85)
+        if abs(target_side) < wall_side_threshold:
+            return False
+
+        max_age = max(0.0, self._door_open_fresh_blue_max_age_sec)
+        min_conf = max(0.0, min_confidence)
+        progress_limit = max(
+            0.30,
+            min(
+                self._observed_candidate_merge_dist(),
+                self._observed_blue_fresh_evidence_max_progress_gap_m,
+                max(0.85, self._door_open_fresh_blue_max_dist_m)))
+        lateral_limit = max(
+            0.35,
+            min(
+                self._observed_candidate_merge_dist(),
+                self._observed_blue_fresh_evidence_max_lateral_gap_m,
+                self._axis_door_side_standoff_m + 0.55))
+        if self._blue_target_open_pose_aligned_for_safe_memory(door):
+            progress_limit = max(
+                progress_limit,
+                min(
+                    0.95,
+                    max(0.65, self._door_open_fresh_blue_max_dist_m * 0.60)))
+            lateral_limit = min(
+                lateral_limit,
+                max(0.38, min(0.48, self._axis_door_side_standoff_m * 0.45)))
+        if max_lateral_gap_override is not None:
+            lateral_limit = min(
+                lateral_limit,
+                max(0.35, float(max_lateral_gap_override)))
+        distance_limit = math.hypot(progress_limit, lateral_limit)
+        now = self.get_clock().now()
+
+        for candidate in self.detected_doors:
+            if candidate.door_color != 'blue':
+                continue
+            if candidate.door_id.startswith('observed_blue_'):
+                continue
+            if not self._door_has_map_identity(candidate):
+                continue
+            if (
+                    self._is_door_physically_opened(candidate)
+                    or self._is_door_opened_for_observation(candidate)
+                    or self._is_door_physically_abandoned(candidate)):
+                continue
+            if float(candidate.confidence) < min_conf:
+                continue
+            if max_age > 0.0:
+                try:
+                    stamp = Time.from_msg(candidate.header.stamp)
+                except Exception:
+                    stamp = None
+                if stamp is not None and stamp.nanoseconds > 0:
+                    age = (now - stamp).nanoseconds / 1e9
+                    if age > max_age:
+                        continue
+            if not self._direct_blue_candidate_is_front_centered_for_open(
+                    candidate):
+                continue
+
+            evidence_points: list[tuple[float, float]] = []
+            raw_xy = self._raw_blue_handle_xy_for_evidence(candidate)
+            if raw_xy is None:
+                continue
+            evidence_points.append(raw_xy)
+
+            for point in self._unique_xy_points(evidence_points):
+                if (
+                        self._is_blue_position_opened(point)
+                        or self._is_blue_position_abandoned(point)
+                        or self._blue_xy_opened_station_relation(point) is not None):
+                    continue
+                point_progress = self._axis_progress_xy(point[0], point[1])
+                point_lateral = self._axis_lateral_xy(point[0], point[1])
+                point_side = point_lateral - self._explore_center_y
+                if abs(point_side) < live_wall_lateral_min:
+                    continue
+                if target_side * point_side <= 0.0:
+                    continue
+                progress_gap = abs(point_progress - target_progress)
+                lateral_gap = abs(point_lateral - target_lateral)
+                if progress_gap > progress_limit or lateral_gap > lateral_limit:
+                    continue
+                if math.hypot(
+                        point[0] - target_xy[0],
+                        point[1] - target_xy[1]) > distance_limit:
+                    continue
+                self.get_logger().info(
+                    f'Observed blue target {door.door_id} confirmed by current '
+                    'same-wall live blue evidence before opening '
+                    f'(candidate={candidate.door_id}, '
+                    f'progress_gap={progress_gap:.2f}/{progress_limit:.2f}, '
+                    f'lateral_gap={lateral_gap:.2f}/{lateral_limit:.2f}, '
+                    f'conf={float(candidate.confidence):.2f}/{min_conf:.2f}).',
+                    throttle_duration_sec=3.0)
+                return True
+        return False
+
+    def _observed_blue_target_has_coherent_same_side_live_wall_evidence(
+            self,
+            door: DoorInfo,
+            *,
+            min_confidence: float,
+            max_lateral_gap_override: float | None = None) -> bool:
+        if (
+                door.door_color != 'blue'
+                or not door.door_id.startswith('observed_blue_')
+                or not self._door_has_map_identity(door)):
+            return False
+        if not self._blue_target_open_pose_aligned_for_safe_memory(door):
+            return False
+
+        target_xy = self._door_handle_xy(door)
+        target_progress = self._axis_progress_xy(target_xy[0], target_xy[1])
+        target_lateral = self._axis_lateral_xy(target_xy[0], target_xy[1])
+        target_side = target_lateral - self._explore_center_y
+        wall_side_threshold = max(
+            0.35,
+            self._observed_blue_min_abs_wall_y_m * 0.5)
+        if abs(target_side) < wall_side_threshold:
+            return False
+
+        max_age = max(0.0, self._door_open_fresh_blue_max_age_sec)
+        min_conf = max(0.0, min_confidence)
+        progress_limit = max(
+            0.30,
+            min(
+                self._observed_candidate_merge_dist(),
+                self._observed_blue_fresh_evidence_max_progress_gap_m,
+                max(0.85, self._door_open_fresh_blue_max_dist_m)))
+        lateral_limit = max(
+            0.35,
+            min(
+                self._observed_candidate_merge_dist(),
+                self._observed_blue_fresh_evidence_max_lateral_gap_m,
+                self._axis_door_side_standoff_m + 0.55))
+        if max_lateral_gap_override is not None:
+            lateral_limit = min(
+                lateral_limit,
+                max(0.35, float(max_lateral_gap_override)))
+        now = self.get_clock().now()
+
+        for candidate in self.detected_doors:
+            if candidate.door_color != 'blue':
+                continue
+            if candidate.door_id.startswith('observed_blue_'):
+                continue
+            if not self._door_has_map_identity(candidate):
+                continue
+            if (
+                    self._is_door_physically_opened(candidate)
+                    or self._is_door_opened_for_observation(candidate)
+                    or self._is_door_physically_abandoned(candidate)):
+                continue
+            if float(candidate.confidence) < min_conf:
+                continue
+            if not self._is_direct_blue_pose_lateral_consistent(candidate):
+                continue
+            raw_xy = self._raw_blue_handle_xy_for_evidence(candidate)
+            if raw_xy is None:
+                continue
+            if not self._is_xy_at_configured_wall_lateral(raw_xy):
+                continue
+            if not self._door_handle_consistent_with_pose(candidate, raw_xy):
+                continue
+            if max_age > 0.0:
+                try:
+                    stamp = Time.from_msg(candidate.header.stamp)
+                except Exception:
+                    stamp = None
+                if stamp is not None and stamp.nanoseconds > 0:
+                    age = (now - stamp).nanoseconds / 1e9
+                    if age > max_age:
+                        continue
+            if not self._direct_blue_candidate_is_front_centered_for_open(
+                    candidate):
+                continue
+
+            point_progress = self._axis_progress_xy(raw_xy[0], raw_xy[1])
+            point_lateral = self._axis_lateral_xy(raw_xy[0], raw_xy[1])
+            point_side = point_lateral - self._explore_center_y
+            if target_side * point_side <= 0.0:
+                continue
+            if abs(point_side) < wall_side_threshold:
+                continue
+            progress_gap = abs(point_progress - target_progress)
+            lateral_gap = abs(point_lateral - target_lateral)
+            if progress_gap > progress_limit or lateral_gap > lateral_limit:
+                continue
+            self.get_logger().info(
+                f'Observed blue target {door.door_id} confirmed by coherent '
+                'same-wall live blue evidence before opening '
+                f'(candidate={candidate.door_id}, '
+                f'progress_gap={progress_gap:.2f}/{progress_limit:.2f}, '
+                f'lateral_gap={lateral_gap:.2f}/{lateral_limit:.2f}, '
+                f'conf={float(candidate.confidence):.2f}/{min_conf:.2f}).',
+                throttle_duration_sec=3.0)
+            return True
+        return False
+
+    def _estimated_observed_blue_target_has_strict_non_blue_overlap(
+            self, door: DoorInfo) -> bool:
+        if (
+                door.door_color != 'blue'
+                or not door.door_id.startswith('observed_blue_')
+                or not self._door_has_map_identity(door)):
+            return False
+        handle_detected = bool(getattr(door, 'handle_detected', False))
+        handle_confidence = float(getattr(door, 'handle_confidence', 0.0))
+        if handle_detected and handle_confidence >= 0.35:
+            return False
+
+        target_points = self._blue_non_blue_conflict_points(door)
+        max_age = max(0.0, self._door_open_fresh_blue_max_age_sec)
+        max_dist = max(0.45, self._blue_red_conflict_strict_dist_m + 0.20)
+        now = self.get_clock().now()
+
+        for candidate in self.detected_doors:
+            if candidate.door_color not in ('red', 'green'):
+                continue
+            if not self._door_has_map_identity(candidate):
+                continue
+            min_conf = self._red_observation_min_confidence
+            if candidate.door_color == 'green':
+                min_conf = max(min_conf, 0.35)
+            if float(candidate.confidence) < min_conf:
+                continue
+            if max_age > 0.0:
+                try:
+                    stamp = Time.from_msg(candidate.header.stamp)
+                except Exception:
+                    stamp = None
+                if stamp is not None and stamp.nanoseconds > 0:
+                    age = (now - stamp).nanoseconds / 1e9
+                    if age > max_age:
+                        continue
+            candidate_points = [
+                self._door_handle_xy(candidate),
+                self._door_identity_xy(candidate),
+            ]
+            for tp in target_points:
+                for cp in candidate_points:
+                    if math.hypot(tp[0] - cp[0], tp[1] - cp[1]) <= max_dist:
+                        return True
+
+        now_sec = now.nanoseconds / 1e9
+        memory_sec = max(0.0, self._red_blue_conflict_memory_sec)
+        for red in self._observed_red_door_positions:
+            if memory_sec > 0.0 and now_sec - float(red.get('last_seen', now_sec)) > memory_sec:
+                continue
+            if int(red.get('count', 0.0)) < self._red_observation_min_count_for_blue_suppression:
+                continue
+            if float(red.get('confidence', 0.0)) < self._red_observation_min_confidence:
+                continue
+            red_xy = (float(red.get('x', 0.0)), float(red.get('y', 0.0)))
+            for tp in target_points:
+                if math.hypot(tp[0] - red_xy[0], tp[1] - red_xy[1]) <= max_dist:
+                    return True
+        return False
+
+    def _observed_blue_target_has_stronger_opposite_wall_live_blue(
+            self,
+            door: DoorInfo,
+            *,
+            min_confidence: float) -> bool:
+        if (
+                door.door_color != 'blue'
+                or not door.door_id.startswith('observed_blue_')
+                or not self._door_has_map_identity(door)):
+            return False
+
+        target_xy = self._door_handle_xy(door)
+        target_progress = self._axis_progress_xy(target_xy[0], target_xy[1])
+        target_lateral = self._axis_lateral_xy(target_xy[0], target_xy[1])
+        target_side = target_lateral - self._explore_center_y
+        wall_side_threshold = max(
+            0.35,
+            self._observed_blue_min_abs_wall_y_m * 0.5)
+        if abs(target_side) < wall_side_threshold:
+            return False
+
+        max_age = max(0.0, self._door_open_fresh_blue_max_age_sec)
+        progress_limit = max(
+            0.45,
+            min(
+                self._observed_candidate_merge_dist(),
+                max(1.20, self._door_open_fresh_blue_max_dist_m * 1.35),
+                self._observed_blue_fresh_evidence_max_progress_gap_m))
+        min_conf = max(0.0, min_confidence)
+        now = self.get_clock().now()
+        same_best = 0.0
+        opposite_best = 0.0
+        opposite_label = ''
+
+        for candidate in self.detected_doors:
+            if candidate.door_color != 'blue':
+                continue
+            if candidate.door_id.startswith('observed_blue_'):
+                continue
+            if not self._door_has_map_identity(candidate):
+                continue
+            if (
+                    self._is_door_physically_opened(candidate)
+                    or self._is_door_opened_for_observation(candidate)
+                    or self._is_door_physically_abandoned(candidate)):
+                continue
+            confidence = float(candidate.confidence)
+            if confidence < min_conf:
+                continue
+            if max_age > 0.0:
+                try:
+                    stamp = Time.from_msg(candidate.header.stamp)
+                except Exception:
+                    stamp = None
+                if stamp is not None and stamp.nanoseconds > 0:
+                    age = (now - stamp).nanoseconds / 1e9
+                    if age > max_age:
+                        continue
+
+            candidate_points = self._unique_xy_points(
+                self._blue_evidence_points(candidate))
+            for point in candidate_points:
+                point_progress = self._axis_progress_xy(point[0], point[1])
+                if abs(point_progress - target_progress) > progress_limit:
+                    continue
+                point_lateral = self._axis_lateral_xy(point[0], point[1])
+                point_side = point_lateral - self._explore_center_y
+                if abs(point_side) < wall_side_threshold:
+                    continue
+                if target_side * point_side > 0.0:
+                    same_best = max(same_best, confidence)
+                elif target_side * point_side < 0.0:
+                    if confidence > opposite_best:
+                        opposite_best = confidence
+                        opposite_label = candidate.door_id
+
+        if opposite_best < min_conf:
+            return False
+        coherent_same_side = (
+            self._observed_blue_target_has_coherent_same_side_live_wall_evidence(
+                door,
+                min_confidence=max(0.50, min_conf),
+                max_lateral_gap_override=max(
+                    0.65,
+                    min(
+                        self._observed_blue_fresh_evidence_max_lateral_gap_m,
+                        self._axis_door_side_standoff_m + 0.25))))
+        if coherent_same_side:
+            return False
+        if same_best >= opposite_best + 0.10:
+            return False
+        self.get_logger().warn(
+            f'Observed blue target {door.door_id} held before opening: '
+            'opposite-wall live blue evidence is stronger than the target-side '
+            f'projection (opposite={opposite_label}, '
+            f'opposite_conf={opposite_best:.2f}, same_conf={same_best:.2f}).',
+            throttle_duration_sec=3.0)
+        return True
+
+    def _observed_blue_target_has_live_open_confirmation(
+            self,
+            door: DoorInfo,
+            target_xy: tuple[float, float],
+            *,
+            min_confidence: float) -> bool:
+        max_age = max(0.0, self._door_open_fresh_blue_max_age_sec)
+        if self._observed_blue_target_has_same_side_live_wall_evidence(
+                door,
+                min_confidence=min_confidence):
+            return True
+        if self._aligned_wall_memory_has_live_blue_projection(
+            door,
+            target_xy,
+            min_confidence=min_confidence,
+            max_age=max_age):
+            return True
+        if self._opened_blue_door_count() > 0:
+            return False
+        return self._observed_blue_target_has_direct_open_frame(
+            door,
+            target_xy,
+            min_confidence=min_confidence)
+
+    def _aligned_wall_memory_has_live_blue_projection(
+            self,
+            door: DoorInfo,
+            target_xy: tuple[float, float],
+            *,
+            min_confidence: float,
+            max_age: float) -> bool:
+        if door.door_color != 'blue' or not self._door_has_map_identity(door):
+            return False
+        if not self._blue_target_open_pose_aligned_for_safe_memory(door):
+            return False
+        if self._blue_target_in_strict_exit_tail_without_persistent_memory(
+                door, allow_live_evidence_escape=False):
+            return False
+
+        best_count = 0
+        best_confidence = 0.0
+        merge_dist = max(
+            self._observed_candidate_merge_dist(),
+            self._door_open_fresh_blue_max_dist_m)
+        for point in self._unique_xy_points(self._blue_evidence_points(door)):
+            cluster = self._find_observed_blue_cluster(
+                point, merge_dist=merge_dist)
+            if cluster is None:
+                continue
+            if (
+                    cluster.get('opened', 0.0) >= 1.0
+                    or cluster.get('abandoned', 0.0) >= 1.0
+                    or self._is_observed_blue_cluster_suppressed(cluster)
+                    or not self._observed_blue_cluster_has_recheckable_wall_memory(
+                        cluster)):
+                continue
+            best_count = max(best_count, int(cluster.get('count', 0.0)))
+            best_confidence = max(
+                best_confidence,
+                float(cluster.get('confidence', 0.0)))
+
+        if not door.door_id.startswith('observed_blue_'):
+            memory_xy = self._stable_wall_memory_xy_for_direct_blue(door)
+            if memory_xy is not None:
+                _mem_x, _mem_y, mem_count, mem_confidence = memory_xy
+                best_count = max(best_count, int(mem_count))
+                best_confidence = max(best_confidence, float(mem_confidence))
+
+        min_count = max(3, self._observed_blue_min_observations + 1)
+        memory_min_confidence = max(
+            0.42,
+            min(
+                max(0.0, self._observed_blue_target_min_confidence) + 0.08,
+                max(0.0, min_confidence)))
+        if best_count < min_count or best_confidence < memory_min_confidence:
+            return False
+
+        target_progress = self._axis_progress_xy(target_xy[0], target_xy[1])
+        target_lateral = self._axis_lateral_xy(target_xy[0], target_xy[1])
+        target_side = target_lateral - self._explore_center_y
+        wall_side_threshold = max(
+            0.35,
+            self._observed_blue_min_abs_wall_y_m * 0.5)
+        live_wall_lateral_min = max(
+            0.65,
+            self._observed_blue_min_abs_wall_y_m * 0.85)
+        if abs(target_side) < wall_side_threshold:
+            return False
+
+        # This is the last gate before commanding the arm.  A close, frontal
+        # live frame is required below, so a modest along-wall correction can
+        # be accepted without letting a side-view of another door validate a
+        # stale station.  The red/green semantic checks remain mandatory.
+        progress_limit = max(
+            0.45,
+            min(
+                self._door_open_fresh_blue_max_dist_m,
+                max(
+                    self._observed_blue_fresh_evidence_max_progress_gap_m,
+                    self._axis_door_max_handle_pose_progress_delta_m - 0.15),
+                1.45))
+        lateral_limit = max(
+            0.45,
+            min(
+                self._observed_blue_fresh_evidence_max_lateral_gap_m,
+                self._axis_door_side_standoff_m + 0.35,
+                1.00))
+        live_min_confidence = max(
+            0.30,
+            min(max(0.0, min_confidence), self._blue_target_immediate_min_confidence)
+            - 0.12)
+        now = self.get_clock().now()
+        for candidate in self.detected_doors:
+            if candidate.door_color != 'blue':
+                continue
+            if candidate.door_id.startswith('observed_blue_'):
+                continue
+            if not self._door_has_map_identity(candidate):
+                continue
+            if (
+                    self._is_door_physically_opened(candidate)
+                    or self._is_door_opened_for_observation(candidate)
+                    or self._is_door_physically_abandoned(candidate)):
+                continue
+            if float(candidate.confidence) < live_min_confidence:
+                continue
+            if max_age > 0.0:
+                try:
+                    stamp = Time.from_msg(candidate.header.stamp)
+                except Exception:
+                    stamp = None
+                if stamp is not None and stamp.nanoseconds > 0:
+                    age = (now - stamp).nanoseconds / 1e9
+                    if age > max_age:
+                        continue
+            if not self._direct_blue_candidate_is_front_centered_for_open(
+                    candidate):
+                continue
+            candidate_wall = self._door_handle_xy(candidate)
+            candidate_wall_side = (
+                self._axis_lateral_xy(candidate_wall[0], candidate_wall[1])
+                - self._explore_center_y)
+            if (
+                    abs(candidate_wall_side) >= wall_side_threshold
+                    and candidate_wall_side * target_side < 0.0):
+                continue
+            candidate_identity = self._door_identity_xy(candidate)
+            candidate_identity_side = (
+                self._axis_lateral_xy(candidate_identity[0], candidate_identity[1])
+                - self._explore_center_y)
+            if (
+                    abs(candidate_identity_side) >= live_wall_lateral_min
+                    and candidate_identity_side * target_side < 0.0):
+                continue
+
+            candidate_points = self._unique_xy_points(
+                self._blue_evidence_points(candidate))
+            center_progress_limit = max(
+                0.65,
+                min(
+                    progress_limit,
+                    max(
+                        self._observed_blue_fresh_evidence_max_progress_gap_m,
+                        self._axis_door_max_handle_pose_progress_delta_m + 0.25,
+                        self._door_open_fresh_blue_max_dist_m)))
+            for point in candidate_points:
+                point_progress = self._axis_progress_xy(point[0], point[1])
+                point_lateral = self._axis_lateral_xy(point[0], point[1])
+                point_side = point_lateral - self._explore_center_y
+                if abs(point_side) >= live_wall_lateral_min:
+                    continue
+                if (
+                        abs(point_side) >= wall_side_threshold
+                        and point_side * target_side < 0.0):
+                    continue
+                progress_gap = abs(point_progress - target_progress)
+                if progress_gap > center_progress_limit:
+                    continue
+                conflict_dist = max(
+                    self._blue_red_conflict_dist_m,
+                    self._blue_red_conflict_after_exit_dist_m,
+                    self._blue_red_conflict_strict_dist_m)
+                if (
+                        conflict_dist > 0.0
+                        and self._blue_xy_conflicts_recent_red_memory(
+                            point, conflict_dist)):
+                    continue
+                landmark = self._find_semantic_door_landmark(
+                    point, merge_dist=self._semantic_door_merge_dist_m)
+                if landmark is not None:
+                    blue_count, red_count, green_count = (
+                        self._semantic_landmark_color_votes(landmark))
+                    if red_count + green_count > blue_count:
+                        continue
+                self.get_logger().info(
+                    f'Fresh blue evidence accepted for {door.door_id}: '
+                    'center-biased live camera projection matches stable '
+                    'same-station wall memory after door-front alignment '
+                    f'(progress_gap={progress_gap:.2f}/'
+                    f'{center_progress_limit:.2f}, '
+                    f'count={best_count}/{min_count}, '
+                    f'conf={best_confidence:.2f}/'
+                    f'{memory_min_confidence:.2f}).',
+                    throttle_duration_sec=3.0)
+                return True
+
+            for point in candidate_points:
+                point_progress = self._axis_progress_xy(point[0], point[1])
+                point_lateral = self._axis_lateral_xy(point[0], point[1])
+                point_side = point_lateral - self._explore_center_y
+                if point_side * target_side <= 0.0:
+                    continue
+                if abs(point_side) < live_wall_lateral_min:
+                    continue
+                if not self._is_blue_xy_recordable_wall_observation(point):
+                    continue
+                progress_gap = abs(point_progress - target_progress)
+                lateral_gap = abs(point_lateral - target_lateral)
+                if progress_gap > progress_limit or lateral_gap > lateral_limit:
+                    continue
+                self.get_logger().info(
+                    f'Fresh blue evidence accepted for {door.door_id}: '
+                    'live camera projection matches stable same-wall memory '
+                    f'after door-front alignment '
+                    f'(progress_gap={progress_gap:.2f}/{progress_limit:.2f}, '
+                    f'lateral_gap={lateral_gap:.2f}/{lateral_limit:.2f}, '
+                    f'count={best_count}/{min_count}, '
+                    f'conf={best_confidence:.2f}/{memory_min_confidence:.2f}).',
+                    throttle_duration_sec=3.0)
+                return True
+        return False
+
     def _door_target_has_fresh_blue_evidence(self, door: DoorInfo) -> bool:
         if not self._door_open_requires_fresh_blue:
             return True
@@ -10162,6 +14484,9 @@ class StateMachineNode(Node):
             return False
         target_points = self._blue_evidence_points(door)
         target_in_pre_exit = self._is_blue_xy_in_pre_exit_zone(target_xy_for_checks)
+        target_in_exit_sensitive = (
+            self._blue_xy_requires_pre_nav_exit_fresh_evidence(
+                target_xy_for_checks))
         if target_in_pre_exit:
             exit_xy = self._exit_xy_for_blue_candidate_filter()
             if exit_xy is not None:
@@ -10201,12 +14526,13 @@ class StateMachineNode(Node):
         min_conf = max(0.0, self._door_open_fresh_blue_min_confidence)
         if door.door_id.startswith('observed_blue_'):
             # Observed map clusters are allowed to guide navigation with weak
-            # repeated evidence, but an actual arm-open request needs a strong
-            # live camera confirmation at the same mapped station.
-            min_conf = max(min_conf, 0.50)
-        if target_in_pre_exit:
+            # repeated evidence. At the aligned door pose, require a current
+            # coherent detection, but keep the confidence floor compatible
+            # with the trained detector's measured simulation recall.
+            min_conf = max(min_conf, 0.34)
+        if target_in_exit_sensitive:
             if door.door_id.startswith('observed_blue_'):
-                min_conf = max(min_conf, 0.52)
+                min_conf = max(min_conf, 0.42)
             else:
                 min_conf = max(min_conf, 0.42)
         elif not door.door_id.startswith('observed_blue_'):
@@ -10245,10 +14571,21 @@ class StateMachineNode(Node):
                     age = (now - stamp).nanoseconds / 1e9
                     if age > max_age:
                         continue
+            if not self._direct_blue_candidate_is_front_centered_for_open(
+                    candidate):
+                continue
             candidate_points = self._blue_evidence_points(candidate)
             if self._target_subfsm.live_blue_evidence_matches_target(
                     door, candidate, target_points, candidate_points, max_dist):
                 return True
+        if (
+                door.door_id.startswith('observed_blue_')
+                and self._aligned_wall_memory_has_live_blue_projection(
+                door,
+                target_xy_for_checks,
+                min_confidence=min_conf,
+                max_age=max_age)):
+            return True
         target_xy = target_points[0]
         tx_progress = self._axis_progress_xy(target_xy[0], target_xy[1])
         tx_lateral = self._axis_lateral_xy(target_xy[0], target_xy[1])
@@ -10274,22 +14611,405 @@ class StateMachineNode(Node):
         handle_confidence = float(getattr(door, 'handle_confidence', 0.0))
         if handle_detected and handle_confidence >= 0.35:
             return ''
+        if self._locked_target_has_converged_visual_servo_evidence(door):
+            return ''
 
         wall_lateral_reason = (
             self._estimated_blue_handle_wall_lateral_invalid_reason(door))
         if wall_lateral_reason:
             return wall_lateral_reason
+        method = str(getattr(door, 'handle_detection_method', '') or '').lower()
+        target_xy = self._door_identity_xy(door)
+        handle_xy = self._door_handle_xy(door)
+        if (
+                self._opened_blue_door_count() > 0
+                and method.startswith('observed_')
+                and not handle_detected):
+            opened_relation = self._blue_xy_opened_station_relation(handle_xy)
+            if opened_relation is not None:
+                relation, opened_progress = opened_relation
+                return (
+                    '이미 열린 문 station 근처의 projection 후보는 '
+                    f'실제 손잡이 재검출 없이 열지 않음 ({relation}, '
+                    f'opened_progress={opened_progress:.1f}m)')
+            if (
+                    self._opened_blue_door_count() >= 2
+                    and self._blue_xy_conflicts_recent_red_memory(
+                        handle_xy,
+                        max(
+                            self._blue_red_conflict_dist_m,
+                            self._blue_red_conflict_after_exit_dist_m,
+                            self._blue_red_conflict_strict_dist_m))
+                    and not self._observed_blue_target_has_same_side_live_wall_evidence(
+                        door,
+                        min_confidence=max(
+                            0.40,
+                            self._door_open_fresh_blue_min_confidence))):
+                return (
+                    '여러 문 개방 후 빨간문 근처 projection 후보는 '
+                    '실제 손잡이 재검출 없이 열지 않음')
+        if self._observed_blue_target_has_live_open_confirmation(
+                door,
+                handle_xy,
+                min_confidence=max(
+                    0.50,
+                    self._door_open_fresh_blue_min_confidence)):
+            return ''
+        if blue_confidence is None or blue_count is None:
+            _strong, measured_confidence, measured_count = (
+                self._blue_target_observation_strength(door))
+            blue_confidence = measured_confidence
+            blue_count = measured_count
+        exit_sensitive_open = (
+            self._opened_blue_door_count()
+            >= max(2, self._min_opened_doors_before_exit)
+            and (
+                self._is_blue_xy_in_pre_exit_zone(target_xy)
+                or self._is_blue_xy_near_detected_exit(target_xy)))
+        aligned_wall_memory_live = False
+        if exit_sensitive_open:
+            aligned_wall_memory_live = (
+                self._aligned_wall_memory_has_live_blue_projection(
+                    door,
+                    self._door_handle_xy(door),
+                    min_confidence=max(
+                        0.50,
+                        self._door_open_fresh_blue_min_confidence),
+                    max_age=max(
+                        0.0,
+                        self._door_open_fresh_blue_max_age_sec)))
+        same_side_live_exit_precheck = False
+        if exit_sensitive_open:
+            same_side_live_exit_precheck = (
+                self._observed_blue_target_has_same_side_live_wall_evidence(
+                    door,
+                    min_confidence=max(
+                        0.50,
+                        self._door_open_fresh_blue_min_confidence),
+                    max_lateral_gap_override=max(
+                        0.72,
+                        min(
+                            self._observed_blue_fresh_evidence_max_lateral_gap_m,
+                            self._axis_door_side_standoff_m + 0.32))))
+        if (
+                exit_sensitive_open
+                and aligned_wall_memory_live
+                and not same_side_live_exit_precheck):
+            return (
+                '출구 근처 projection 후보는 중심선 투영만으로 열지 않고 '
+                '목표 벽면의 live blue 재관측이 필요함')
+        if (
+                exit_sensitive_open
+                and not handle_detected
+                and handle_confidence < max(
+                    0.35,
+                    self._door_open_fresh_blue_min_confidence + 0.05)
+                and not aligned_wall_memory_live
+                and not same_side_live_exit_precheck):
+            return (
+                '출구 근처 projection 후보는 낮은 손잡이/색상 신뢰도로 '
+                '바로 열지 않고 현재 카메라/LiDAR 재관측이 필요함')
+        if exit_sensitive_open and not same_side_live_exit_precheck \
+                and not aligned_wall_memory_live:
+            return (
+                '출구 근처 projection 후보는 개방 직전 같은 벽면 live blue '
+                '정합이 애매해 재관측이 필요함')
+        if (
+                exit_sensitive_open
+                and self._estimated_observed_blue_target_has_strict_non_blue_overlap(door)
+                and not self._observed_blue_target_has_coherent_same_side_live_wall_evidence(
+                    door,
+                    min_confidence=max(
+                        0.58,
+                        self._door_open_fresh_blue_min_confidence),
+                    max_lateral_gap_override=max(
+                        0.55,
+                        min(
+                            self._observed_blue_fresh_evidence_max_lateral_gap_m,
+                            self._axis_door_side_standoff_m + 0.18)))):
+            _strong_overlap, overlap_confidence, overlap_count = (
+                self._blue_target_observation_strength(door))
+            stable_same_side_overlap = (
+                self._observed_blue_target_has_stable_open_evidence(door)
+                and self._observed_blue_target_has_same_side_live_wall_evidence(
+                    door,
+                    min_confidence=max(
+                        0.58,
+                        self._door_open_fresh_blue_min_confidence),
+                    max_lateral_gap_override=max(
+                        0.48,
+                        min(
+                            self._observed_blue_fresh_evidence_max_lateral_gap_m,
+                            self._axis_door_side_standoff_m + 0.16)))
+                and overlap_count >= max(
+                    8,
+                    self._observed_blue_min_observations * 3,
+                    self._observed_blue_low_conf_target_min_observations)
+                and overlap_confidence >= max(
+                    0.58,
+                    self._door_open_fresh_blue_min_confidence + 0.08))
+            if not stable_same_side_overlap:
+                return (
+                    '출구 근처 projection 후보가 빨간/초록 관측과 겹치며, '
+                    'coherent same-wall live blue 정합이 부족함')
+        if (
+                self._opened_blue_door_count() > 0
+                and not handle_detected
+                and self._observed_blue_target_has_stronger_opposite_wall_live_blue(
+                    door,
+                    min_confidence=max(
+                        0.50,
+                        self._door_open_fresh_blue_min_confidence))):
+            return (
+                '개방 직전 반대벽 live blue 후보가 더 강해 현재 projection '
+                '좌표를 재관측해야 함')
+        coherent_same_wall_live_open = (
+            method.startswith('observed_')
+            and self._blue_target_open_pose_aligned_for_safe_memory(door)
+            and self._observed_blue_target_has_coherent_same_side_live_wall_evidence(
+                door,
+                min_confidence=max(
+                    0.50,
+                    self._door_open_fresh_blue_min_confidence),
+                max_lateral_gap_override=max(
+                    0.72,
+                    min(
+                        self._observed_blue_fresh_evidence_max_lateral_gap_m,
+                        self._axis_door_side_standoff_m + 0.32))))
+        if (
+                coherent_same_wall_live_open
+                and blue_count >= max(3, self._observed_blue_min_observations + 1)
+                and blue_confidence >= max(
+                    0.50,
+                    self._door_open_fresh_blue_min_confidence + 0.20)
+                and not self._estimated_observed_blue_target_has_strict_non_blue_overlap(
+                    door)):
+            self.get_logger().info(
+                f'Observed blue target {door.door_id} accepted from '
+                'door-front coherent same-wall live blue recheck '
+                f'(count={blue_count}, conf={blue_confidence:.2f}).')
+            return ''
+        if (
+                exit_sensitive_open
+                and method.startswith('observed_')
+                and aligned_wall_memory_live
+                and blue_count >= max(3, self._observed_blue_min_observations + 1)
+                and blue_confidence >= max(
+                    0.55,
+                    self._door_open_fresh_blue_min_confidence + 0.25)
+                and not self._estimated_observed_blue_target_has_strict_non_blue_overlap(
+                    door)):
+            self.get_logger().info(
+                f'Observed blue target {door.door_id} accepted near exit '
+                'from door-front same-wall live blue recheck '
+                f'(count={blue_count}, conf={blue_confidence:.2f}).')
+            return ''
+        if (
+                self._opened_blue_door_count() > 0
+                and method.startswith('observed_')
+                and not exit_sensitive_open
+                and blue_count >= max(2, self._observed_blue_min_observations)
+                and blue_confidence >= max(
+                    0.50,
+                    self._door_open_fresh_blue_min_confidence + 0.05)
+                and self._blue_target_open_pose_aligned_for_safe_memory(door)
+                and self._door_target_has_fresh_blue_evidence(door)
+                and not self._blue_target_in_strict_exit_tail_without_persistent_memory(
+                    door,
+                    allow_live_evidence_escape=False)
+                and not self._semantic_non_blue_conflict_blocks_blue_target(door)
+                and not self._estimated_observed_blue_target_has_strict_non_blue_overlap(
+                    door)):
+            self.get_logger().info(
+                f'Observed blue target {door.door_id} accepted for opening '
+                'from aligned live blue recheck at the selected mapped door '
+                f'(count={blue_count}, conf={blue_confidence:.2f}).')
+            return ''
+        if self._observed_blue_target_has_stable_open_evidence(door):
+            return ''
+        if self._observed_blue_target_has_locked_cluster_evidence(
+                door, max(0.0, self._door_open_fresh_blue_min_confidence)):
+            return ''
+        if (
+                self._opened_blue_door_count() > 0
+                and method.startswith('observed_')
+                and not self._observed_blue_target_has_live_open_confirmation(
+                    door,
+                    self._door_handle_xy(door),
+                    min_confidence=max(
+                        0.0, self._door_open_fresh_blue_min_confidence))
+                and not self._aligned_wall_memory_has_live_blue_projection(
+                    door,
+                    self._door_handle_xy(door),
+                    min_confidence=max(
+                        0.50,
+                        self._door_open_fresh_blue_min_confidence),
+                    max_age=max(
+                        0.0, self._door_open_fresh_blue_max_age_sec))):
+            return (
+                '누적 wall projection 후보는 현재 live blue frame으로 '
+                '재보정된 뒤에만 문개방 가능')
         if self._observed_blue_target_has_stable_open_evidence(door):
             return ''
         if self._observed_blue_target_has_locked_cluster_evidence(
                 door, max(0.0, self._door_open_fresh_blue_min_confidence)):
             return ''
 
-        if blue_confidence is None or blue_count is None:
-            _strong, measured_confidence, measured_count = (
-                self._blue_target_observation_strength(door))
-            blue_confidence = measured_confidence
-            blue_count = measured_count
+        aligned_live_count = max(
+            4,
+            self._observed_blue_min_observations * 2 + 1)
+        aligned_live_confidence = max(
+            0.50,
+            self._door_open_fresh_blue_min_confidence + 0.25)
+        same_side_live_open_frame = (
+            self._observed_blue_target_has_same_side_live_wall_evidence(
+                door,
+                min_confidence=max(
+                    0.50,
+                    self._door_open_fresh_blue_min_confidence)))
+        aligned_live_projection = False
+        if not same_side_live_open_frame:
+            aligned_live_projection = self._aligned_wall_memory_has_live_blue_projection(
+                door,
+                self._door_handle_xy(door),
+                min_confidence=max(
+                    0.50,
+                    self._door_open_fresh_blue_min_confidence),
+                max_age=max(0.0, self._door_open_fresh_blue_max_age_sec))
+        fresh_blue_confirmed = self._door_target_has_fresh_blue_evidence(door)
+        recheckable_open_cluster = self._observed_cluster_for_blue_door(
+            door,
+            merge_dist=max(
+                self._observed_candidate_merge_dist(),
+                self._door_open_fresh_blue_max_dist_m))
+        recheckable_open_memory = (
+            recheckable_open_cluster is not None
+            and self._observed_blue_cluster_has_recheckable_wall_memory(
+                recheckable_open_cluster))
+        close_live_memory = (
+            same_side_live_open_frame
+            or (aligned_live_projection and not exit_sensitive_open))
+        exit_sensitive_close_memory_ready = True
+        if exit_sensitive_open:
+            exit_sensitive_close_memory_ready = (
+                self._observed_blue_target_has_coherent_same_side_live_wall_evidence(
+                    door,
+                    min_confidence=max(
+                        0.58,
+                        self._door_open_fresh_blue_min_confidence),
+                    max_lateral_gap_override=max(
+                        0.55,
+                        min(
+                            self._observed_blue_fresh_evidence_max_lateral_gap_m,
+                            self._axis_door_side_standoff_m + 0.18)))
+                or (
+                    blue_count >= max(
+                        8,
+                        self._observed_blue_min_observations * 3,
+                        self._observed_blue_low_conf_target_min_observations)
+                    and blue_confidence >= max(
+                        0.70,
+                        self._door_open_fresh_blue_min_confidence + 0.20)))
+        if (
+                blue_count >= max(3, self._observed_blue_min_observations)
+                and blue_confidence >= max(
+                    0.42,
+                    min(0.44, self._door_open_fresh_blue_min_confidence))
+                and self._blue_target_open_pose_aligned_for_safe_memory(door)
+                and close_live_memory
+                and exit_sensitive_close_memory_ready
+                and fresh_blue_confirmed
+                and recheckable_open_memory
+                and not self._semantic_non_blue_conflict_blocks_blue_target(door)
+                and not self._estimated_observed_blue_target_has_strict_non_blue_overlap(door)):
+            self.get_logger().info(
+                f'Observed blue target {door.door_id} accepted for opening '
+                'from close same-wall live evidence plus recheckable wall memory '
+                f'(count={blue_count}, conf={blue_confidence:.2f}).')
+            return ''
+        close_fresh_count = 2
+        close_fresh_confidence = max(
+            0.74,
+            self._door_open_fresh_blue_min_confidence + 0.24)
+        if (
+                blue_count >= close_fresh_count
+                and blue_confidence >= close_fresh_confidence
+                and self._blue_target_open_pose_aligned_for_safe_memory(door)
+                and same_side_live_open_frame
+                and fresh_blue_confirmed
+                and not self._semantic_non_blue_conflict_blocks_blue_target(door)
+                and not self._estimated_observed_blue_target_has_strict_non_blue_overlap(door)):
+            self.get_logger().info(
+                f'Observed blue target {door.door_id} accepted for opening '
+                'from close door-front fresh blue confirmation '
+                f'(count={blue_count}/{close_fresh_count}, '
+                f'conf={blue_confidence:.2f}/{close_fresh_confidence:.2f}).')
+            return ''
+        close_live_count = 2
+        close_live_confidence = max(0.82, aligned_live_confidence + 0.20)
+        if (
+                blue_count >= close_live_count
+                and blue_confidence >= close_live_confidence
+                and self._blue_target_open_pose_aligned_for_safe_memory(door)
+                and same_side_live_open_frame
+                and not self._semantic_non_blue_conflict_blocks_blue_target(door)
+                and fresh_blue_confirmed):
+            self.get_logger().info(
+                f'Observed blue target {door.door_id} accepted for opening '
+                'from close aligned high-confidence live blue evidence '
+                f'(count={blue_count}/{close_live_count}, '
+                f'conf={blue_confidence:.2f}/'
+                f'{close_live_confidence:.2f}).')
+            return ''
+        if (
+                blue_count >= aligned_live_count
+                and blue_confidence >= aligned_live_confidence
+                and self._blue_target_open_pose_aligned_for_safe_memory(door)
+                and same_side_live_open_frame
+                and not self._semantic_non_blue_conflict_blocks_blue_target(door)
+                and fresh_blue_confirmed):
+            self.get_logger().info(
+                f'Observed blue target {door.door_id} accepted for opening '
+                'from aligned live blue confirmation '
+                f'(count={blue_count}/{aligned_live_count}, '
+                f'conf={blue_confidence:.2f}/'
+                f'{aligned_live_confidence:.2f}).')
+            return ''
+
+        projection_live_count = max(
+            5,
+            self._observed_blue_low_conf_target_min_observations,
+            self._observed_blue_min_observations + 2)
+        projection_live_confidence = max(
+            0.52,
+            self._door_open_fresh_blue_min_confidence + 0.20)
+        if exit_sensitive_open:
+            projection_live_count = max(
+                projection_live_count,
+                8,
+                self._observed_blue_min_observations * 3,
+                self._observed_blue_low_conf_target_min_observations + 3)
+            projection_live_confidence = max(
+                projection_live_confidence,
+                0.58,
+                self._door_open_fresh_blue_min_confidence + 0.08)
+        if (
+                blue_count >= projection_live_count
+                and blue_confidence >= projection_live_confidence
+                and self._blue_target_open_pose_aligned_for_safe_memory(door)
+                and aligned_live_projection
+                and not self._semantic_non_blue_conflict_blocks_blue_target(door)
+                and fresh_blue_confirmed):
+            self.get_logger().info(
+                f'Observed blue target {door.door_id} accepted for opening '
+                'from aligned live camera projection plus repeated wall memory '
+                f'(count={blue_count}/{projection_live_count}, '
+                f'conf={blue_confidence:.2f}/{projection_live_confidence:.2f}).')
+            return ''
+        if exit_sensitive_open:
+            return (
+                '출구 근처 projection 후보는 순간 live blue만으로 열지 않고 '
+                '안정된 벽면 map memory로 재확정된 뒤에만 문개방 가능')
 
         min_count = max(
             12,
@@ -10314,7 +15034,8 @@ class StateMachineNode(Node):
                 blue_count >= dense_fresh_count
                 and blue_confidence >= dense_fresh_confidence
                 and self._blue_target_open_pose_aligned_for_safe_memory(door)
-                and self._door_target_has_fresh_blue_evidence(door)):
+                and same_side_live_open_frame
+                and fresh_blue_confirmed):
             self.get_logger().info(
                 f'Observed blue target {door.door_id} accepted for opening '
                 f'from dense fresh map evidence '
@@ -10333,13 +15054,35 @@ class StateMachineNode(Node):
                 blue_count >= high_conf_live_count
                 and blue_confidence >= high_conf_live_confidence
                 and self._blue_target_open_pose_aligned_for_safe_memory(door)
-                and self._door_target_has_fresh_blue_evidence(door)):
+                and same_side_live_open_frame
+                and not self._semantic_non_blue_conflict_blocks_blue_target(door)
+                and fresh_blue_confirmed):
             self.get_logger().info(
                 f'Observed blue target {door.door_id} accepted for opening '
                 'from high-confidence live same-station evidence '
                 f'(count={blue_count}/{high_conf_live_count}, '
                 f'conf={blue_confidence:.2f}/'
                 f'{high_conf_live_confidence:.2f}).')
+            return ''
+
+        moderate_live_count = max(3, self._observed_blue_min_observations + 1)
+        moderate_live_confidence = max(
+            0.55,
+            self._door_open_fresh_blue_min_confidence + 0.15)
+        if (
+                blue_count >= moderate_live_count
+                and blue_confidence >= moderate_live_confidence
+                and self._blue_target_open_pose_aligned_for_safe_memory(door)
+                and self._is_blue_xy_at_valid_wall_position(self._door_identity_xy(door))
+                and same_side_live_open_frame
+                and not self._semantic_non_blue_conflict_blocks_blue_target(door)
+                and fresh_blue_confirmed):
+            self.get_logger().info(
+                f'Observed blue target {door.door_id} accepted for opening '
+                'from moderate live same-station evidence after straight '
+                'door-front alignment '
+                f'(count={blue_count}/{moderate_live_count}, '
+                f'conf={blue_confidence:.2f}/{moderate_live_confidence:.2f}).')
             return ''
 
         live_matched_count = max(
@@ -10355,7 +15098,9 @@ class StateMachineNode(Node):
                 blue_count >= live_matched_count
                 and blue_confidence >= live_matched_confidence
                 and self._blue_target_open_pose_aligned_for_safe_memory(door)
-                and self._door_target_has_fresh_blue_evidence(door)):
+                and same_side_live_open_frame
+                and not self._semantic_non_blue_conflict_blocks_blue_target(door)
+                and fresh_blue_confirmed):
             self.get_logger().info(
                 f'Observed blue target {door.door_id} accepted for opening '
                 'from aligned repeated memory plus live same-station evidence '
@@ -10376,7 +15121,8 @@ class StateMachineNode(Node):
                 blue_count >= fresh_aligned_count
                 and blue_confidence >= fresh_aligned_confidence
                 and self._blue_target_open_pose_aligned_for_safe_memory(door)
-                and self._door_target_has_fresh_blue_evidence(door)):
+                and same_side_live_open_frame
+                and fresh_blue_confirmed):
             self.get_logger().info(
                 f'Observed blue target {door.door_id} accepted for opening '
                 f'from fresh aligned evidence '
@@ -10399,6 +15145,55 @@ class StateMachineNode(Node):
             self._estimated_blue_handle_wall_lateral_invalid_reason(door))
         if wall_lateral_reason:
             return wall_lateral_reason
+        handle_detected = bool(getattr(door, 'handle_detected', False))
+        handle_confidence = float(getattr(door, 'handle_confidence', 0.0))
+        method = str(getattr(door, 'handle_detection_method', '') or '').lower()
+        trusted_handle_detection = (
+            handle_detected
+            and handle_confidence >= 0.35
+            and method not in (
+                '',
+                'estimated',
+                'hsv',
+                'observed_map_memory',
+                'observed_wall_memory',
+                'direct_wall_projection',
+                'observed_wall_projection',
+            ))
+        estimated_wall_projection = method in (
+            '',
+            'estimated',
+            'hsv',
+            'observed_map_memory',
+            'observed_wall_memory',
+            'direct_wall_projection',
+            'observed_wall_projection',
+        )
+        if estimated_wall_projection and not trusted_handle_detection:
+            _strong, blue_confidence, blue_count = (
+                self._blue_target_observation_strength(door))
+            if (
+                    self._blue_target_open_pose_aligned_for_safe_memory(door)
+                    and self._is_blue_handle_in_wall_band(door)
+                    and self._door_target_has_current_live_blue_evidence(
+                        door,
+                        max(0.50, self._door_open_fresh_blue_min_confidence))
+                    and blue_count >= max(2, self._observed_blue_min_observations)
+                    and blue_confidence >= max(
+                        0.50,
+                        self._door_open_fresh_blue_min_confidence + 0.20)):
+                self.get_logger().info(
+                    f'Direct blue target {door.door_id} allowed for opening '
+                    'with an estimated wall handle because the robot is already '
+                    'at the door-front pose and current blue evidence confirms '
+                    f'the same station (count={blue_count}, '
+                    f'conf={blue_confidence:.2f}).',
+                    throttle_duration_sec=3.0)
+                return ''
+            return (
+                'direct 파란문 후보의 손잡이가 추정 투영뿐이라 '
+                'observed 지도 후보 또는 신뢰 가능한 손잡이 검출로 '
+                '재확정된 뒤에만 개방 가능')
         if self._is_blue_handle_in_wall_band(door):
             return ''
         return '조작에 사용할 handle 좌표가 관측된 문 벽 band 밖에 있음'
@@ -10466,10 +15261,265 @@ class StateMachineNode(Node):
             f'{min_open_lateral:.2f}m; 문 손잡이로 보기엔 중앙에 가까움')
 
 
+    def _aligned_live_wall_blue_overrides_stale_red_memory(
+            self,
+            door: DoorInfo,
+            blue_confidence: float,
+            blue_count: int) -> bool:
+        if door.door_color != 'blue' or not self._door_has_map_identity(door):
+            return False
+        if self._blue_target_in_strict_exit_tail_without_persistent_memory(door):
+            return False
+        if not self._blue_target_open_pose_aligned_for_safe_memory(door):
+            return False
+        opened_progress = self._farthest_resolved_blue_progress()
+        if opened_progress is not None:
+            near_opened_floor = (
+                self._door_station_progress(door)
+                <= opened_progress
+                + max(0.45, self._opened_physical_door_merge_dist_m * 0.5))
+            if near_opened_floor:
+                return False
+        if not self._door_target_has_current_live_blue_evidence(
+                door,
+                max(0.35, self._door_open_fresh_blue_min_confidence)):
+            return False
+
+        aligned_live_count = max(
+            5,
+            self._observed_blue_min_observations + 3,
+            self._observed_blue_low_conf_target_min_observations)
+        aligned_live_confidence = max(
+            0.82,
+            self._door_open_fresh_blue_min_confidence + 0.20)
+        same_side_live_wall_evidence = (
+            self._observed_blue_target_has_same_side_live_wall_evidence(
+                door,
+                min_confidence=max(
+                    0.50,
+                    self._door_open_fresh_blue_min_confidence)))
+        if (
+                blue_count >= aligned_live_count
+                and blue_confidence >= aligned_live_confidence
+                and same_side_live_wall_evidence):
+            self.get_logger().info(
+                f'Non-blue conflict ignored for {door.door_id}: close aligned '
+                'same-wall live blue evidence is stronger than the nearby '
+                f'red observation (count={blue_count}/{aligned_live_count}, '
+                f'conf={blue_confidence:.2f}/{aligned_live_confidence:.2f}).',
+                throttle_duration_sec=3.0)
+            return True
+
+        best_count = int(blue_count)
+        best_confidence = float(blue_confidence)
+        merge_dist = max(
+            self._observed_candidate_merge_dist(),
+            self._door_open_fresh_blue_max_dist_m)
+        for point in self._unique_xy_points(
+                self._blue_non_blue_conflict_points(door)):
+            cluster = self._find_observed_blue_cluster(
+                point, merge_dist=merge_dist)
+            if cluster is None:
+                continue
+            if (
+                    cluster.get('opened', 0.0) >= 1.0
+                    or cluster.get('abandoned', 0.0) >= 1.0
+                    or self._is_observed_blue_cluster_suppressed(cluster)
+                    or not self._observed_blue_cluster_has_recheckable_wall_memory(
+                        cluster)):
+                continue
+            best_count = max(best_count, int(cluster.get('count', 0.0)))
+            best_confidence = max(
+                best_confidence,
+                float(cluster.get('confidence', 0.0)))
+
+        if not door.door_id.startswith('observed_blue_'):
+            memory_xy = self._stable_wall_memory_xy_for_direct_blue(door)
+            if memory_xy is not None:
+                _mem_x, _mem_y, mem_count, mem_confidence = memory_xy
+                best_count = max(best_count, int(mem_count))
+                best_confidence = max(best_confidence, float(mem_confidence))
+
+        aligned_memory_count = max(
+            3,
+            self._observed_blue_min_observations + 1)
+        aligned_memory_confidence = max(
+            0.50,
+            self._door_open_fresh_blue_min_confidence + 0.20)
+        if (
+                same_side_live_wall_evidence
+                and best_count >= aligned_memory_count
+                and best_confidence >= aligned_memory_confidence):
+            self.get_logger().info(
+                f'Non-blue conflict ignored for {door.door_id}: current '
+                'door-front same-wall blue evidence agrees with accumulated '
+                'wall memory, so stale red/non-blue memory will not cancel the '
+                f'opening attempt (count={best_count}/{aligned_memory_count}, '
+                f'conf={best_confidence:.2f}/{aligned_memory_confidence:.2f}).',
+                throttle_duration_sec=3.0)
+            return True
+
+        if not same_side_live_wall_evidence:
+            return False
+
+        min_count = max(
+            8,
+            self._observed_blue_min_observations * 3,
+            self._confirmed_blue_bypass_red_conflict_count + 2)
+        min_confidence = max(
+            0.70,
+            self._confirmed_blue_bypass_red_conflict_confidence + 0.10,
+            self._door_open_fresh_blue_min_confidence + 0.35)
+        if best_count < min_count or best_confidence < min_confidence:
+            return False
+
+        self.get_logger().info(
+            f'Non-blue conflict ignored for {door.door_id}: current close '
+            'aligned blue evidence and repeated wall memory outweigh stale '
+            f'red memory (count={best_count}/{min_count}, '
+            f'conf={best_confidence:.2f}/{min_confidence:.2f}).',
+            throttle_duration_sec=3.0)
+        return True
+
+    def _observed_blue_non_blue_conflict_can_yield_for_opening(
+            self,
+            door: DoorInfo) -> bool:
+        if (
+                door.door_color != 'blue'
+                or not door.door_id.startswith('observed_blue_')):
+            return False
+
+        # At the aligned door pose, repeated visual-servo matches are stronger
+        # evidence than one perspective-projected red detection farther down
+        # the corridor. Keep this exception away from opened-door remnants.
+        _strong, blue_confidence, blue_count = (
+            self._blue_target_observation_strength(door))
+        opened_progress = self._farthest_resolved_blue_progress()
+        distinct_from_opened = (
+            opened_progress is None
+            or self._door_station_progress(door) > opened_progress + max(
+                1.20,
+                self._opened_physical_door_merge_dist_m))
+        if (
+                distinct_from_opened
+                and self._blue_target_open_pose_aligned_for_safe_memory(door)
+                and self._locked_target_has_converged_visual_servo_evidence(door)
+                and blue_count >= max(6, self._observed_blue_min_observations * 2)
+                and blue_confidence >= max(
+                    0.75,
+                    self._door_open_fresh_blue_min_confidence + 0.25)):
+            self.get_logger().info(
+                f'Non-blue conflict ignored for {door.door_id}: aligned '
+                'visual-servo blue evidence converged at a new physical '
+                f'station (count={blue_count}, conf={blue_confidence:.2f}).',
+                throttle_duration_sec=3.0)
+            return True
+
+        method = str(getattr(door, 'handle_detection_method', '') or '').lower()
+        handle_detected = bool(getattr(door, 'handle_detected', False))
+        handle_confidence = float(getattr(door, 'handle_confidence', 0.0))
+        trusted_handle_detection = (
+            handle_detected
+            and handle_confidence >= 0.35
+            and method not in (
+                '',
+                'estimated',
+                'hsv',
+                'observed_map_memory',
+                'observed_wall_memory',
+                'direct_wall_projection',
+                'observed_wall_projection',
+            ))
+        if trusted_handle_detection:
+            return True
+
+        return self._aligned_live_wall_blue_overrides_stale_red_memory(
+            door, blue_confidence, blue_count)
+
+    def _door_target_has_current_strict_non_blue_conflict(
+            self, door: DoorInfo) -> bool:
+        """Block manipulation while a fresh red/green observation overlaps it."""
+        if door.door_color != 'blue' or not self._door_has_map_identity(door):
+            return False
+        target_points = self._unique_xy_points(self._blue_non_blue_conflict_points(door))
+        if not target_points:
+            return False
+
+        now = self.get_clock().now()
+        max_age = min(
+            3.5,
+            max(1.5, self._door_open_fresh_blue_max_age_sec))
+        max_dist = max(0.35, self._blue_red_conflict_strict_dist_m)
+        _strong_blue, blue_confidence, blue_count = (
+            self._blue_target_observation_strength(door))
+        fresh_blue = self._door_target_has_fresh_blue_evidence(door)
+        same_side_live_blue = (
+            self._observed_blue_target_has_same_side_live_wall_evidence(
+                door,
+                min_confidence=max(
+                    0.45,
+                    self._door_open_fresh_blue_min_confidence)))
+        locked_blue = self._observed_blue_target_has_locked_cluster_evidence(
+            door,
+            max(0.70, self._door_open_fresh_blue_min_confidence))
+        aligned_current_blue = (
+            self._blue_target_open_pose_aligned_for_safe_memory(door)
+            and blue_count >= max(10, self._observed_blue_min_observations * 3)
+            and blue_confidence >= max(
+                0.90,
+                self._door_open_fresh_blue_min_confidence + 0.35)
+            and (fresh_blue or same_side_live_blue or locked_blue))
+        for candidate in self.detected_doors:
+            if candidate.door_color not in ('red', 'green'):
+                continue
+            if not self._door_has_map_identity(candidate):
+                continue
+            min_confidence = max(0.20, self._red_observation_min_confidence)
+            if candidate.door_color == 'green':
+                min_confidence = max(0.35, min_confidence)
+            if float(candidate.confidence) < min_confidence:
+                continue
+            try:
+                stamp = Time.from_msg(candidate.header.stamp)
+            except Exception:
+                stamp = None
+            if stamp is None or stamp.nanoseconds <= 0:
+                continue
+            age = (now - stamp).nanoseconds / 1e9
+            if age < 0.0 or age > max_age:
+                continue
+            candidate_points = (
+                self._door_handle_xy(candidate),
+                self._door_identity_xy(candidate),
+            )
+            if any(
+                    math.hypot(tp[0] - cp[0], tp[1] - cp[1]) <= max_dist
+                    for tp in target_points
+                    for cp in candidate_points):
+                if (
+                        candidate.door_color == 'red'
+                        and aligned_current_blue
+                        and blue_confidence
+                        >= float(candidate.confidence) + 0.20):
+                    self.get_logger().info(
+                        f'Current red projection ignored for {door.door_id}: '
+                        'the robot is aligned with repeatedly observed live '
+                        f'blue evidence (blue={blue_confidence:.2f}, '
+                        f'red={float(candidate.confidence):.2f}).',
+                        throttle_duration_sec=2.0)
+                    continue
+                self.get_logger().warn(
+                    f'Current {candidate.door_color} observation blocks opening '
+                    f'{door.door_id}: age={age:.1f}s, '
+                    f'confidence={float(candidate.confidence):.2f}.',
+                    throttle_duration_sec=2.0)
+                return True
+        return False
+
     def _door_target_has_recent_non_blue_conflict(self, door: DoorInfo) -> bool:
         if door.door_color != 'blue' or not self._door_has_map_identity(door):
             return False
-        target_points = [self._door_handle_xy(door), self._door_identity_xy(door)]
+        target_points = self._blue_non_blue_conflict_points(door)
         max_age = max(0.0, self._door_open_fresh_blue_max_age_sec)
         max_dist = max(0.45, self._blue_red_conflict_strict_dist_m + 0.20)
         now = self.get_clock().now()
@@ -10477,10 +15527,27 @@ class StateMachineNode(Node):
             self._blue_target_observation_strength(door))
         fresh_blue_confirmed = self._door_target_has_fresh_blue_evidence(door)
         target_xy = self._door_identity_xy(door)
+        handle_xy = self._door_handle_xy(door)
         exit_xy = self._exit_xy_for_blue_candidate_filter()
         handle_detected = bool(getattr(door, 'handle_detected', False))
         handle_confidence = float(getattr(door, 'handle_confidence', 0.0))
         estimated_handle_only = not (handle_detected and handle_confidence >= 0.35)
+        strong_aligned_live_blue = (
+            fresh_blue_confirmed
+            and estimated_handle_only
+            and self._blue_target_open_pose_aligned_for_safe_memory(door)
+            and blue_count >= max(4, self._observed_blue_min_observations + 2)
+            and blue_confidence >= max(
+                0.82,
+                self._door_open_fresh_blue_min_confidence + 0.20)
+            and self._observed_blue_target_has_same_side_live_wall_evidence(
+                door,
+                min_confidence=max(
+                    0.50,
+                    self._door_open_fresh_blue_min_confidence))
+            and not self._is_blue_xy_opened_same_wall_remnant(
+                handle_xy,
+                label=f'Non-blue override target {door.door_id}'))
         if (
                 fresh_blue_confirmed
                 and estimated_handle_only
@@ -10492,12 +15559,23 @@ class StateMachineNode(Node):
                     self._blue_xy_conflicts_recent_red_memory(
                         point, red_conflict_dist)
                     for point in target_points):
-                self.get_logger().info(
-                    f'Non-blue conflict kept strict for {door.door_id}: '
-                    'handle is estimated and the mapped station overlaps '
-                    'recent red-door memory.',
-                    throttle_duration_sec=3.0)
-                return True
+                if strong_aligned_live_blue:
+                    self.get_logger().info(
+                        f'Non-blue conflict ignored for {door.door_id}: '
+                        'strong aligned live blue evidence at a non-remnant '
+                        'wall station overrides stale red memory.',
+                        throttle_duration_sec=3.0)
+                    pass
+                elif self._aligned_live_wall_blue_overrides_stale_red_memory(
+                        door, blue_confidence, blue_count):
+                    pass
+                else:
+                    self.get_logger().info(
+                        f'Non-blue conflict kept strict for {door.door_id}: '
+                        'handle is estimated and the mapped station overlaps '
+                        'recent red-door memory.',
+                        throttle_duration_sec=3.0)
+                    return True
         opened_progress = self._farthest_resolved_blue_progress()
         near_opened_floor = False
         if opened_progress is not None:
@@ -10505,6 +15583,7 @@ class StateMachineNode(Node):
                 self._door_station_progress(door)
                 <= opened_progress
                 + max(0.45, self._opened_physical_door_merge_dist_m * 0.5))
+        aligned_fresh_blue_ready = False
         if (
                 fresh_blue_confirmed
                 and self._blue_target_open_pose_aligned_for_safe_memory(door)
@@ -10514,11 +15593,7 @@ class StateMachineNode(Node):
                     blue_confidence=blue_confidence,
                     blue_count=blue_count):
                 return True
-            self.get_logger().info(
-                f'Non-blue conflict ignored for {door.door_id}: '
-                'door is already aligned at a live blue opening pose.',
-                throttle_duration_sec=3.0)
-            return False
+            aligned_fresh_blue_ready = True
         if self._semantic_non_blue_conflict_blocks_blue_target(door):
             return True
         if (
@@ -10541,7 +15616,7 @@ class StateMachineNode(Node):
                 throttle_duration_sec=3.0)
             return False
         fresh_blue_yields_conflict = (
-            fresh_blue_confirmed
+            (fresh_blue_confirmed or aligned_fresh_blue_ready)
             and blue_confidence >= max(
                 0.40,
                 self._door_open_fresh_blue_min_confidence))
@@ -10574,6 +15649,25 @@ class StateMachineNode(Node):
             for tp in target_points:
                 for cp in candidate_points:
                     if math.hypot(tp[0] - cp[0], tp[1] - cp[1]) <= max_dist:
+                        if candidate.door_color == 'red' and estimated_handle_only:
+                            if strong_aligned_live_blue:
+                                self.get_logger().info(
+                                    f'Non-blue conflict ignored for {door.door_id}: '
+                                    'current strong aligned live blue evidence '
+                                    'wins over a red observation at this '
+                                    'non-remnant wall station.',
+                                    throttle_duration_sec=3.0)
+                                continue
+                            if self._aligned_live_wall_blue_overrides_stale_red_memory(
+                                    door, blue_confidence, blue_count):
+                                continue
+                            else:
+                                self.get_logger().info(
+                                    f'Non-blue conflict kept strict for {door.door_id}: '
+                                    'estimated handle target overlaps a current '
+                                    'red-door observation before opening.',
+                                    throttle_duration_sec=3.0)
+                                return True
                         if self._non_blue_conflict_yields_to_blue_target(
                                 door, candidate,
                                 strong_blue or fresh_blue_yields_conflict,
@@ -10603,6 +15697,17 @@ class StateMachineNode(Node):
             red_xy = (float(red.get('x', 0.0)), float(red.get('y', 0.0)))
             if any(math.hypot(tp[0] - red_xy[0], tp[1] - red_xy[1]) <= max_dist
                    for tp in target_points):
+                if estimated_handle_only:
+                    if self._aligned_live_wall_blue_overrides_stale_red_memory(
+                            door, blue_confidence, blue_count):
+                        continue
+                    else:
+                        self.get_logger().info(
+                            f'Red memory conflict kept strict for {door.door_id}: '
+                            'estimated handle target overlaps recent red-door '
+                            'memory before opening.',
+                            throttle_duration_sec=3.0)
+                        return True
                 strict_same_wall_red = any(
                     self._same_wall_red_conflict_is_strict(
                         tp,
@@ -10628,6 +15733,12 @@ class StateMachineNode(Node):
                         throttle_duration_sec=3.0)
                     continue
                 return True
+        if aligned_fresh_blue_ready:
+            self.get_logger().info(
+                f'Non-blue conflict ignored for {door.door_id}: '
+                'door is already aligned at a live blue opening pose and no '
+                'strict red/green conflict remains.',
+                throttle_duration_sec=3.0)
         return False
 
     def _blue_target_observation_strength(
@@ -10773,6 +15884,20 @@ class StateMachineNode(Node):
             return False
         return True
 
+    def _opened_same_wall_remnant_progress_window(
+            self, configured_window: float) -> float:
+        physical_window = max(
+            self._opened_physical_door_merge_dist_m
+            + self._observed_candidate_merge_dist() * 0.55,
+            self._opened_physical_door_merge_dist_m
+            + self._observed_candidate_merge_dist()
+            + 0.35,
+            self._door_open_fresh_blue_max_dist_m + 0.35,
+            self._axis_door_side_standoff_m + 0.75)
+        if configured_window <= 0.0:
+            return max(0.45, physical_window)
+        return max(0.45, min(configured_window, physical_window))
+
     def _blue_xy_opened_station_relation(
             self, xy: tuple[float, float]) -> tuple[str, float] | None:
         base_window = max(0.0, self._opened_station_blue_suppression_progress_m)
@@ -10814,6 +15939,10 @@ class StateMachineNode(Node):
             progress_window = base_window
             if same_wall:
                 progress_window = max(progress_window, same_side_window)
+                progress_window = self._opened_same_wall_remnant_progress_window(
+                    progress_window)
+                if progress_window <= 0.0:
+                    continue
                 relation = 'same_wall'
             elif opposite_walls:
                 progress_window = max(0.0, opposite_side_window)
@@ -10842,9 +15971,15 @@ class StateMachineNode(Node):
     def _is_blue_xy_near_abandoned_station(self, xy: tuple[float, float]) -> bool:
         if not self._abandoned_blue_door_positions:
             return False
-        same_window = max(
+        physical_same_side_window = max(
+            0.0, self._abandoned_physical_door_merge_dist_m)
+        configured_same_window = max(
             0.0,
             self._abandoned_station_same_side_blue_suppression_progress_m)
+        same_window = max(
+            0.0,
+            min(configured_same_window, physical_same_side_window)
+            if configured_same_window > 0.0 else 0.0)
         opposite_window = max(
             0.0,
             self._abandoned_station_opposite_side_blue_suppression_progress_m)
@@ -10929,22 +16064,43 @@ class StateMachineNode(Node):
         return True
 
     def _observed_unopened_blue_doors(self) -> list[dict[str, float]]:
-        return [
-            cluster for cluster in self._stable_observed_blue_doors()
-            if not self._is_blue_position_opened((
-                float(cluster.get('x', 0.0)),
-                float(cluster.get('y', 0.0))))
-            and not self._is_blue_xy_opened_same_wall_remnant(
-                self._cluster_target_xy(cluster),
-                label='Observed unopened blue target station')
-            and not self._is_observed_blue_cluster_too_far_behind_for_target(cluster)
-            and not self._is_blue_xy_beyond_explore_limit(
-                self._cluster_xy(cluster), 'observed unopened blue candidate')
-            and not self._is_blue_xy_at_or_after_observed_exit(
-                self._cluster_xy(cluster))
-            and not self._is_blue_xy_near_detected_exit(self._cluster_xy(cluster))
-
-        ]
+        unopened: list[dict[str, float]] = []
+        for cluster in self._stable_observed_blue_doors():
+            if self._blue_xy_before_mission_start_floor(
+                    self._cluster_target_xy(cluster),
+                    'observed unopened blue candidate'):
+                self._mark_observed_blue_cluster_abandoned(
+                    cluster,
+                    'unopened observed target is behind the initial mission scan floor',
+                    mark_physical=False)
+                continue
+            if self._observed_blue_projection_root_is_opened_remnant(
+                    cluster,
+                    label='Observed unopened blue projection'):
+                continue
+            if self._is_blue_position_opened((
+                    float(cluster.get('x', 0.0)),
+                    float(cluster.get('y', 0.0)))):
+                continue
+            if self._is_blue_xy_opened_same_wall_remnant(
+                    self._cluster_target_xy(cluster),
+                    label='Observed unopened blue target station'):
+                self._mark_observed_blue_cluster_abandoned(
+                    cluster,
+                    'opened door remnant projected to an unopened target station',
+                    mark_physical=True)
+                continue
+            if self._is_observed_blue_cluster_too_far_behind_for_target(cluster):
+                continue
+            if self._is_blue_xy_beyond_explore_limit(
+                    self._cluster_xy(cluster), 'observed unopened blue candidate'):
+                continue
+            if self._is_blue_xy_at_or_after_observed_exit(self._cluster_xy(cluster)):
+                continue
+            if self._is_blue_xy_near_detected_exit(self._cluster_xy(cluster)):
+                continue
+            unopened.append(cluster)
+        return unopened
 
     def _exit_blocking_unopened_blue_doors(self) -> list[dict[str, float]]:
         blockers: list[dict[str, float]] = []
@@ -10953,30 +16109,87 @@ class StateMachineNode(Node):
                 continue
             if cluster.get('opened', 0.0) >= 1.0 or cluster.get('abandoned', 0.0) >= 1.0:
                 continue
+            if self._blue_xy_before_mission_start_floor(
+                    self._cluster_target_xy(cluster),
+                    'exit-blocking observed blue candidate'):
+                self._mark_observed_blue_cluster_abandoned(
+                    cluster,
+                    'exit-blocking target is behind the initial mission scan floor',
+                    mark_physical=False)
+                continue
             xy = self._cluster_xy(cluster)
-            if self._is_observed_blue_cluster_suppressed(cluster):
+            recheckable_wall_memory = (
+                self._observed_blue_cluster_has_recheckable_wall_memory(cluster)
+                or self._observed_blue_cluster_has_pre_exit_target_memory(
+                    cluster,
+                    check_semantic=False)
+                or self._observed_blue_cluster_has_persistent_exit_memory(
+                    cluster))
+            retry_pending = cluster.get('fresh_retry_required', 0.0) >= 1.0
+            behind_opened_floor = not self._observed_blue_cluster_ahead_of_opened_floor(
+                cluster)
+            if (
+                    behind_opened_floor
+                    and not self._observed_blue_cluster_is_stable_unopened_revisit(
+                        cluster)
+                    and not (
+                        retry_pending
+                        and recheckable_wall_memory)
+                    and not self._observed_blue_cluster_requires_resolution_before_exit(
+                        cluster)):
+                continue
+            # A retrying cluster can keep receiving farther detections while its
+            # physical target station remains fixed. Exit decisions must use the
+            # stabilized station, otherwise centroid drift can hide that door as
+            # being beyond the explored window.
+            station_xy = (
+                self._cluster_target_xy(cluster) if retry_pending else xy)
+            if (
+                    self._is_observed_blue_cluster_suppressed(cluster)
+                    and not (
+                        (retry_pending and recheckable_wall_memory)
+                        or self._observed_blue_cluster_requires_resolution_before_exit(
+                            cluster))):
+                continue
+            if self._observed_blue_projection_root_is_opened_remnant(
+                    cluster,
+                    label='Exit-blocking observed blue projection'):
                 continue
             if self._is_blue_xy_opened_same_wall_remnant(
                     self._cluster_target_xy(cluster),
                     label='Exit-blocking observed blue target station'):
-                continue
-            if not self._observed_blue_cluster_is_stable_unopened_target_memory(cluster):
-                continue
-            if self._is_exit_blocking_blue_xy_beyond_scan_window(xy):
-                continue
-            if self._is_blue_position_opened(xy) or self._is_blue_position_abandoned(xy):
+                self._mark_observed_blue_cluster_abandoned(
+                    cluster,
+                    'opened door remnant projected to an exit-blocking target station',
+                    mark_physical=True)
                 continue
             if (
-                    self._is_blue_xy_at_or_after_observed_exit(xy)
-                    or self._is_blue_xy_near_detected_exit(xy)):
+                    not self._observed_blue_cluster_is_stable_unopened_target_memory(cluster)
+                    and not (retry_pending and recheckable_wall_memory)
+                    and not self._observed_blue_cluster_requires_resolution_before_exit(
+                        cluster)):
+                continue
+            if self._is_exit_blocking_blue_xy_beyond_scan_window(station_xy):
+                continue
+            if (
+                    self._is_blue_position_opened(station_xy)
+                    or self._is_blue_position_abandoned(station_xy)):
+                continue
+            if (
+                    self._is_blue_xy_at_or_after_observed_exit(station_xy)
+                    or self._is_blue_xy_near_detected_exit(station_xy)):
                 continue
             if self._is_observed_blue_cluster_weak_in_pre_exit_zone(cluster):
                 continue
-            target = self._observed_blue_cluster_to_door(cluster)
+            target = self._door_with_axis_aligned_approach(
+                self._observed_blue_cluster_to_door(cluster))
+            if not self._blue_door_has_openable_wall_lateral(target):
+                continue
             if self._observed_blue_revisit_should_yield_to_exit(target):
                 continue
             lateral = abs(
-                self._axis_lateral_xy(xy[0], xy[1]) - self._explore_center_y)
+                self._axis_lateral_xy(station_xy[0], station_xy[1])
+                - self._explore_center_y)
             wall_side_threshold = max(
                 0.35,
                 self._observed_blue_min_abs_wall_y_m * 0.5)
@@ -10993,12 +16206,21 @@ class StateMachineNode(Node):
             # wall-side blue cluster near the observed exit should still block
             # exit, because it may be the last door. Target selection keeps its
             # stricter exit/green suppression elsewhere.
-            if self._is_blue_xy_opposite_opened_station(xy):
+            if self._is_blue_xy_opposite_opened_station(station_xy):
                 continue
-            if self._is_blue_xy_near_abandoned_station(xy):
+            if self._is_blue_xy_near_abandoned_station(station_xy):
                 continue
-            if self._is_blue_xy_near_observed_red(xy):
-                continue
+            if self._is_blue_xy_near_observed_red(station_xy):
+                if (
+                        not recheckable_wall_memory
+                        or not (
+                            (retry_pending and recheckable_wall_memory)
+                            or
+                            self._observed_blue_cluster_requires_resolution_before_exit(
+                                cluster)
+                            or self._observed_blue_cluster_should_recheck_despite_red_memory(
+                                cluster))):
+                    continue
             blockers.append(cluster)
         return blockers
 
@@ -11040,13 +16262,26 @@ class StateMachineNode(Node):
 
     def _target_exit_blocking_unopened_blue(
             self, unopened: list[dict[str, float]], reason: str) -> bool:
-        targets = [self._observed_blue_cluster_to_door(cluster)
-                   for cluster in unopened]
+        targets = [
+            self._observed_blue_cluster_to_door(cluster)
+            for cluster in unopened
+        ]
+        targets = [
+            door for door in targets
+            if self._blue_door_survives_axis_adjusted_opened_filter(door)
+        ]
         if not targets:
             return False
 
         pose = self._current_map_pose()
         robot_progress = None
+        has_non_exit_stable_revisit = any(
+            self._observed_blue_door_is_stable_unopened_revisit(door)
+            and not (
+                self._is_blue_xy_in_pre_exit_zone(self._door_identity_xy(door))
+                or self._is_blue_xy_near_detected_exit(self._door_identity_xy(door)))
+            for door in targets
+        )
         if pose is not None:
             robot_progress = self._axis_progress_xy(pose[0], pose[1])
             behind_tolerance = max(
@@ -11057,19 +16292,27 @@ class StateMachineNode(Node):
                 door for door in targets
                 if self._door_progress(door) >= robot_progress - behind_tolerance
             ]
-            if near_or_ahead:
+            if near_or_ahead and not has_non_exit_stable_revisit:
                 targets = near_or_ahead
 
         def score(door: DoorInfo) -> tuple[float, float, float]:
             dist = self._door_distance_from_robot(door)
             progress = self._door_progress(door)
+            xy = self._door_identity_xy(door)
+            exit_tail_penalty = 0.0
+            if (
+                    has_non_exit_stable_revisit
+                    and (
+                        self._is_blue_xy_in_pre_exit_zone(xy)
+                        or self._is_blue_xy_near_detected_exit(xy))):
+                exit_tail_penalty = 1.0
             behind_penalty = 0.0
             if robot_progress is not None and progress < robot_progress:
                 behind_penalty = robot_progress - progress
             return (
+                exit_tail_penalty,
                 behind_penalty,
                 dist if dist is not None else float('inf'),
-                progress,
             )
 
         selected = min(targets, key=score)
@@ -11093,15 +16336,23 @@ class StateMachineNode(Node):
             failure_kind: str,
             *,
             require_fresh_retry: bool = False,
+            fresh_retry_reason: str = '',
             log: bool = True) -> bool:
         if door.door_color != 'blue' or not self._door_has_map_identity(door):
             return False
         xy = self._door_identity_xy(door)
+        wall_retry_failure = (
+            require_fresh_retry
+            and self._blue_target_invalid_reason_requires_valid_wall_retry(
+                fresh_retry_reason))
+        failure_merge_dist = max(
+            self._observed_candidate_merge_dist(),
+            self._axis_door_side_standoff_m)
+        if wall_retry_failure:
+            failure_merge_dist = self._observed_candidate_merge_dist()
         cluster = self._observed_cluster_for_blue_door(
             door,
-            merge_dist=max(
-                self._observed_candidate_merge_dist(),
-                self._axis_door_side_standoff_m))
+            merge_dist=failure_merge_dist)
         if cluster is None:
             cluster = self._find_observed_blue_cluster(
                 xy,
@@ -11110,14 +16361,66 @@ class StateMachineNode(Node):
             self._record_observed_physical_blue_door(door)
             cluster = self._observed_cluster_for_blue_door(
                 door,
-                merge_dist=max(
-                    self._observed_candidate_merge_dist(),
-                    self._axis_door_side_standoff_m))
+                merge_dist=failure_merge_dist)
             if cluster is None:
                 cluster = self._find_observed_blue_cluster(
                     xy,
                     merge_dist=self._observed_candidate_merge_dist())
         if cluster is None:
+            return False
+
+        reason_text = str(fresh_retry_reason or '')
+        reason_text_lower = reason_text.lower()
+        strict_pre_exit_non_blue_projection = (
+            require_fresh_retry
+            and failure_kind == 'approach'
+            and door.door_id.startswith('observed_blue_')
+            and self._is_pre_exit_blue_failure_candidate(xy)
+            and (
+                '빨간/초록' in reason_text
+                or '빨간문 근처 projection' in reason_text
+                or 'non-blue' in reason_text_lower
+                or 'red/green' in reason_text_lower
+                or 'coherent same-wall' in reason_text_lower))
+        if strict_pre_exit_non_blue_projection:
+            self._mark_observed_blue_cluster_abandoned(
+                cluster,
+                '출구 근처 빨간/초록 충돌 projection 후보는 '
+                '실제 파란문으로 재확정되지 않아 해당 관측 클러스터만 폐기',
+                mark_physical=False)
+            cluster['fresh_retry_required'] = 0.0
+            cluster['fresh_retry_requires_valid_wall'] = 0.0
+            cluster['fresh_retry_since'] = 0.0
+            return False
+
+        soft_non_blue_conflict_retry = (
+            require_fresh_retry
+            and (
+                fresh_retry_reason == 'non_blue_conflict'
+                or '관측 색상 메모리에서 비파란 문 우세'
+                in fresh_retry_reason))
+        if soft_non_blue_conflict_retry and (
+                self._door_target_has_fresh_blue_evidence(door)
+                or self._observed_blue_target_has_same_side_live_wall_evidence(
+                    door,
+                    min_confidence=max(
+                        0.35,
+                        self._door_open_fresh_blue_min_confidence))
+                or self._observed_blue_cluster_has_recheckable_wall_memory(
+                    cluster)):
+            cluster['fresh_retry_required'] = 1.0
+            cluster['fresh_retry_requires_valid_wall'] = 0.0
+            cluster['fresh_retry_since'] = (
+                self.get_clock().now().nanoseconds / 1e9)
+            cluster['non_blue_conflict_rechecks'] = float(
+                int(cluster.get('non_blue_conflict_rechecks', 0.0)) + 1)
+            if log:
+                cx = float(cluster.get('x', xy[0]))
+                cy = float(cluster.get('y', xy[1]))
+                self.get_logger().warn(
+                    f'파란 문 후보 ({cx:.1f}, {cy:.1f})는 non-blue '
+                    '충돌이 있으나 live/repeated blue 근거가 남아 있어 '
+                    '포기 카운트를 올리지 않고 재관측합니다.')
             return False
 
         if failure_kind == 'open':
@@ -11145,13 +16448,185 @@ class StateMachineNode(Node):
             cluster['failures'] = float(failures)
         if require_fresh_retry:
             cluster['fresh_retry_required'] = 1.0
+            if self._blue_target_invalid_reason_requires_valid_wall_retry(
+                    fresh_retry_reason):
+                cluster['fresh_retry_requires_valid_wall'] = 1.0
             cluster['fresh_retry_since'] = (
                 self.get_clock().now().nanoseconds / 1e9)
         cx = float(cluster.get('x', xy[0]))
         cy = float(cluster.get('y', xy[1]))
+        method = str(getattr(door, 'handle_detection_method', '') or '').lower()
+        fresh_open_confirmation_missing = (
+            failure_kind == 'approach'
+            and require_fresh_retry
+            and fresh_retry_reason == 'fresh_open_confirmation_missing'
+            and door.door_id.startswith('observed_blue_'))
+        projection_coordinate_failure = (
+            failure_kind in ('approach', 'open')
+            and require_fresh_retry
+            and method in (
+                'direct_wall_projection',
+                'observed_wall_projection',
+                'observed_wall_memory',
+                'observed_map_memory',
+            ))
+        if fresh_open_confirmation_missing and projection_coordinate_failure:
+            self._mark_observed_blue_cluster_abandoned(
+                cluster,
+                '문 앞 정렬 후 현재 카메라에서 파란 문이 재확인되지 않아 '
+                '과거 projection 좌표만 폐기합니다',
+                mark_physical=False)
+            cluster['map_memory_open_override'] = 0.0
+            cluster['fresh_retry_required'] = 0.0
+            cluster['fresh_retry_requires_valid_wall'] = 0.0
+            cluster['fresh_retry_since'] = 0.0
+            self.get_logger().warn(
+                f'파란 문 투영 후보 ({cx:.1f}, {cy:.1f})는 정렬 위치에서 '
+                'live blue가 없어 즉시 폐기합니다. 실제 새 관측은 별도 '
+                '클러스터로 계속 등록합니다.')
+            return False
+        if projection_coordinate_failure:
+            opened_projection_relation = (
+                self._blue_xy_opened_station_relation(xy))
+            if (
+                    opened_projection_relation is not None
+                    or self._is_blue_xy_opened_same_wall_remnant(
+                        xy,
+                        label='Failed projection target')):
+                self._mark_observed_blue_cluster_abandoned(
+                    cluster,
+                    '실패한 projection 목표가 이미 열린 문 station과 '
+                    '겹치는 패널 잔상입니다',
+                    mark_physical=False)
+                cluster['fresh_retry_required'] = 0.0
+                cluster['fresh_retry_requires_valid_wall'] = 0.0
+                cluster['fresh_retry_since'] = 0.0
+                return False
+            failure_progress = self._axis_progress_xy(xy[0], xy[1])
+            if (
+                    self._last_projection_open_failure_progress is None
+                    or failure_progress > self._last_projection_open_failure_progress):
+                self._last_projection_open_failure_progress = failure_progress
+            cluster['failed_projection_x'] = xy[0]
+            cluster['failed_projection_y'] = xy[1]
+            cluster['failed_projection_progress'] = failure_progress
+            cluster['failed_projection_count'] = float(
+                int(cluster.get('failed_projection_count', 0.0)) + 1)
+            if failures >= limit:
+                cluster['abandoned'] = 1.0
+                cluster['fresh_retry_required'] = 0.0
+                cluster['fresh_retry_requires_valid_wall'] = 0.0
+                cluster['fresh_retry_since'] = 0.0
+                self._mark_door_abandoned(door)
+                self.get_logger().warn(
+                    f'파란 문 후보 ({cx:.1f}, {cy:.1f}) {label} 실패 '
+                    f'{failures}/{limit}. 재관측 좌표도 반복 실패하여 '
+                    '접근/개방 불가 문으로 포기합니다.')
+                return True
+            root_x, root_y = self._cluster_xy(cluster)
+            cluster['origin_x'] = root_x
+            cluster['origin_y'] = root_y
+            cluster['target_x'] = root_x
+            cluster['target_y'] = root_y
+            cluster['target_progress'] = self._axis_progress_xy(root_x, root_y)
+            cluster['target_confidence'] = float(
+                cluster.get('confidence', 0.0))
+            cluster['target_score'] = 0.0
+            cluster['target_projected_from_center_bias'] = 0.0
+            cluster['projection_rebase_pending'] = 1.0
+            cluster['abandoned'] = 0.0
+            cluster['fresh_retry_required'] = 1.0
+            cluster['fresh_retry_since'] = (
+                self.get_clock().now().nanoseconds / 1e9)
+            self.get_logger().warn(
+                f'파란 문 후보 ({cx:.1f}, {cy:.1f}) {label} 실패 '
+                f'{failures}/{limit}. projection 기반 좌표가 실제 문과 '
+                '매칭되지 않아 현재 투영 좌표만 폐기합니다. 누적 문 '
+                f'관측 중심 ({root_x:.1f}, {root_y:.1f})으로 복원하고 '
+                '근접 카메라/LiDAR 재관측 후 다시 접근합니다.')
+            return False
+        if fresh_open_confirmation_missing:
+            confirmation_failures = (
+                int(cluster.get('fresh_open_confirmation_failures', 0.0)) + 1)
+            cluster['fresh_open_confirmation_failures'] = float(
+                confirmation_failures)
+            aligned_for_open = self._blue_target_open_pose_aligned_for_safe_memory(door)
+            has_recheckable_wall_memory = (
+                self._observed_blue_cluster_has_recheckable_wall_memory(cluster))
+            if (
+                    aligned_for_open
+                    and (
+                        self._door_target_has_fresh_blue_evidence(door)
+                        or self._observed_blue_target_has_locked_cluster_evidence(
+                            door,
+                            max(
+                                0.35,
+                                self._door_open_fresh_blue_min_confidence))
+                        or self._observed_blue_target_has_stable_open_evidence(door)
+                        or has_recheckable_wall_memory)):
+                count = int(cluster.get('count', 0.0))
+                confidence = float(cluster.get('confidence', 0.0))
+                can_promote_map_memory = (
+                    self._allow_mapped_memory_open_without_live
+                    and has_recheckable_wall_memory
+                    and confirmation_failures >= 2
+                    and count >= max(2, self._observed_blue_min_observations)
+                    and confidence >= max(
+                        0.44,
+                        self._door_open_fresh_blue_min_confidence + 0.18)
+                    and not self._blue_target_in_strict_exit_tail_without_persistent_memory(
+                        door,
+                        allow_live_evidence_escape=False)
+                    and not self._semantic_non_blue_conflict_blocks_blue_target(door)
+                    and not self._estimated_observed_blue_target_has_strict_non_blue_overlap(
+                        door))
+                if can_promote_map_memory:
+                    cluster['map_memory_open_override'] = 1.0
+                    cluster['fresh_retry_required'] = 0.0
+                    cluster['fresh_retry_requires_valid_wall'] = 0.0
+                    cluster['fresh_retry_since'] = 0.0
+                    self.get_logger().warn(
+                        f'파란 문 후보 ({cx:.1f}, {cy:.1f})는 문 앞 정렬 후 '
+                        f'fresh 재확인이 {confirmation_failures}회 실패했지만, '
+                        '반복 벽면 지도 메모리가 안정적이므로 다음 루프에서 '
+                        f'시뮬레이션 물리 매칭으로 검증합니다 '
+                        f'(count={count}, conf={confidence:.2f}).')
+                    return False
+                if confirmation_failures >= 2:
+                    self._mark_observed_blue_cluster_abandoned(
+                        cluster,
+                        '문 앞 정렬 후 fresh blue 재확인이 2회 실패했고 '
+                        '지도 메모리만으로 열 수 있을 만큼 강하지 않습니다',
+                        mark_physical=False)
+                    return False
+                cluster['fresh_retry_required'] = 1.0
+                cluster['fresh_retry_requires_valid_wall'] = 0.0
+                cluster['fresh_retry_since'] = (
+                    self.get_clock().now().nanoseconds / 1e9)
+                self.get_logger().warn(
+                    f'파란 문 후보 ({cx:.1f}, {cy:.1f}) 열기 직전 '
+                    f'증거가 아직 약하지만, 문 앞 정렬과 안정 벽면 관측이 있으므로 '
+                    f'후보를 폐기하지 않고 재스캔합니다 '
+                    f'({confirmation_failures}/2).')
+                return False
+            cluster['abandoned'] = 1.0
+            cluster['map_memory_open_override'] = 0.0
+            cluster['fresh_retry_required'] = 0.0
+            cluster['fresh_retry_requires_valid_wall'] = 0.0
+            cluster['fresh_retry_since'] = 0.0
+            self.get_logger().warn(
+                f'파란 문 후보 ({cx:.1f}, {cy:.1f}) 열기 직전 '
+                'fresh blue 재확인 실패. 누적 지도 좌표만 폐기하고 '
+                '다음 카메라/LiDAR 관측으로 새 후보를 만들게 합니다.')
+            return False
         if failures >= limit:
             cluster['abandoned'] = 1.0
-            self._mark_door_abandoned(door)
+            if (
+                    wall_retry_failure
+                    and not self._blue_door_has_openable_wall_lateral(door)):
+                self._add_door_id_keys(self._abandoned_door_ids, door.door_id)
+            else:
+                self._mark_door_abandoned(door)
             if log:
                 self.get_logger().warn(
                     f'파란 문 후보 ({cx:.1f}, {cy:.1f}) {label} 실패 '
@@ -11204,6 +16679,9 @@ class StateMachineNode(Node):
         cluster['open_failures'] = 0.0
         cluster['failures'] = 0.0
         cluster['fresh_retry_required'] = 0.0
+        cluster['fresh_retry_requires_valid_wall'] = 0.0
+        cluster['fresh_open_confirmation_failures'] = 0.0
+        cluster['map_memory_open_override'] = 0.0
 
     def _mark_door_abandoned(self, door: DoorInfo):
         self._add_door_id_keys(self._abandoned_door_ids, door.door_id)
@@ -11222,15 +16700,21 @@ class StateMachineNode(Node):
             self._abandoned_blue_door_positions.append(xy)
 
     def _mark_observed_blue_cluster_abandoned(
-            self, cluster: dict[str, float], reason: str):
+            self,
+            cluster: dict[str, float],
+            reason: str,
+            *,
+            mark_physical: bool = False):
         if cluster.get('abandoned', 0.0) >= 1.0:
             return
         cluster['abandoned'] = 1.0
+        cluster['map_memory_open_override'] = 0.0
+        cluster['fresh_open_confirmation_failures'] = 0.0
         xy = (
             float(cluster.get('x', 0.0)),
             float(cluster.get('y', 0.0)),
         )
-        if not any(
+        if mark_physical and not any(
                 math.hypot(xy[0] - old[0], xy[1] - old[1])
                 <= self._opened_physical_door_merge_dist_m
                 for old in self._abandoned_blue_door_positions):
@@ -11246,19 +16730,32 @@ class StateMachineNode(Node):
         matching_abandoned = [
             old for old in self._abandoned_blue_door_positions
             if self._blue_xy_matches_physical_station(
-                xy, old, self._opened_physical_door_merge_dist_m)
+                xy, old, self._abandoned_physical_door_merge_dist_m)
         ]
         if not matching_abandoned:
             return False
 
         raw_handle_xy = self._raw_blue_handle_xy_for_evidence(door)
         if raw_handle_xy is not None:
-            if self._is_blue_xy_near_abandoned_station(raw_handle_xy):
-                return True
-            if any(
-                    self._blue_xy_matches_physical_station(
-                        raw_handle_xy, old, self._opened_physical_door_merge_dist_m)
-                    for old in self._abandoned_blue_door_positions):
+            raw_confidence = abs(float(getattr(door, 'confidence', 0.0)))
+            exact_resolution_radius = min(
+                0.45,
+                max(0.25, self._abandoned_physical_door_merge_dist_m))
+            raw_matches_resolved_station = any(
+                math.hypot(raw_handle_xy[0] - old[0], raw_handle_xy[1] - old[1])
+                <= exact_resolution_radius
+                for old in (
+                    self._opened_blue_door_positions
+                    + self._abandoned_blue_door_positions))
+            if (
+                    raw_matches_resolved_station
+                    or self._is_blue_xy_opened_same_wall_remnant(
+                        raw_handle_xy,
+                        label=f'Blue candidate {door.door_id} raw handle')
+                    or self._is_blue_xy_near_observed_red(
+                        raw_handle_xy,
+                        candidate_id=door.door_id,
+                        confidence=raw_confidence)):
                 return True
             handle_lateral = (
                 self._axis_lateral_xy(raw_handle_xy[0], raw_handle_xy[1])
@@ -11267,16 +16764,75 @@ class StateMachineNode(Node):
                 0.15,
                 self._observed_blue_min_abs_wall_y_m * 0.5)
             if abs(handle_lateral) >= wall_side_threshold:
+                merge_dist = max(
+                    0.45,
+                    self._observed_candidate_merge_dist(),
+                    min(
+                        max(0.20, self._door_open_fresh_blue_max_dist_m),
+                        self._observed_physical_door_merge_dist_m + 0.35))
+                cluster = self._find_observed_blue_cluster(
+                    raw_handle_xy,
+                    merge_dist=merge_dist)
+                if (
+                        cluster is not None
+                        and self._observed_blue_cluster_has_recheckable_wall_memory(
+                            cluster)):
+                    cluster_xy = self._cluster_target_xy(cluster)
+                    if (
+                            not self._is_blue_position_opened(cluster_xy)
+                            and not self._is_blue_position_abandoned(cluster_xy)
+                            and self._blue_xy_opened_station_relation(cluster_xy) is None
+                            and not self._is_blue_xy_near_observed_red(
+                                cluster_xy,
+                                candidate_id=door.door_id,
+                                confidence=raw_confidence)):
+                        self.get_logger().info(
+                            f'Blue candidate {door.door_id} has independent '
+                            'unopened wall-memory evidence away from an '
+                            'abandoned pose projection; allowing it to be '
+                            'rechecked.',
+                            throttle_duration_sec=3.0)
+                        return False
+                if (
+                        raw_confidence >= max(
+                            0.30,
+                            self._observed_blue_target_min_confidence)
+                        and self._is_blue_xy_recordable_wall_observation(
+                            raw_handle_xy)
+                        and not self._blue_xy_conflicts_recent_red_memory(
+                            raw_handle_xy,
+                            max(
+                                self._blue_red_conflict_dist_m,
+                                self._blue_red_conflict_strict_dist_m))):
+                    self.get_logger().info(
+                        f'Blue candidate {door.door_id} has strong fresh wall '
+                        'evidence distinct from the exact abandoned projection; '
+                        'allowing a new observation-based station.',
+                        throttle_duration_sec=3.0)
+                    return False
+                if (
+                        self._is_blue_xy_recordable_wall_observation(raw_handle_xy)
+                        and not self._blue_xy_conflicts_recent_red_memory(
+                            raw_handle_xy,
+                            max(
+                                self._blue_red_conflict_dist_m,
+                                self._blue_red_conflict_strict_dist_m))):
+                    self.get_logger().info(
+                        f'Blue candidate {door.door_id} has a fresh wall ray '
+                        'outside the tight abandoned-station radius; allowing '
+                        'repeated observations to establish a new station.',
+                        throttle_duration_sec=3.0)
+                    return False
                 self.get_logger().info(
-                    f'Blue candidate {door.door_id} has fresh wall-side handle '
-                    'evidence away from an abandoned pose projection; allowing '
-                    'it to be rechecked.',
+                    f'Blue candidate {door.door_id} suppressed: wall-side '
+                    'handle evidence near an abandoned/opened projection lacks '
+                    'independent unopened map memory.',
                     throttle_duration_sec=3.0)
-                return False
+                return True
 
         return any(
             math.hypot(xy[0] - old[0], xy[1] - old[1])
-            <= self._opened_physical_door_merge_dist_m
+            <= self._abandoned_physical_door_merge_dist_m
             for old in self._abandoned_blue_door_positions
         )
 
@@ -11325,16 +16881,23 @@ class StateMachineNode(Node):
                    for old in evidence_points):
                 evidence_points.append(point)
 
+        opened_lineage = set(self._door_id_keys(door.door_id))
         for point in evidence_points:
             cluster = self._find_observed_blue_cluster(point, merge_dist=merge_dist)
             if cluster is None:
                 continue
             self._add_observed_blue_cluster_id(cluster, door.door_id)
+            for cluster_id in self._observed_blue_cluster_id_values(cluster):
+                self._add_door_id_keys(opened_lineage, cluster_id)
             cluster['opened'] = 1.0
             cluster['approach_failures'] = 0.0
             cluster['open_failures'] = 0.0
             cluster['failures'] = 0.0
             cluster['fresh_retry_required'] = 0.0
+            cluster['fresh_retry_requires_valid_wall'] = 0.0
+
+        for lineage_id in opened_lineage:
+            self._add_door_id_keys(self._opened_door_ids, lineage_id)
 
         station_xy = self._blue_physical_station_xy(door)
         same_station_evidence = [
@@ -11350,19 +16913,36 @@ class StateMachineNode(Node):
                 for old in self._opened_blue_door_positions):
             self._opened_blue_door_positions.append(station_xy)
 
+        station_progress = self._axis_progress_xy(station_xy[0], station_xy[1])
+        lineage_progress_window = max(
+            self._opened_physical_door_merge_dist_m,
+            self._observed_candidate_merge_dist())
         for cluster in self._observed_blue_doors:
             cluster_xy = self._cluster_xy(cluster)
-            if any(
+            target_xy = self._cluster_target_xy(cluster)
+            spatial_match = any(
                     math.hypot(cluster_xy[0] - opened_xy[0],
                                cluster_xy[1] - opened_xy[1]) <= merge_dist
                     or self._blue_xy_matches_physical_station(
                         cluster_xy, opened_xy, self._opened_physical_door_merge_dist_m)
-                    for opened_xy in opened_match_points):
+                    or self._blue_xy_matches_physical_station(
+                        target_xy, opened_xy, self._opened_physical_door_merge_dist_m)
+                    for opened_xy in opened_match_points)
+            lineage_match = self._observed_blue_cluster_has_id_in_set(
+                cluster, opened_lineage)
+            lineage_progress_match = any(
+                abs(self._axis_progress_xy(point[0], point[1]) - station_progress)
+                <= lineage_progress_window
+                for point in self._unique_xy_points([cluster_xy, target_xy]))
+            if spatial_match or (lineage_match and lineage_progress_match):
                 cluster['opened'] = 1.0
                 cluster['approach_failures'] = 0.0
                 cluster['open_failures'] = 0.0
                 cluster['failures'] = 0.0
                 cluster['fresh_retry_required'] = 0.0
+                cluster['fresh_retry_requires_valid_wall'] = 0.0
+                for cluster_id in self._observed_blue_cluster_id_values(cluster):
+                    self._add_door_id_keys(self._opened_door_ids, cluster_id)
 
     def _door_with_axis_aligned_approach(self, door: DoorInfo) -> DoorInfo:
         adjusted = copy.deepcopy(door)
@@ -11463,8 +17043,7 @@ class StateMachineNode(Node):
                     _strong, blue_confidence, blue_count = (
                         self._blue_target_observation_strength(adjusted))
                     soft_min_lateral = max(
-                        0.80,
-                        min_observed_lateral - 0.15,
+                        min_observed_lateral,
                         self._axis_door_min_abs_lateral_m)
                     soft_count = max(
                         3,
@@ -11530,7 +17109,10 @@ class StateMachineNode(Node):
             pose_side = pose_lateral - self._explore_center_y
             max_delta = max(0.0, self._axis_door_max_handle_pose_progress_delta_m)
             same_side = handle_side * pose_side >= 0.0
-            if max_delta > 0.0 and abs(handle_progress - pose_progress) > max_delta:
+            if (
+                    not used_direct_wall_memory
+                    and max_delta > 0.0
+                    and abs(handle_progress - pose_progress) > max_delta):
                 if same_side or abs(pose_side) < 0.35:
                     approach_progress = pose_progress
                     progress_note = (
@@ -11550,6 +17132,7 @@ class StateMachineNode(Node):
             and handle_method not in (
                 '',
                 'estimated',
+                'hsv',
                 'observed_map_memory',
                 'observed_wall_memory',
                 'direct_wall_projection',
@@ -11605,15 +17188,38 @@ class StateMachineNode(Node):
     def _nearest_forward_blue_door(self, doors: list[DoorInfo]) -> DoorInfo | None:
         if not doors:
             return None
+        has_non_exit_stable_revisit = any(
+            self._observed_blue_door_is_stable_unopened_revisit(d)
+            and not (
+                self._is_blue_xy_in_pre_exit_zone(self._door_identity_xy(d))
+                or self._is_blue_xy_near_detected_exit(self._door_identity_xy(d)))
+            for d in doors
+        )
+        def exit_tail_penalty(d: DoorInfo) -> float:
+            if not has_non_exit_stable_revisit:
+                return 0.0
+            xy = self._door_identity_xy(d)
+            if (
+                    self._is_blue_xy_in_pre_exit_zone(xy)
+                    or self._is_blue_xy_near_detected_exit(xy)):
+                return 1.0
+            return 0.0
         pose = self._current_map_pose()
         if pose is None:
-            return min(doors, key=lambda d: self._door_progress(d))
+            return min(
+                doors,
+                key=lambda d: (
+                    exit_tail_penalty(d),
+                    self._door_progress(d)))
         rx, ry, _ = pose
         return min(
             doors,
-            key=lambda d: math.hypot(
-                self._door_identity_xy(d)[0] - rx,
-                self._door_identity_xy(d)[1] - ry,
+            key=lambda d: (
+                exit_tail_penalty(d),
+                math.hypot(
+                    self._door_identity_xy(d)[0] - rx,
+                    self._door_identity_xy(d)[1] - ry,
+                ),
             ),
         )
 
@@ -11699,8 +17305,25 @@ class StateMachineNode(Node):
             return False
 
         now = self.get_clock().now()
-        duration_ns = int(
-            max(0.2, self._door_open_fine_exception_reverse_sec) * 1e9)
+        pose = self._current_map_pose()
+        hx, hy = self._door_handle_xy(door)
+        reverse_duration = max(0.2, self._door_open_fine_exception_reverse_sec)
+        if pose is not None:
+            rx, ry, robot_yaw = pose
+            forward = (
+                math.cos(robot_yaw) * (hx - rx)
+                + math.sin(robot_yaw) * (hy - ry))
+            min_forward = max(0.18, self._door_open_ready_max_dist_m * 0.7)
+            recovery_distance = max(0.0, min_forward - forward + 0.04)
+            reverse_speed = abs(self._door_open_fine_exception_reverse_linear_x)
+            if reverse_speed > 1.0e-3:
+                reverse_duration = max(
+                    reverse_duration,
+                    recovery_distance / reverse_speed)
+        reverse_duration = min(
+            reverse_duration,
+            self._door_open_fine_exception_reverse_max_sec)
+        duration_ns = int(reverse_duration * 1e9)
         self._door_open_fine_backoff_until = Time(
             nanoseconds=now.nanoseconds + duration_ns,
             clock_type=now.clock_type)
@@ -11713,7 +17336,8 @@ class StateMachineNode(Node):
         self.cmd_vel_pub.publish(twist)
         self.get_logger().warn(
             f'문 열기 직전 손잡이가 너무 가까움: {door.door_id}. '
-            f'{reason}. 후보를 버리지 않고 제한 후진 후 정렬을 재시도합니다.')
+            f'{reason}. 후보를 버리지 않고 {reverse_duration:.1f}s 제한 후진 후 '
+            '정렬을 재시도합니다.')
         return True
 
     def _door_open_pose_error(self, door: DoorInfo):
@@ -11836,6 +17460,16 @@ class StateMachineNode(Node):
         if (dist <= self._door_open_fine_control_max_dist_m
                 and lateral_abs <= self._door_open_fine_lateral_tolerance_m):
             now = self.get_clock().now()
+            translation_complete_dist = min(
+                ready_dist_tolerance,
+                max(0.12, ready_lateral_tolerance))
+            translation_hysteresis = max(
+                0.04,
+                min(0.08, ready_dist_tolerance * 0.45))
+            if dist <= translation_complete_dist:
+                self._door_open_translation_complete = True
+            elif dist > translation_complete_dist + translation_hysteresis:
+                self._door_open_translation_complete = False
             if self._door_open_fine_backoff_until is not None:
                 if now.nanoseconds < self._door_open_fine_backoff_until.nanoseconds:
                     twist = Twist()
@@ -11876,6 +17510,7 @@ class StateMachineNode(Node):
                 max(6.0, self._door_open_align_timeout_sec - 2.0))
             if (
                     elapsed >= escape_after_sec
+                    and dist <= translation_complete_dist + 0.12
                     and lateral_abs >= lateral_escape_threshold
                     and yaw_abs >= yaw_escape_threshold):
                 self.get_logger().warn(
@@ -11899,6 +17534,7 @@ class StateMachineNode(Node):
                 math.radians(18.0))
             if (
                     elapsed >= oscillation_escape_after_sec
+                    and dist <= translation_complete_dist + 0.12
                     and lateral_abs >= oscillation_lateral_threshold
                     and yaw_abs >= oscillation_yaw_threshold):
                 self.get_logger().warn(
@@ -11920,6 +17556,30 @@ class StateMachineNode(Node):
             near_stall_yaw_threshold = max(
                 ready_yaw_tolerance * 3.0,
                 math.radians(20.0))
+            settled_sim_open_lateral_tolerance = max(
+                verified_close_lateral_tolerance,
+                ready_lateral_tolerance + 0.045,
+                0.20)
+            settled_sim_open_yaw_tolerance = max(
+                verified_close_yaw_tolerance,
+                ready_yaw_tolerance * 2.5,
+                math.radians(16.0))
+            if (
+                    elapsed >= near_stall_escape_after_sec
+                    and dist <= max(verified_close_dist_tolerance, 0.24)
+                    and lateral_abs <= settled_sim_open_lateral_tolerance
+                    and yaw_abs <= settled_sim_open_yaw_tolerance):
+                self.get_logger().info(
+                    f'Fine door approach accepted after near-target settling: '
+                    f'{door.door_id}, dist={dist:.2f}m/'
+                    f'{max(verified_close_dist_tolerance, 0.24):.2f}m, '
+                    f'lateral={lateral_abs:.2f}m/'
+                    f'{settled_sim_open_lateral_tolerance:.2f}m, '
+                    f'yaw_error={math.degrees(yaw_abs):.0f}deg/'
+                    f'{math.degrees(settled_sim_open_yaw_tolerance):.0f}deg.')
+                self._door_open_align_start_time = None
+                self._door_open_fine_backoff_until = None
+                return 'ready'
             if (
                     elapsed >= near_stall_escape_after_sec
                     and dist <= max(ready_dist_tolerance + 0.12, 0.34)
@@ -11969,6 +17629,60 @@ class StateMachineNode(Node):
                 self._door_open_fine_backoff_until = None
                 return 'retry'
 
+            # Reach the parking point before rotating to the door-normal yaw.
+            # A differential drive cannot remove lateral error after making the
+            # final 90-degree turn while still short of the parking point.
+            if not self._door_open_translation_complete:
+                position_heading_error = math.atan2(
+                    lateral_error, forward_error)
+                heading_abs = abs(position_heading_error)
+                twist = Twist()
+                turn_limit = abs(self._door_open_align_angular_vel)
+                if heading_abs > math.radians(28.0):
+                    angular = self._door_open_align_kp * position_heading_error
+                    twist.angular.z = max(-turn_limit, min(turn_limit, angular))
+                    min_turn = min(turn_limit, 0.14)
+                    if abs(twist.angular.z) < min_turn:
+                        twist.angular.z = math.copysign(
+                            min_turn, position_heading_error)
+                else:
+                    linear_limit = abs(self._door_open_fine_linear_vel)
+                    linear = self._door_open_fine_position_kp * dist
+                    twist.linear.x = min(linear_limit, max(
+                        self._door_open_fine_min_linear_vel, linear))
+                    angular = self._door_open_align_kp * position_heading_error
+                    moving_turn_limit = min(turn_limit, 0.14)
+                    twist.angular.z = max(
+                        -moving_turn_limit,
+                        min(moving_turn_limit, angular))
+                self.cmd_vel_pub.publish(twist)
+                self.get_logger().info(
+                    f'Fine door parking translation: {door.door_id}, '
+                    f'dist={dist:.2f}m/{translation_complete_dist:.2f}m, '
+                    f'heading_error={math.degrees(heading_abs):.0f}deg, '
+                    f'cmd=({twist.linear.x:.2f}, {twist.angular.z:.2f})',
+                    throttle_duration_sec=0.8)
+                return 'waiting'
+
+            if yaw_abs > ready_yaw_tolerance:
+                twist = Twist()
+                turn_limit = abs(self._door_open_align_angular_vel)
+                angular = self._door_open_align_kp * yaw_error
+                twist.angular.z = max(-turn_limit, min(turn_limit, angular))
+                min_turn = min(
+                    turn_limit,
+                    0.08 if yaw_abs <= math.radians(25.0) else 0.14)
+                if abs(twist.angular.z) < min_turn:
+                    twist.angular.z = math.copysign(min_turn, yaw_error)
+                self.cmd_vel_pub.publish(twist)
+                self.get_logger().info(
+                    f'Fine door final yaw alignment: {door.door_id}, '
+                    f'dist={dist:.2f}m/{translation_complete_dist:.2f}m, '
+                    f'yaw_error={math.degrees(yaw_abs):.0f}deg, '
+                    f'cmd=(0.00, {twist.angular.z:.2f})',
+                    throttle_duration_sec=0.8)
+                return 'waiting'
+
             if (lateral_abs > ready_lateral_tolerance
                     and yaw_abs <= ready_yaw_tolerance):
                 if (forward_error < -0.05
@@ -12013,15 +17727,17 @@ class StateMachineNode(Node):
 
             twist = Twist()
             coarse_yaw_tolerance = max(
-                ready_yaw_tolerance * 3.0,
-                math.radians(18.0))
+                ready_yaw_tolerance * 4.0,
+                math.radians(28.0))
             if (
                     yaw_abs > coarse_yaw_tolerance
                     and lateral_abs <= self._door_open_fine_lateral_tolerance_m):
                 angular = self._door_open_align_kp * yaw_error
                 limit = abs(self._door_open_align_angular_vel)
                 twist.angular.z = max(-limit, min(limit, angular))
-                min_turn = min(limit, max(0.16, limit * 0.55))
+                min_turn_floor = 0.10 if yaw_abs <= math.radians(35.0) else 0.16
+                min_turn_gain = 0.30 if yaw_abs <= math.radians(35.0) else 0.55
+                min_turn = min(limit, max(min_turn_floor, limit * min_turn_gain))
                 if abs(twist.angular.z) < min_turn:
                     twist.angular.z = math.copysign(min_turn, yaw_error)
                 self.cmd_vel_pub.publish(twist)
@@ -12036,7 +17752,7 @@ class StateMachineNode(Node):
                 return 'waiting'
 
             centered_for_pivot_turn = (
-                lateral_abs <= max(ready_lateral_tolerance, 0.12)
+                lateral_abs <= max(ready_lateral_tolerance, 0.18)
                 and yaw_abs > ready_yaw_tolerance)
             if dist > ready_dist_tolerance:
                 linear = self._door_open_fine_position_kp * forward_error
@@ -12066,11 +17782,12 @@ class StateMachineNode(Node):
                 angular = self._door_open_align_kp * angular_error
                 limit = abs(self._door_open_align_angular_vel)
                 twist.angular.z = max(-limit, min(limit, angular))
-                if abs(twist.angular.z) < 0.08:
-                    twist.angular.z = 0.08 if angular_error > 0.0 else -0.08
+                if abs(twist.angular.z) < 0.06:
+                    twist.angular.z = 0.06 if angular_error > 0.0 else -0.06
                 if centered_for_pivot_turn:
                     twist.linear.x = 0.0
-                    min_turn = min(limit, max(0.18, limit * 0.45))
+                    min_turn_floor = 0.08 if yaw_abs <= math.radians(25.0) else 0.14
+                    min_turn = min(limit, max(min_turn_floor, limit * 0.35))
                     if abs(twist.angular.z) < min_turn:
                         twist.angular.z = math.copysign(min_turn, yaw_error)
                 elif (forward_error > ready_dist_tolerance
@@ -12099,8 +17816,8 @@ class StateMachineNode(Node):
                         self._door_open_align_kp * 0.55 * yaw_error
                         - self._door_open_align_kp * lateral_error)
                 twist.angular.z = max(-limit, min(limit, angular))
-                if abs(twist.angular.z) < 0.08:
-                    twist.angular.z = 0.08 if angular >= 0.0 else -0.08
+                if abs(twist.angular.z) < 0.06:
+                    twist.angular.z = 0.06 if angular >= 0.0 else -0.06
                 slow_forward = min(
                     abs(self._door_open_fine_linear_vel),
                     max(self._door_open_fine_min_linear_vel, 0.035))
@@ -12178,6 +17895,7 @@ class StateMachineNode(Node):
             f'문 앞 정렬 재접근: {self.target_door.door_id} '
             f'({self._nav_retry_count}/{self._max_nav_retries})')
         self._door_open_settle_start_time = None
+        self._door_open_translation_complete = False
         self._nav_done = False
         self._nav_failed = False
         self._nav_start_time = self.get_clock().now()
@@ -12203,6 +17921,106 @@ class StateMachineNode(Node):
         self._door_open_settle_start_time = None
         return False
 
+    def _refresh_observed_blue_target_before_opening(self) -> bool:
+        """Replace a stale long-range station with recent close wall memory."""
+        target = self.target_door
+        if (
+                target is None
+                or target.door_color != 'blue'
+                or not target.door_id.startswith('observed_blue_')
+                or not self._door_has_map_identity(target)
+                or not self._blue_target_open_pose_aligned_for_safe_memory(target)):
+            return False
+        # One final correction is enough to replace the long-range projection.
+        # Repeating this step lets close-range perspective jitter walk the
+        # station along the wall and causes an otherwise aligned robot to chase
+        # the same physical door indefinitely.
+        if self._door_final_close_refresh_count >= 1:
+            return False
+
+        target_xy = self._door_handle_xy(target)
+        target_progress = self._axis_progress_xy(target_xy[0], target_xy[1])
+        target_lateral = (
+            self._axis_lateral_xy(target_xy[0], target_xy[1])
+            - self._explore_center_y)
+        wall_side_threshold = max(
+            0.35,
+            self._observed_blue_min_abs_wall_y_m * 0.5)
+        if abs(target_lateral) < wall_side_threshold:
+            return False
+
+        now_sec = self.get_clock().now().nanoseconds / 1e9
+        max_age = max(2.5, min(4.0, self._door_open_fresh_blue_max_age_sec))
+        max_forward_correction = max(
+            1.05,
+            self._locked_target_close_station_max_forward_correction_m)
+        min_confidence = max(
+            0.60,
+            self._door_open_fresh_blue_min_confidence)
+        candidates: list[tuple[float, float, float, dict[str, float]]] = []
+        for cluster in self._stable_observed_blue_doors():
+            if (
+                    cluster.get('opened', 0.0) >= 1.0
+                    or cluster.get('abandoned', 0.0) >= 1.0
+                    or self._is_observed_blue_cluster_suppressed(cluster)):
+                continue
+            count = int(cluster.get('count', 0.0))
+            confidence = float(cluster.get('confidence', 0.0))
+            age = now_sec - float(cluster.get('last_seen', 0.0))
+            if age < 0.0 or age > max_age or confidence < min_confidence:
+                continue
+            candidate_xy = self._cluster_target_xy(cluster)
+            candidate_progress = self._axis_progress_xy(
+                candidate_xy[0], candidate_xy[1])
+            candidate_lateral = (
+                self._axis_lateral_xy(candidate_xy[0], candidate_xy[1])
+                - self._explore_center_y)
+            forward_correction = candidate_progress - target_progress
+            if (
+                    target_lateral * candidate_lateral <= 0.0
+                    or not 0.25 <= forward_correction <= max_forward_correction
+                    or abs(candidate_lateral - target_lateral)
+                    > max(0.55, self._observed_blue_fresh_evidence_max_lateral_gap_m)
+                    or not self._is_blue_xy_recordable_wall_observation(candidate_xy)
+                    or self._is_blue_position_opened(candidate_xy)
+                    or self._is_blue_position_abandoned(candidate_xy)
+                    or self._is_blue_xy_near_observed_red(
+                        candidate_xy, target.door_id, confidence)
+                    or not self._observed_blue_cluster_has_fresh_direct_evidence(cluster)):
+                continue
+            # Repeated close observations outrank a single geometrically close
+            # projection.  The smaller forward correction breaks equal scores.
+            candidates.append((float(count), confidence, -forward_correction, cluster))
+
+        if not candidates:
+            return False
+        _count, _confidence, _neg_shift, cluster = max(
+            candidates, key=lambda item: (item[0], item[1], item[2]))
+        refreshed = self._door_with_axis_aligned_approach(
+            self._observed_blue_cluster_to_door(cluster))
+        refreshed.door_id = target.door_id
+        refreshed_xy = self._door_handle_xy(refreshed)
+        shift = math.hypot(
+            refreshed_xy[0] - target_xy[0],
+            refreshed_xy[1] - target_xy[1])
+        if shift < 0.25:
+            return False
+
+        self._door_final_close_refresh_count += 1
+        self.target_door = refreshed
+        self._set_locked_blue_anchor(refreshed)
+        self._door_open_align_start_time = None
+        self._door_open_settle_start_time = None
+        self._nav_done = False
+        self._nav_failed = False
+        self._nav_start_time = self.get_clock().now()
+        self._reset_door_nav_stuck_watch()
+        self.get_logger().warn(
+            f'Final close wall-memory refresh moved {target.door_id} by '
+            f'{shift:.2f}m before opening; returning to Nav2.')
+        self.target_door_pub.publish(refreshed)
+        return True
+
     def _flip_explore_lane_after_failure(self):
         self._explore_lane_success_since_flip = 0
         self._last_lane_sign = -self._last_lane_sign if self._last_lane_sign != 0.0 else -1.0
@@ -12210,16 +18028,31 @@ class StateMachineNode(Node):
         self.get_logger().info(f'다음 탐색 waypoint는 {side} 차선을 우선합니다.')
 
     def _alternate_explore_lane_after_success(self):
-        has_color_hint = any(
-            d.door_color in ('blue', 'red')
+        has_actionable_blue_hint = any(
+            d.door_color == 'blue'
+            and self._is_door_recent_observation(d)
+            and self._door_has_map_identity(d)
             and not self._is_door_failed_for_observation(d)
             and not self._is_door_opened_for_observation(d)
+            and not self._is_door_abandoned_for_observation(d)
+            and not self._is_door_observation_suppressed(d)
+            and self._is_blue_door_ready_to_interrupt_explore(d)
             for d in self.detected_doors)
-        if has_color_hint:
+        if has_actionable_blue_hint:
             return
-        self._last_lane_sign = -self._last_lane_sign if self._last_lane_sign != 0.0 else -1.0
-        side = '좌측' if self._last_lane_sign > 0.0 else '우측'
-        self.get_logger().info(f'색상 단서 없음. 다음 탐색 waypoint는 {side} 차선으로 스캔합니다.')
+        if self._opened_blue_door_positions:
+            if self._last_lane_sign == 0.0:
+                self._last_lane_sign = 1.0
+            else:
+                self._last_lane_sign *= -1.0
+            side = '좌측' if self._last_lane_sign > 0.0 else '우측'
+            self.get_logger().info(
+                f'색상 단서 없음. 열린 문 이후 미탐색 벽면 확인을 위해 '
+                f'다음 탐색 waypoint는 {side} 차선을 우선합니다.')
+            return
+        self._last_lane_sign = 0.0
+        self.get_logger().info(
+            '색상 단서 없음. 다음 탐색 waypoint는 중앙 진행축을 유지합니다.')
 
     def _remember_failed_explore_goal(self):
         if self._explore_nav_goal_progress <= 0.0:
@@ -12317,9 +18150,9 @@ class StateMachineNode(Node):
         )
         centerline_preferred_without_target = (
             not blue_lane_active
+            and not self._opened_blue_door_positions
             and front_avoid_sign == 0.0
             and side_obstacle_avoid_sign == 0.0
-            and not self._opened_blue_door_positions
         )
         if (centerline_preferred_without_target
                 and not center_recently_failed
@@ -12338,9 +18171,158 @@ class StateMachineNode(Node):
             else:
                 reason = (
                     '중앙 차선 선택 | 파란 문/전방 장애물/빨간 문 회피 이유 없음, '
-                    '초기 진행축 유지 | '
+                    '관측 기반 중앙 진행축 유지 | '
                     f'LiDAR lane clearances: {", ".join(scored_text)}')
             return self._explore_center_y, 0.0, reason
+
+        if (
+                self._opened_blue_door_positions
+                and not blue_lane_active
+                and preferred_sign == 0.0
+                and front_avoid_sign == 0.0
+                and side_obstacle_avoid_sign == 0.0
+                and self._last_lane_sign != 0.0):
+            alternating_scan_sign = 1.0 if self._last_lane_sign > 0.0 else -1.0
+            alternating_goal_y = (
+                self._explore_center_y
+                + alternating_scan_sign * lane_abs_y)
+            alternating_clearance = lane_clearances.get(
+                alternating_scan_sign,
+                self._lane_scan_clearance(
+                    robot_x, robot_y, robot_yaw, alternating_goal_y))
+            current_progress_for_alt = self._axis_progress_xy(robot_x, robot_y)
+            expected_progress_for_alt = current_progress_for_alt + max(
+                self._explore_nav_min_step_m,
+                min(self._explore_nav_step_m, self._explore_nav_scan_lookahead_m))
+            alternating_blocked = (
+                self._is_explore_lane_recently_failed(
+                    alternating_scan_sign, current_progress_for_alt)
+                or self._is_explore_lane_recently_failed(
+                    alternating_scan_sign, expected_progress_for_alt))
+            if (
+                    not alternating_blocked
+                    and alternating_clearance >= max(
+                        self._explore_nav_blue_lane_min_clearance_m,
+                        self._explore_obstacle_stop_m)):
+                side = '좌측' if alternating_scan_sign > 0.0 else '우측'
+                scored_text = []
+                for goal_y, sign in candidates:
+                    clearance = lane_clearances.get(
+                        sign,
+                        self._lane_scan_clearance(
+                            robot_x, robot_y, robot_yaw, goal_y))
+                    label = 'C' if sign == 0.0 else ('L' if sign > 0.0 else 'R')
+                    scored_text.append(
+                        f'{label}:y={goal_y:.2f}/clear={clearance:.2f}')
+                red_note = (
+                    f' | {red_avoid_reason}; 안전거리 내 재관측을 위해 '
+                    '빨간문 쪽 벽면도 짧게 확인'
+                    if red_avoid_sign != 0.0
+                    and alternating_scan_sign == -red_avoid_sign
+                    else '')
+                reason = (
+                    f'{side} 차선 선택 | 열린 문 이후 미탐색 벽면을 '
+                    '균형 있게 관찰하기 위한 좌우 교대 스캔'
+                    f'{red_note} | '
+                    f'LiDAR lane clearances: {", ".join(scored_text)}')
+                return alternating_goal_y, alternating_scan_sign, reason
+
+        if (
+                self._opened_blue_door_positions
+                and not blue_lane_active
+                and preferred_sign == 0.0
+                and front_avoid_sign == 0.0
+                and side_obstacle_avoid_sign == 0.0
+                and red_avoid_sign != 0.0
+                and not center_recently_failed
+                and center_clearance >= self._explore_obstacle_slow_m):
+            scored_text = []
+            for goal_y, sign in candidates:
+                clearance = lane_clearances.get(
+                    sign,
+                    self._lane_scan_clearance(
+                        robot_x, robot_y, robot_yaw, goal_y))
+                label = 'C' if sign == 0.0 else ('L' if sign > 0.0 else 'R')
+                scored_text.append(f'{label}:y={goal_y:.2f}/clear={clearance:.2f}')
+            safe_goal_y = self._explore_center_y + red_avoid_sign * lane_abs_y
+            safe_clearance = lane_clearances.get(
+                red_avoid_sign,
+                self._lane_scan_clearance(
+                    robot_x, robot_y, robot_yaw, safe_goal_y))
+            current_progress_for_red = self._axis_progress_xy(robot_x, robot_y)
+            expected_progress_for_red = current_progress_for_red + max(
+                self._explore_nav_min_step_m,
+                min(self._explore_nav_step_m, self._explore_nav_scan_lookahead_m))
+            safe_lane_blocked = (
+                self._is_explore_lane_recently_failed(
+                    red_avoid_sign, current_progress_for_red)
+                or self._is_explore_lane_recently_failed(
+                    red_avoid_sign, expected_progress_for_red))
+            if (
+                    not safe_lane_blocked
+                    and safe_clearance >= max(
+                        self._explore_nav_blue_lane_min_clearance_m,
+                        self._explore_obstacle_stop_m)):
+                side = '좌측' if red_avoid_sign > 0.0 else '우측'
+                reason = (
+                    f'{side} 차선 선택 | 빨간문 반대쪽 안전 차선에서 '
+                    f'다음 파란문 후보를 관찰합니다 | {red_avoid_reason} | '
+                    f'LiDAR lane clearances: {", ".join(scored_text)}')
+                return safe_goal_y, red_avoid_sign, reason
+            reason = (
+                '중앙 차선 선택 | 빨간문 벽면을 향해 붙지 않고 '
+                '양쪽 문 후보를 관찰하기 위한 중앙 스캔 | '
+                f'{red_avoid_reason} | '
+                f'LiDAR lane clearances: {", ".join(scored_text)}')
+            return self._explore_center_y, 0.0, reason
+
+        alternating_scan_sign = 0.0
+        if (
+                self._opened_blue_door_positions
+                and not blue_lane_active
+                and preferred_sign == 0.0
+                and front_avoid_sign == 0.0
+                and side_obstacle_avoid_sign == 0.0
+                and red_avoid_sign == 0.0
+                and self._last_lane_sign != 0.0):
+            alternating_scan_sign = 1.0 if self._last_lane_sign > 0.0 else -1.0
+            alternating_goal_y = (
+                self._explore_center_y
+                + alternating_scan_sign * lane_abs_y)
+            alternating_clearance = lane_clearances.get(
+                alternating_scan_sign,
+                self._lane_scan_clearance(
+                    robot_x, robot_y, robot_yaw, alternating_goal_y))
+            current_progress_for_alt = self._axis_progress_xy(robot_x, robot_y)
+            expected_progress_for_alt = current_progress_for_alt + max(
+                self._explore_nav_min_step_m,
+                min(self._explore_nav_step_m, self._explore_nav_scan_lookahead_m))
+            alternating_blocked = (
+                self._is_explore_lane_recently_failed(
+                    alternating_scan_sign, current_progress_for_alt)
+                or self._is_explore_lane_recently_failed(
+                    alternating_scan_sign, expected_progress_for_alt))
+            if (
+                    not alternating_blocked
+                    and alternating_clearance >= max(
+                        self._explore_nav_blue_lane_min_clearance_m,
+                        self._explore_obstacle_stop_m)):
+                side = '좌측' if alternating_scan_sign > 0.0 else '우측'
+                scored_text = []
+                for goal_y, sign in candidates:
+                    clearance = lane_clearances.get(
+                        sign,
+                        self._lane_scan_clearance(
+                            robot_x, robot_y, robot_yaw, goal_y))
+                    label = 'C' if sign == 0.0 else ('L' if sign > 0.0 else 'R')
+                    scored_text.append(
+                        f'{label}:y={goal_y:.2f}/clear={clearance:.2f}')
+                reason = (
+                    f'{side} 차선 선택 | 열린 문 이후 미탐색 벽면을 '
+                    '균형 있게 관찰하기 위한 좌우 교대 스캔 | '
+                    f'LiDAR lane clearances: {", ".join(scored_text)}')
+                return alternating_goal_y, alternating_scan_sign, reason
+
         best: tuple[float, float, float, float] | None = None
         scored_text: list[str] = []
         current_progress = self._axis_progress_xy(robot_x, robot_y)
@@ -12622,6 +18604,8 @@ class StateMachineNode(Node):
         }
         self.get_logger().info(f'State: {old_state.name} → {new_state.name}')
         self.state = new_state
+        if new_state != State.EXPLORING_NAVIGATING:
+            self._explore_nav_backoff_until = None
 
         if new_state == State.NAVIGATING:
             self._explore_observation_wait_start_time = None
@@ -12660,6 +18644,7 @@ class StateMachineNode(Node):
             self._reset_explore_nav_stuck_watch()
             self._door_open_fine_backoff_until = None
         elif new_state == State.EXITING:
+            self._exit_reentry_guard_active = True
             self._explore_waypoint_scan_pending = False
             self._explore_waypoint_scan_start_time = None
             self._post_open_advance_pending = False
@@ -12671,6 +18656,11 @@ class StateMachineNode(Node):
             self._active_exit_goal = None
             self._exit_crossing_start_odom_xy = None
             self._exit_crossing_required_odom_m = 0.0
+            self._exit_nav_failure_count = 0
+            self._exit_nav_failure_counted_for_goal = False
+            self._exit_force_direct_crossing = False
+            self._exit_obstacle_recovery_start_time = None
+            self._exit_obstacle_recovery_start_progress = None
             self._last_exit_goal_time = None
             self._nav_done = False
             self._nav_failed = False
@@ -12688,6 +18678,8 @@ class StateMachineNode(Node):
             self._exit_crossing_start_odom_xy = None
             self._exit_crossing_required_odom_m = 0.0
             self._exit_goal_pending = False
+            self._exit_obstacle_recovery_start_time = None
+            self._exit_obstacle_recovery_start_progress = None
             self.cmd_vel_pub.publish(Twist())
             # 새 파란 문이 없을 때는 waypoint 왕복 중에도 타임아웃이 누적되어야 한다.
             if self._explore_start_time is None:
@@ -12704,6 +18696,9 @@ class StateMachineNode(Node):
             self._explore_nav_clearance_deferral_count = 0
             self._last_target_republish_time = None
         elif new_state == State.MISSION_COMPLETE:
+            self._exit_reentry_guard_active = False
+            self._exit_obstacle_recovery_start_time = None
+            self._exit_obstacle_recovery_start_progress = None
             self._explore_observation_wait_start_time = None
             self._explore_observation_wait_completed = True
             self._explore_waypoint_scan_pending = False
@@ -12721,6 +18716,8 @@ class StateMachineNode(Node):
             self._door_open_fine_backoff_until = None
             self.cmd_vel_pub.publish(Twist())
         else:
+            if new_state in (State.IDLE, State.EMERGENCY_STOP):
+                self._exit_reentry_guard_active = False
             self._explore_observation_wait_start_time = None
             self._explore_observation_wait_completed = True
             self._explore_waypoint_scan_pending = False

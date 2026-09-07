@@ -86,10 +86,12 @@ class ManipulationNode(Node):
         self.declare_parameter('sim_door_max_match_distance_m', 0.95)
         self.declare_parameter('sim_door_axis_match_max_progress_m', 0.95)
         self.declare_parameter('sim_door_axis_match_max_lateral_m', 0.75)
+        self.declare_parameter('sim_door_panel_half_width_m', 0.45)
         self.declare_parameter(
             'sim_door_topic_prefix', '/fire_robot/door/blue')
         self.declare_parameter('sim_door_command_topic', '')
         self.declare_parameter('sim_door_command_sign', 1.0)
+        self.declare_parameter('sim_open_away_from_centerline', False)
         self.declare_parameter('sim_door_world_file', '')
         self.declare_parameter('sim_arm_motion_enabled', False)
         self.declare_parameter('sim_arm_topic_prefix', '/fire_robot/sim_arm')
@@ -177,12 +179,16 @@ class ManipulationNode(Node):
         self._sim_door_axis_match_max_lateral = max(
             0.0,
             float(self.get_parameter('sim_door_axis_match_max_lateral_m').value))
+        self._sim_door_panel_half_width = max(
+            0.0, float(self.get_parameter('sim_door_panel_half_width_m').value))
         self._sim_door_topic_prefix = str(
             self.get_parameter('sim_door_topic_prefix').value).rstrip('/')
         self._sim_door_command_topic = str(
             self.get_parameter('sim_door_command_topic').value).strip()
         self._sim_door_command_sign = float(
             self.get_parameter('sim_door_command_sign').value)
+        self._sim_open_away_from_centerline = bool(
+            self.get_parameter('sim_open_away_from_centerline').value)
         self._sim_door_world_file = str(
             self.get_parameter('sim_door_world_file').value)
         self._sim_arm_motion_enabled = bool(
@@ -285,6 +291,9 @@ class ManipulationNode(Node):
         self._piper_enable_pub = None
         self._sim_hinged_doors = self._load_sim_hinged_doors()
         self._sim_opened_door_topics: set[str] = set()
+        self._last_sim_open_was_idempotent = False
+        self._last_sim_open_topic = ''
+        self._last_sim_open_xy: tuple[float, float] | None = None
 
         if not self._sim_mode and self._control_backend == 'piper_sdk':
             if not _HAS_PIPER_MSGS:
@@ -345,6 +354,9 @@ class ManipulationNode(Node):
             f'handle_method={handle_method}, '
             f'handle_detected={handle_detected}, '
             f'handle_conf={handle_confidence:.2f}')
+        self._last_sim_open_was_idempotent = False
+        self._last_sim_open_topic = ''
+        self._last_sim_open_xy = None
 
         if self._require_detected_handle and not handle_detected:
             response.success = False
@@ -367,8 +379,17 @@ class ManipulationNode(Node):
             request.handle_position, request.door_id)
 
         response.success = success
-        response.message = ('Door opened successfully'
-                            if success else 'Failed to open door')
+        if success and self._last_sim_open_was_idempotent:
+            response.message = 'All hinged blue doors already open'
+        elif success and self._last_sim_open_topic and self._last_sim_open_xy is not None:
+            sx, sy = self._last_sim_open_xy
+            response.message = (
+                'Door opened successfully '
+                f'sim_topic={self._last_sim_open_topic} '
+                f'sim_xy={sx:.3f},{sy:.3f}')
+        else:
+            response.message = ('Door opened successfully'
+                                if success else 'Failed to open door')
 
         done_msg = Bool()
         done_msg.data = success
@@ -716,9 +737,15 @@ class ManipulationNode(Node):
     def _open_sim_gazebo_door(self, handle_pos: PointStamped,
                               door_id: str = '') -> bool:
         if not self._sim_physical_door_opening:
+            self._last_sim_open_was_idempotent = False
+            self._last_sim_open_topic = ''
+            self._last_sim_open_xy = None
             return True
 
         if self._sim_door_contact_only:
+            self._last_sim_open_was_idempotent = False
+            self._last_sim_open_topic = ''
+            self._last_sim_open_xy = None
             self.get_logger().info(
                 '  [SIM] Contact-only door verification enabled; '
                 'not publishing any Gazebo door hinge command.')
@@ -736,12 +763,23 @@ class ManipulationNode(Node):
 
         if self._sim_door_command_topic:
             topic = self._sim_door_command_topic
+            door_x = float(handle_pos.point.x)
+            door_y = float(handle_pos.point.y)
             open_sign = self._sim_door_command_sign
             self.get_logger().info(
                 f'  [SIM] Using explicit Gazebo door command topic={topic}')
         else:
             selected = self._select_sim_door_topic(handle_pos, door_id)
             if selected is None:
+                if (self._sim_hinged_doors
+                    and len(self._sim_opened_door_topics) >= len(self._sim_hinged_doors)):
+                    self.get_logger().info(
+                        '  [SIM] All hinged blue doors are already open; '
+                        'treating request as idempotently complete.')
+                    self._last_sim_open_was_idempotent = True
+                    self._last_sim_open_topic = ''
+                    self._last_sim_open_xy = None
+                    return True
                 msg = (
                     'No Gazebo hinged blue-door command topic matched this '
                     'open request.')
@@ -750,10 +788,16 @@ class ManipulationNode(Node):
                     return False
                 self.get_logger().warn(
                     msg + ' Falling back to logical sim open.')
+                self._last_sim_open_was_idempotent = False
+                self._last_sim_open_topic = ''
+                self._last_sim_open_xy = None
                 return True
 
-            topic, _door_y, open_sign = selected
+            topic, door_x, door_y, open_sign = selected
 
+        self._last_sim_open_was_idempotent = False
+        self._last_sim_open_topic = topic
+        self._last_sim_open_xy = (float(door_x), float(door_y))
         angle = self._sim_door_open_angle * open_sign
         self.get_logger().info(
             f'  [SIM] Gazebo door topic={topic}, target_angle={angle:.3f}')
@@ -789,9 +833,27 @@ class ManipulationNode(Node):
                 f'{handle_pos.header.frame_id} coordinates; expected map.')
             return None
 
-        candidates: list[tuple[float, str, float, float, float, float, float]] = []
+        candidates: list[
+            tuple[float, str, float, float, float, float, float, str, float, float]
+        ] = []
         hx = float(handle_pos.point.x)
         hy = float(handle_pos.point.y)
+
+        observed_station = None
+        station_match = re.match(
+            r"observed_blue_([mp]?\d+(?:p\d+)?)_([mp]?\d+(?:p\d+)?)",
+            door_id)
+        if station_match:
+            observed_station = (
+                self._decode_axis_hint_token(station_match.group(1)),
+                self._decode_axis_hint_token(station_match.group(2)))
+
+        match_points: list[tuple[float, float, str]] = [(hx, hy, 'map_handle')]
+        if observed_station is not None:
+            match_points.append((
+                observed_station[0], observed_station[1], 'observed_station'))
+        for axis_x, axis_y in self._axis_hints_from_door_id(door_id):
+            match_points.append((axis_x, axis_y, 'mission_axis_hint'))
 
         for door in self._sim_hinged_doors:
             door_x = door['x']
@@ -800,13 +862,24 @@ class ManipulationNode(Node):
             topic = door['topic']
             if topic in self._sim_opened_door_topics:
                 continue
-            score = (hx - door_x) ** 2 + 0.35 * (hy - door_y) ** 2
+
+            best_match = None
+            for match_x, match_y, source in match_points:
+                progress_gap = max(
+                    0.0, abs(match_x - door_x) - self._sim_door_panel_half_width)
+                lateral_gap = abs(match_y - door_y)
+                score = progress_gap ** 2 + 0.35 * lateral_gap ** 2
+                item = (
+                    score, progress_gap, lateral_gap, source, match_x, match_y)
+                if best_match is None or item[0] < best_match[0]:
+                    best_match = item
+            if best_match is None:
+                continue
+            score, progress_gap, lateral_gap, source, match_x, match_y = best_match
             weighted_distance = math.sqrt(score)
-            progress_gap = abs(hx - door_x)
-            lateral_gap = abs(hy - door_y)
             candidates.append((
                 score, topic, door_y, open_sign, weighted_distance,
-                progress_gap, lateral_gap))
+                progress_gap, lateral_gap, source, match_x, match_y))
 
         if not candidates:
             if self._sim_opened_door_topics:
@@ -820,20 +893,25 @@ class ManipulationNode(Node):
         candidates.sort(key=lambda item: item[0])
         (
             best_score, best_topic, best_y, best_open_sign, best_distance,
-            best_progress_gap, best_lateral_gap) = candidates[0]
+            best_progress_gap, best_lateral_gap, best_source,
+            best_match_x, best_match_y) = candidates[0]
+        second_distance = (
+            float(candidates[1][4]) if len(candidates) > 1 else float('inf'))
+        unique_axis_match = second_distance >= best_distance + 0.35
         if (
                 self._sim_door_max_match_distance > 0.0
                 and best_distance > self._sim_door_max_match_distance):
             same_wall_side = (
-                abs(hy) < 0.20
+                abs(best_match_y) < 0.20
                 or abs(best_y) < 0.20
-                or hy * best_y > 0.0)
+                or best_match_y * best_y > 0.0)
             axis_consistent = (
                 same_wall_side
                 and self._sim_door_axis_match_max_progress > 0.0
                 and self._sim_door_axis_match_max_lateral > 0.0
                 and best_progress_gap <= self._sim_door_axis_match_max_progress
-                and best_lateral_gap <= self._sim_door_axis_match_max_lateral)
+                and best_lateral_gap <= self._sim_door_axis_match_max_lateral
+                and unique_axis_match)
             if axis_consistent:
                 self.get_logger().warn(
                     f'  [SIM] Accepting Gazebo door match for '
@@ -851,13 +929,40 @@ class ManipulationNode(Node):
                     f'{self._sim_door_max_match_distance:.2f}m '
                     f'(score={best_score:.3f}, '
                     f'progress_gap={best_progress_gap:.2f}m, '
-                    f'lateral_gap={best_lateral_gap:.2f}m).')
+                    f'lateral_gap={best_lateral_gap:.2f}m, '
+                    f'source={best_source}, '
+                    f'match=({best_match_x:.2f},{best_match_y:.2f})).')
                 return None
         self.get_logger().info(
             f'  [SIM] Matched observed door {door_id or "(unknown)"} to '
             f'{best_topic} (distance={best_distance:.2f}m, '
-            f'score={best_score:.3f})')
-        return best_topic, best_y, best_open_sign
+            f'score={best_score:.3f}, source={best_source}, '
+            f'match=({best_match_x:.2f},{best_match_y:.2f}))')
+        best_x = 0.0
+        for door in self._sim_hinged_doors:
+            if door['topic'] == best_topic:
+                best_x = float(door['x'])
+                break
+        return best_topic, best_x, best_y, best_open_sign
+
+    @staticmethod
+    def _decode_axis_hint_token(value: str) -> float:
+        sign = -1.0 if value.startswith("m") else 1.0
+        digits = value[1:] if value[:1] in ("m", "p") else value
+        return sign * float(digits.replace("p", "."))
+
+    def _axis_hints_from_door_id(self, door_id: str) -> list[tuple[float, float]]:
+        hints: list[tuple[float, float]] = []
+        for match in re.finditer(
+                r"__axis_([mp]\d+(?:p\d+)?)_([mp]\d+(?:p\d+)?)",
+                door_id or ''):
+            try:
+                hints.append((
+                    self._decode_axis_hint_token(match.group(1)),
+                    self._decode_axis_hint_token(match.group(2))))
+            except ValueError:
+                continue
+        return hints
 
     def _load_sim_hinged_doors(self) -> list[dict[str, float | str]]:
         world_file = self._sim_door_world_file.strip()
@@ -891,6 +996,8 @@ class ManipulationNode(Node):
                 open_sign = 1.0 if door_y >= 0.0 else -1.0
             else:
                 open_sign = 1.0 if sign_token == 'p' else -1.0
+            if self._sim_open_away_from_centerline:
+                open_sign = 1.0 if door_y >= 0.0 else -1.0
             doors.append({
                 'topic': match.group('topic'),
                 'x': int(match.group('x')) / 100.0,

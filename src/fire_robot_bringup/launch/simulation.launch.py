@@ -17,13 +17,17 @@ def generate_launch_description():
     start_without_fire = LaunchConfiguration('start_without_fire', default='true')
     min_opened_doors_before_exit = LaunchConfiguration('min_opened_doors_before_exit', default='0')
     launch_moveit = LaunchConfiguration('launch_moveit', default='false')
-    localization_mode = LaunchConfiguration('localization_mode', default='localization')
+    localization_mode = LaunchConfiguration('localization_mode', default='sim_odom')
+    spawn_x = LaunchConfiguration('spawn_x', default='-3.0')
+    spawn_y = LaunchConfiguration('spawn_y', default='0.0')
+    spawn_yaw = LaunchConfiguration('spawn_yaw', default='0.0')
     enable_segformer = LaunchConfiguration('enable_segformer', default='false')
     localization_start_delay = LaunchConfiguration('localization_start_delay', default='8.0')
     localization_recover_delay = LaunchConfiguration('localization_recover_delay', default='18.0')
     nav2_start_delay = LaunchConfiguration('nav2_start_delay', default='12.0')
     nav2_recover_delay = LaunchConfiguration('nav2_recover_delay', default='45.0')
     app_start_delay = LaunchConfiguration('app_start_delay', default='28.0')
+    enable_lifecycle_recovery = LaunchConfiguration('enable_lifecycle_recovery', default='false')
     map_file = LaunchConfiguration('map', default=PathJoinSubstitution([
         FindPackageShare('fire_robot_navigation'), 'maps', 'obstacle_wall_doors_v5_static.yaml',
     ]))
@@ -35,6 +39,7 @@ def generate_launch_description():
     ]))
     publish_debug_image = LaunchConfiguration('publish_debug_image', default='false')
     log_handle_detections = LaunchConfiguration('log_handle_detections', default='false')
+    log_detection_candidates = LaunchConfiguration('log_detection_candidates', default='false')
     sim_world_path = PathJoinSubstitution([
         FindPackageShare('fire_robot_bringup'), 'worlds', world_file,
     ])
@@ -57,6 +62,9 @@ def generate_launch_description():
             'use_sim_time': use_sim_time,
             'headless':     headless,
             'world':        world_file,
+            'spawn_x':      spawn_x,
+            'spawn_y':      spawn_y,
+            'spawn_yaw':    spawn_yaw,
         }.items(),
     )
 
@@ -89,11 +97,59 @@ def generate_launch_description():
         condition=IfCondition(PythonExpression(["'", localization_mode, "' == 'localization'"])),
     )
 
+    # Gazebo's differential-drive odometry is deterministic relative to the
+    # configured spawn pose. Use it as the localization source for repeatable
+    # policy validation while still serving the immutable static map. AMCL
+    # remains available through localization_mode:=localization for dedicated
+    # localization stress tests and the real-robot launch path.
+    sim_odom_map_server = Node(
+        package='nav2_map_server',
+        executable='map_server',
+        name='map_server',
+        parameters=[{
+            'use_sim_time': use_sim_time,
+            'yaml_filename': map_file,
+        }],
+        condition=IfCondition(PythonExpression([
+            "'", localization_mode, "' == 'sim_odom'",
+        ])),
+        output='screen',
+    )
+    sim_odom_map_lifecycle = Node(
+        package='nav2_lifecycle_manager',
+        executable='lifecycle_manager',
+        name='lifecycle_manager_localization',
+        parameters=[{
+            'use_sim_time': use_sim_time,
+            'autostart': True,
+            'node_names': ['map_server'],
+        }],
+        condition=IfCondition(PythonExpression([
+            "'", localization_mode, "' == 'sim_odom'",
+        ])),
+        output='screen',
+    )
+    sim_odom_map_tf = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        name='sim_odom_map_tf',
+        arguments=[
+            '0.0', '0.0', '0.0',
+            '0.0', '0.0', '0.0',
+            'map', 'odom',
+        ],
+        condition=IfCondition(PythonExpression([
+            "'", localization_mode, "' == 'sim_odom'",
+        ])),
+        output='screen',
+    )
+
     # ── 3. Nav2 자율주행 ──────────────────────────────────
     nav2_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
             PathJoinSubstitution([
-                FindPackageShare('nav2_bringup'), 'launch', 'navigation_launch.py'
+                FindPackageShare('fire_robot_bringup'),
+                'launch', 'navigation_no_waypoint_launch.py'
             ])
         ]),
         launch_arguments={
@@ -133,7 +189,45 @@ def generate_launch_description():
                 output='screen',
             ),
         ],
-        condition=IfCondition(PythonExpression(["'", localization_mode, "' == 'localization'"])),
+        condition=IfCondition(PythonExpression([
+            "'", enable_lifecycle_recovery, "' == 'true' and '",
+            localization_mode, "' == 'localization'",
+        ])),
+    )
+
+    sim_odom_map_lifecycle_recovery = TimerAction(
+        period=localization_recover_delay,
+        actions=[
+            ExecuteProcess(
+                cmd=[
+                    'bash',
+                    '-lc',
+                    (
+                        'echo "[sim_odom_map_lifecycle_recovery] checking map_server"; '
+                        'map_ready() { timeout 5s ros2 topic echo /map nav_msgs/msg/OccupancyGrid --once >/dev/null 2>&1; }; '
+                        'for attempt in 1 2 3 4; do '
+                        'if timeout 5s ros2 lifecycle get /map_server 2>/dev/null | grep -Eq "^active" && map_ready; then '
+                        'echo "[sim_odom_map_lifecycle_recovery] map_server active"; exit 0; '
+                        'fi; '
+                        'echo "[sim_odom_map_lifecycle_recovery] recovery attempt ${attempt}"; '
+                        'timeout 8s ros2 lifecycle set /map_server configure >/dev/null 2>&1 || true; '
+                        'timeout 8s ros2 lifecycle set /map_server activate >/dev/null 2>&1 || true; '
+                        'sleep 2; '
+                        'done; '
+                        'if timeout 5s ros2 lifecycle get /map_server 2>/dev/null | grep -Eq "^active" && map_ready; then '
+                        'echo "[sim_odom_map_lifecycle_recovery] map active after recovery"; '
+                        'else '
+                        'echo "[sim_odom_map_lifecycle_recovery] map still unavailable"; '
+                        'fi'
+                    ),
+                ],
+                output='screen',
+            ),
+        ],
+        condition=IfCondition(PythonExpression([
+            "'", enable_lifecycle_recovery, "' == 'true' and '",
+            localization_mode, "' == 'sim_odom'",
+        ])),
     )
 
     # ── 4. MoveIt2 (시뮬레이션 모드 — manipulation_node는 sim_mode=True) ──
@@ -174,6 +268,9 @@ def generate_launch_description():
                 output='screen',
             ),
         ],
+        condition=IfCondition(PythonExpression([
+            "'", enable_lifecycle_recovery, "' == 'true'",
+        ])),
     )
 
     moveit_launch = IncludeLaunchDescription(
@@ -210,7 +307,7 @@ def generate_launch_description():
                     'pad_forward_m': 34.0,
                     'pad_backward_m': 4.0,
                     'pad_lateral_m': 5.0,
-                    'clear_axis_band_m': 1.55,
+                    'clear_axis_band_m': 0.0,
                     'clear_axis_forward_m': 34.0,
                     'clear_axis_backward_m': 4.0,
                     'min_map_width_m': 34.0,
@@ -233,7 +330,7 @@ def generate_launch_description():
                     'obstacle_map_topic': '/fixed_obstacle_map',
                     'map_frame': 'map',
                     'base_frame': 'base_link',
-                    'min_range_m': 0.85,
+                    'min_range_m': 0.15,
                     'max_range_m': 8.0,
                     'mark_radius_m': 0.10,
                     'hit_count_threshold': 3,
@@ -258,7 +355,8 @@ def generate_launch_description():
                     'lock_axis_after_first_estimate': True,
                     'fallback_yaw': 0.0,
                     'max_robot_heading_deviation_deg': 3.0,
-                    'publish_rate_hz': 0.25,
+                    'fallback_without_map_after_sec': 10.0,
+                    'publish_rate_hz': 1.0,
                 }],
                 output='screen',
             ),
@@ -344,8 +442,8 @@ def generate_launch_description():
                     'side_range_max_disagreement_m': 0.8,
                     'side_lidar_short_visual_ratio': 0.70,
                     'side_lidar_short_visual_margin_m': 0.90,
-                    'side_visual_fallback_max_distance_m': 7.2,
-                    'side_wall_projection_enabled': True,
+                    'side_visual_fallback_max_distance_m': 4.5,
+                    'side_wall_projection_enabled': False,
                     'side_wall_projection_min_abs_angle_deg': 35.0,
                     'side_wall_projection_min_extend_m': 0.35,
                     'front_lateral_lidar_prefer_angle_deg': 12.0,
@@ -379,7 +477,7 @@ def generate_launch_description():
                     'blue_max_green_ratio': 0.055,
                     'red_min_color_ratio': 0.18,
                     'green_min_color_ratio': 0.14,
-                    'log_detection_candidates': False,
+                    'log_detection_candidates': log_detection_candidates,
                     'publish_map_frame': True,
                     'camera_sources': [
                         'front|/camera/color/image_raw|/camera/color/camera_info|0.0',
@@ -436,11 +534,12 @@ def generate_launch_description():
                     'lever_press_distance_m': 0.07,
                     'sim_physical_door_opening': True,
                     'sim_door_physics_required': True,
+                    'sim_open_away_from_centerline': True,
                             'sim_door_open_angle_rad': 2.09439510239,
                             'sim_door_command_steps': 1,
-                            'sim_door_max_match_distance_m': 1.15,
-                            'sim_door_axis_match_max_progress_m': 1.15,
-                            'sim_door_axis_match_max_lateral_m': 0.75,
+                            'sim_door_max_match_distance_m': 0.65,
+                            'sim_door_axis_match_max_progress_m': 0.65,
+                            'sim_door_axis_match_max_lateral_m': 0.50,
                             'sim_door_world_file': sim_world_path,
                     'sim_arm_motion_enabled': True,
                     'post_open_backoff_enabled': True,
@@ -450,6 +549,7 @@ def generate_launch_description():
                     'gripper_group':    'piper_gripper',
                     'velocity_scaling': 0.5,
                 }],
+                remappings=[('/cmd_vel', '/cmd_vel_manual')],
                 output='screen',
             ),
             TimerAction(
@@ -489,13 +589,14 @@ def generate_launch_description():
                             'side_wall_door_progress_bias_m': 0.0,
                             'opened_door_merge_dist_m': 1.20,
                             'min_opened_doors_before_exit': min_opened_doors_before_exit,
-                            'opened_physical_door_merge_dist_m': 1.65,
+                            'opened_physical_door_merge_dist_m': 1.10,
+                            'abandoned_physical_door_merge_dist_m': 0.85,
                             'observed_physical_door_merge_dist_m': 1.65,
                             'observed_blue_min_observations': 2,
                             'observed_blue_target_min_confidence': 0.34,
                             'observed_blue_low_conf_target_min_observations': 4,
                             'observed_blue_stable_open_min_confidence': 0.52,
-                            'observed_blue_fresh_evidence_max_progress_gap_m': 1.90,
+                            'observed_blue_fresh_evidence_max_progress_gap_m': 1.70,
                             'observed_blue_fresh_evidence_max_lateral_gap_m': 1.85,
                             'semantic_door_memory_enabled': True,
                             'semantic_door_merge_dist_m': 1.10,
@@ -522,7 +623,7 @@ def generate_launch_description():
                             'observed_blue_min_abs_wall_y_m': 0.95,
                             'observed_blue_max_abs_wall_y_m': 2.20,
                             'blue_handle_max_wall_overshoot_m': 0.30,
-                            'blue_handle_validation_overshoot_m': 0.85,
+                            'blue_handle_validation_overshoot_m': 0.35,
                             'red_blue_conflict_memory_sec': 240.0,
                             'blue_red_conflict_after_exit_dist_m': 2.0,
                             'red_observation_min_confidence': 0.24,
@@ -530,17 +631,18 @@ def generate_launch_description():
                             'confirmed_blue_bypass_red_conflict_count': 6,
                             'confirmed_blue_bypass_red_conflict_confidence': 0.60,
                             'opened_station_blue_suppression_progress_m': 0.0,
-                            'opened_station_same_side_blue_suppression_progress_m': 1.2,
+                            'opened_station_same_side_blue_suppression_progress_m': 1.20,
                             'opened_station_opposite_side_blue_suppression_progress_m': 0.0,
                             'opened_station_same_id_blue_suppression_progress_m': 0.0,
-                            'abandoned_station_same_side_blue_suppression_progress_m': 0.0,
+                            'abandoned_station_same_side_blue_suppression_progress_m': 2.0,
                             'abandoned_station_opposite_side_blue_suppression_progress_m': 0.0,
                             'max_door_approach_failures_before_abandon': 4,
                             'pre_exit_blue_approach_failures_before_abandon': 3,
                             'door_open_requires_fresh_blue': True,
-                            'door_open_fresh_blue_max_age_sec': 35.0,
+                            'door_open_fresh_blue_max_age_sec': 10.0,
                             'door_open_fresh_blue_max_dist_m': 1.45,
                             'door_open_fresh_blue_min_confidence': 0.24,
+                            'allow_mapped_memory_open_without_live': False,
                             'allow_fallback_exit_goal': False,
                             'allow_near_backtracking_blue_revisit': False,
                             'max_explore_past_last_opened_blue_m': 4.0,
@@ -554,25 +656,26 @@ def generate_launch_description():
                             'front_wall_exit_half_angle_deg': 70.0,
                             'front_wall_exit_min_coverage': 0.14,
                             'front_wall_exit_max_spread_m': 1.20,
-                            'front_wall_exit_min_after_opened_blue_m': 2.0,
+                            'front_wall_exit_min_after_opened_blue_m': 1.75,
                             'axis_door_side_standoff_m': 1.10,
                             'axis_door_min_side_goal_lateral_m': 0.75,
                             'axis_door_max_handle_pose_progress_delta_m': 1.6,
                             'axis_door_use_detected_pose_lateral': False,
-                            'locked_target_refine_enabled': False,
+                            'locked_target_refine_enabled': True,
                             'locked_target_refine_min_shift_m': 0.18,
-                            'locked_target_refine_max_progress_jump_m': 0.75,
-                            'locked_target_refine_max_total_progress_drift_m': 0.65,
+                            'locked_target_refine_max_progress_jump_m': 1.05,
+                            'locked_target_refine_max_total_progress_drift_m': 1.05,
                             'locked_target_refine_min_period_sec': 1.5,
                             'locked_target_refine_same_detector_forward_max_progress_jump_m': 0.0,
                             'locked_target_refine_same_detector_forward_max_total_drift_m': 0.0,
+                            'locked_target_close_station_max_forward_correction_m': 4.0,
                             'explore_observation_wait_sec': 2.0,
                             'explore_observation_wait_angular_vel': 0.0,
                             'nav_target_republish_sec': 0.0,
                             'explore_nav_failed_goal_memory_sec': 24.0,
                             'explore_nav_failed_goal_progress_window_m': 1.60,
-                            'explore_waypoint_scan_sec': 1.3,
-                            'explore_waypoint_scan_angular_vel': 0.45,
+                            'explore_waypoint_scan_sec': 2.4,
+                            'explore_waypoint_scan_angular_vel': 0.60,
                             'explore_interrupt_min_confidence': 0.20,
                             'explore_interrupt_max_distance_m': 8.8,
                             'detected_exit_use_expected_region': False,
@@ -581,8 +684,8 @@ def generate_launch_description():
                             'detected_exit_min_robot_forward_m': 0.0,
                             'no_blue_exit_min_robot_forward_m': 12.0,
                             'detected_exit_max_center_y_m': 0.85,
-                            'detected_exit_min_after_opened_blue_m': 2.0,
-                            'detected_exit_min_robot_past_opened_blue_m': 2.0,
+                            'detected_exit_min_after_opened_blue_m': 1.75,
+                            'detected_exit_min_robot_past_opened_blue_m': 1.20,
                             'detected_exit_require_front_wall_confirmation': False,
                             'detected_exit_front_wall_tolerance_m': 1.80,
                             'blue_exit_suppression_margin_m': 1.1,
@@ -613,18 +716,19 @@ def generate_launch_description():
                             'door_open_fine_linear_vel': 0.075,
                             'door_open_fine_min_linear_vel': 0.020,
                             'door_open_fine_allow_reverse': True,
-                            'door_open_fine_exception_reverse_linear_x': -0.05,
+                            'door_open_fine_exception_reverse_linear_x': -0.08,
                             'door_open_fine_exception_reverse_sec': 0.8,
-                            'door_open_fine_yaw_stuck_sec': 10.0,
-                            'door_open_axis_min_side_lateral_m': 1.20,
+                            'door_open_fine_exception_reverse_max_sec': 5.0,
+                            'door_open_fine_yaw_stuck_sec': 0.0,
+                            'door_open_axis_min_side_lateral_m': 0.95,
                             'door_open_align_timeout_sec': 36.0,
                             'door_open_align_angular_vel': 0.25,
                             'door_open_align_kp': 0.75,
-                            'post_open_reorient_enabled': True,
+                            'post_open_reorient_enabled': False,
                             'post_open_reorient_yaw_tolerance_deg': 14.0,
                             'post_open_reorient_angular_vel': 0.50,
                             'post_open_reorient_timeout_sec': 6.0,
-                            'post_open_clearance_advance_enabled': True,
+                            'post_open_clearance_advance_enabled': False,
                             'post_open_side_retreat_enabled': True,
                             'post_open_side_retreat_m': 1.10,
                             'post_open_side_retreat_target_abs_y_m': 0.48,
@@ -633,19 +737,19 @@ def generate_launch_description():
                             'post_open_side_retreat_yaw_tolerance_deg': 42.0,
                             'post_open_clearance_advance_m': 0.45,
                             'post_open_clearance_linear_vel': 0.12,
-                            'post_open_clearance_front_min_m': 0.55,
+                            'post_open_clearance_front_min_m': 0.85,
                             'post_open_clearance_front_angle_deg': 24.0,
                             'post_open_clearance_timeout_sec': 8.0,
                             'post_open_clearance_heading_kp': 0.8,
                             'post_open_clearance_angular_vel_limit': 0.30,
-                            'door_open_settle_sec': 0.5,
+                            'door_open_settle_sec': 2.8,
                             'exit_retry_delay_sec': 3.0,
                             'final_scan_before_exit_sec': 2.0,
                             'final_scan_angular_vel': 0.45,
                             'pre_nav_scan_sec': 1.1,
                             'pre_nav_scan_angular_vel': 0.0,
                             'door_nav_stuck_watch_enabled': True,
-                            'door_nav_stuck_timeout_sec': 24.0,
+                            'door_nav_stuck_timeout_sec': 32.0,
                             'door_nav_stuck_min_progress_m': 0.08,
                             'door_nav_stuck_min_goal_dist_m': 0.90,
                             'explore_nav_enabled': True,
@@ -670,8 +774,8 @@ def generate_launch_description():
                             'explore_nav_recenter_abs_y_m': 0.80,
                             'explore_nav_max_lateral_step_m': 0.65,
                             'max_explore_nav_failures_before_exit': 3,
-                            'explore_nav_timeout_sec': 24.0,
-                            'explore_nav_stuck_wall_timeout_sec': 6.0,
+                            'explore_nav_timeout_sec': 32.0,
+                            'explore_nav_stuck_wall_timeout_sec': 28.0,
                             'explore_nav_stuck_min_progress_m': 0.10,
                             'min_target_door_abs_y_m': 0.35,
                             'target_door_direct_nav_max_dist_m': 0.0,
@@ -682,9 +786,10 @@ def generate_launch_description():
                             'nav_start_center_recovery_linear_vel': 0.13,
                             'nav_start_center_recovery_angular_vel': 0.40,
                             'nav_start_center_recovery_yaw_tolerance_deg': 32.0,
-                            'nav_start_center_recovery_max_sec': 12.0,
+                            'nav_start_center_recovery_max_sec': 22.0,
                             'start_without_fire':   start_without_fire,
                         }],
+                        remappings=[('/cmd_vel', '/cmd_vel_manual')],
                         output='screen',
                     ),
                 ],
@@ -711,6 +816,7 @@ def generate_launch_description():
         DeclareLaunchArgument('start_without_fire', default_value='true'),
         DeclareLaunchArgument('min_opened_doors_before_exit', default_value='0'),
         DeclareLaunchArgument('launch_moveit', default_value='false'),
+        DeclareLaunchArgument('log_detection_candidates', default_value='false'),
         DeclareLaunchArgument(
             'enable_segformer',
             default_value='false',
@@ -718,9 +824,12 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             'localization_mode',
-            default_value='localization',
-            description='mapping: run SLAM, latch /initial_static_map, and use the fixed snapshot for Nav2; localization: use saved map + AMCL.',
+            default_value='sim_odom',
+            description='sim_odom: fixed map plus Gazebo odometry; mapping: SLAM; localization: saved map plus AMCL.',
         ),
+        DeclareLaunchArgument('spawn_x', default_value='-3.0'),
+        DeclareLaunchArgument('spawn_y', default_value='0.0'),
+        DeclareLaunchArgument('spawn_yaw', default_value='0.0'),
         DeclareLaunchArgument(
             'localization_start_delay',
             default_value='8.0',
@@ -740,6 +849,11 @@ def generate_launch_description():
             'nav2_recover_delay',
             default_value='22.0',
             description='Delay before retrying Nav2 lifecycle activation if autostart stalls.',
+        ),
+        DeclareLaunchArgument(
+            'enable_lifecycle_recovery',
+            default_value='false',
+            description='Enable manual lifecycle recovery timers for debugging only.',
         ),
         DeclareLaunchArgument(
             'app_start_delay',
@@ -789,9 +903,13 @@ def generate_launch_description():
             actions=[
                 slam_launch,           # mapping 모드: SLAM → /map 발행
                 localization_launch,   # localization 모드: static map + AMCL
+                sim_odom_map_server,
+                sim_odom_map_lifecycle,
+                sim_odom_map_tf,
             ],
         ),
         localization_lifecycle_recovery,
+        sim_odom_map_lifecycle_recovery,
         TimerAction(
             period=nav2_start_delay,
             actions=[

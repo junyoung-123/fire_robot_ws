@@ -4,21 +4,22 @@
 
 목표 동작은 시작 위치 기준으로 관측한 벽, 문, 장애물 구조를 map 좌표에 축적하고, 가장 가까운 파란문을 선택해 장애물을 피해 접근한 뒤 문 개방 FSM을 수행하는 것입니다. 더 이상 열 파란문이 없으면 초록 비상구를 관측 기반으로 선택해 통과합니다.
 
-## 현재 상태 (2026-08-29)
+## 현재 상태 (2026-09-07)
 
 - `colcon build --symlink-install` PASS
 - Python 문법 검사 PASS
-- Gazebo headless full validation PASS 이력 있음
-- World 1~5 전체 `MISSION_COMPLETE` 이력 있음
+- Gazebo headless strict full validation World 1~5 연속 PASS
+- World 1~5 모두 `MISSION_COMPLETE`, 총 파란문 16/16 물리 door topic 매칭, 잘못된 문 매칭 0건
+- 최신 전체 실행에서 차체 최대 기울기는 roll `0.021°`, pitch `0.732°`로 제한 `20°` 이내
+- 18 logical CPU 중 2 worker를 지속 점유한 no-GUI 부하 조건에서도 World 5 파란문 6/6 및 `MISSION_COMPLETE` PASS
 - 자율주행 성공 기준 코드는 보존됨
   - 보존 브랜치: `codex/navigation-success-before-arm`
   - 보존 태그: `navigation-success-before-arm-20260826`
   - 보존 커밋: `41ec296 feat: finalize observation-based navigation validation`
-- 현재 작업본은 더 엄격한 기준으로 재검증 중
+- 현재 작업본은 아래 엄격 기준으로 재검증 완료
   - 목표: semantic map 기반 문 후보 누적, nearest unopened blue target lock, 문앞 정면 정렬, 레버 누름 + push-open, opened/failed station 메모리, 모든 파란문 처리 후 초록 비상구 통과
-  - 스트레스 검증 월드: `observation_fsm_quick_validation.world`
-  - 스트레스 월드 기존 모델/fallback 기준 PASS: 파란문 3/3 opened, `MISSION_COMPLETE`
-  - 2026-08-29 새 손잡이 모델 v2 + 레버형 Gazebo 손잡이 기준 검증은 진행 중이며, 현재까지는 손잡이 YOLO가 아니라 fallback 좌표로 문개방이 수행됨
+  - 엄격 checker 기준: 기대 문 개수 일치, 고유 Gazebo 파란문 topic 일치, rejected match 0건, `MISSION_COMPLETE`
+  - 손잡이 모델 v2는 정상 로드되지만 현재 Gazebo 렌더링에서는 직접 검출 0건으로 HSV/벽면 투영 fallback이 사용됨
 - YOLOv8s Door 1-class 모델 적용
   - 모델: `src/fire_robot_perception/models/best.pt`
   - 학습 성능: mAP50 `0.6088`, mAP50-95 `0.3923`, Precision `0.6184`, Recall `0.5817`
@@ -61,7 +62,7 @@
 
 - Planner: `nav2_smac_planner/SmacPlanner2D`
 - Controller: `nav2_rotation_shim_controller::RotationShimController`
-- Primary controller: `nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController`
+- Primary controller: `dwb_core::DWBLocalPlanner`
 - 초기 static map + localization 기반 주행
 - LiDAR 관측 맵으로 장애물을 반영하고, 문/비상구 목표는 관측된 map 좌표에서 생성합니다.
 
@@ -84,39 +85,35 @@
 
 ## 검증 결과
 
-### 이전 전체 검증 (2026-08-24)
+### 최종 엄격 전체 검증 (2026-09-07)
 
 | 월드 | 조건 | 결과 |
 | --- | --- | --- |
-| World 1 `corridor.world` | 파란문 3개, 빨간문/장애물 혼합 | PASS, 파란문 3/3, `MISSION_COMPLETE` |
+| World 1 `obstacle_wall_doors_v5.world` | 파란문 3개, 빨간문/장애물 혼합 | PASS, 파란문 3/3, `MISSION_COMPLETE` |
 | World 2 `obstacle_door_layout_alt_v1.world` | 다른 문 배열/장애물 배치 | PASS, 파란문 3/3, `MISSION_COMPLETE` |
 | World 3 `obstacle_door_layout_world3_v1.world` | 파란문 4개, 빨간문 2개 | PASS, 파란문 4/4, `MISSION_COMPLETE` |
 | World 4 `obstacle_no_blue_world4_v1.world` | 파란문 없음 | PASS, 문 개방 0/0, no-blue fallback 후 `MISSION_COMPLETE` |
 | World 5 `obstacle_all_blue_world5_v1.world` | 좌우 3개씩 모든 문 파란색 | PASS, 파란문 6/6, `MISSION_COMPLETE` |
 
-증빙:
+증빙: `artifacts/validation/final_full_20260907_r6` 및
+`C:\Users\황준영\Documents\졸업작품\미팅자료_20260907`
 
-- `C:\Users\황준영\Documents\졸업작품\검증결과_20260823\all_worlds_validation_summary.png`
-- `C:\Users\황준영\Documents\졸업작품\검증결과_20260823\world*\trajectory.png`
-- `C:\Users\황준영\Documents\졸업작품\검증결과_20260823\world*\door_alignment.png`
-- `C:\Users\황준영\Documents\졸업작품\검증결과_20260823\world*\world*.log`
-
-### 현재 스트레스 검증 (2026-08-29)
+### 저성능 스트레스 검증 (2026-09-06)
 
 | 월드 | 조건 | 결과 |
 | --- | --- | --- |
-| `observation_fsm_quick_validation.world` | 파란문 3개, 빨간문 2개, 중앙/문앞 장애물 | PASS, 파란문 3/3, `MISSION_COMPLETE` |
+| World 5 + CPU worker 2개 | 파란문 6개, Gazebo/YOLO/Nav2 동시 실행 | PASS, 파란문 6/6, rejected 0, `MISSION_COMPLETE` |
 
 로그:
 
-- `artifacts/validation/semantic_stress_20260828_02/stress.log`
+- `artifacts/validation/final_cpu_stress_20260906`
 
 주의:
 
-- 이 PASS는 기존 handle 모델/fallback 조합 기준이다.
-- 새 `handle_best_v2.pt`와 레버형 Gazebo 손잡이 적용 후 1차 live run은 중간 종료했다.
-- 해당 run에서는 파란문 2개가 fallback 좌표로 개방 처리됐고, 로그상 손잡이 YOLO 검출은 확인되지 않았다.
-- 따라서 현재 미해결 핵심은 주행 전체보다 “손잡이 YOLO가 실제/Gazebo 레버를 안정적으로 잡는지”와 “새 엄격 기준에서 stress/world1~5를 다시 끝까지 PASS시키는 것”이다.
+- CPU worker 6개 조건은 전체 load average가 logical CPU 수를 넘어 Nav2 action timeout이 누적되어 3/6에서 중단했습니다. 이 한계 기록은 `artifacts/validation/overload_boundary_6workers_20260906`에 보존했습니다.
+- 2026-09-07 추가 2-worker 관찰 실행은 2/6 진행 중 목표 재계획 지연을 확인한 뒤 중단했습니다. 사용자 요청에 따라 이 부하 관찰만을 이유로 주행 정책은 추가 수정하지 않았고 참고 로그로 보존했습니다.
+- 실제 로봇은 Gazebo 물리 엔진을 같이 실행하지 않으므로 이 과부하 조건과 동일하지 않습니다.
+- 손잡이 YOLO 직접 검출은 여전히 확인되지 않았습니다. 문 개방 PASS는 HSV/관측 벽면 투영과 Gazebo hinge command를 포함한 통합 시뮬레이션 결과입니다.
 
 ## 실행 명령
 
@@ -152,8 +149,14 @@ Headless full validation:
 cd ~/fire_robot_ws_test
 source /opt/ros/humble/setup.bash
 source install/setup.bash
-TRACE_DIR=artifacts/validation/latest/world1 \
-  bash scripts/run_headless_validation_once.sh corridor.world artifacts/validation/latest/world1.log 3000
+bash scripts/run_full_world_validation_set.sh artifacts/validation/full_worlds_latest
+```
+
+CPU contention validation:
+
+```bash
+CPU_WORKERS=2 bash scripts/run_cpu_stress_validation.sh \
+  artifacts/validation/cpu_stress_latest
 ```
 
 손잡이 YOLO 학습:
