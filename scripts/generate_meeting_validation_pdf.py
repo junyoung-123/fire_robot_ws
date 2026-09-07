@@ -167,6 +167,81 @@ def result_table(runs: dict[int, dict[str, object]], s) -> Table:
     return table
 
 
+def progress_timeline_table(s) -> Table:
+    rows = [[p("시점", s["table_bold"]), p("진행 내용", s["table_bold"]),
+             p("이유와 확인 결과", s["table_bold"])]]
+    entries = [
+        ("7/2 미팅", "Gazebo 공간·문·장애물 구성까지 완료. SLAM/Localization, Navigation, PIPER, YOLO는 계획 단계.",
+         "시뮬레이션 환경에서 먼저 전체 기능을 연결한 뒤 실물로 옮기는 개발 순서를 확정."),
+        ("7/2~7/7", "고정 구조 지도와 localization, mission axis, Nav2 안전 노드·재계획 BT를 구성하고 Door YOLO `best.pt`를 연결.",
+         "이동 중 SLAM 지도가 흔들리고 장애물 앞에서 정지·후진하던 문제를 줄이기 위함. 문 bbox와 HSV 색상 분리를 실제 실행 경로에 적용."),
+        ("8/11", "관측 문 메모리, 가장 가까운 미개방 파란문 target lock, 문 앞 정렬, 열린 문 위치 기억을 구현. World 1~5를 구성.",
+         "문 개수·좌표를 FSM에 주지 않고 관측 순서대로 처리하기 위함. 자율주행 단독 5개 월드 PASS 코드를 별도 태그로 보존."),
+        ("8/15~8/24", "PIPER Gazebo 관절, 동적 힌지문, 레버 누름→push-open sub-FSM, 개방 후 이탈을 자율주행 FSM에 통합.",
+         "문 앞 도착을 성공으로 치지 않고 팔과 문 joint가 실제로 움직였는지 확인. 마찰 접촉 48° 및 grasp constraint 보조 120° 시험 수행."),
+        ("8/28~8/30", "손잡이 YOLO `handle_best_v2.pt` 적용. 팀원 수정본의 문 좌표 재정합, 중복 후보 억제, 조기 출구 전환 방지를 반영.",
+         "원거리 projection이 실제 문과 1.5~1.7m 어긋나거나 World 3에서 4개 중 3개 후 탈출하던 사례를 해결. Gazebo 손잡이 직접 YOLO 검출 한계도 확인."),
+        ("9/6~9/7", "엄격 checker, 차체 기울기 기록, 장애물 크기·궤적 이미지, 프로세스 정리, no-GUI CPU 부하 검증을 추가.",
+         "성공 로그만 보는 대신 개방 수·고유 문 topic·오매칭·종료·기울기를 함께 판정. 최신 World 1~5 총 16/16 PASS."),
+    ]
+    for when, work, reason in entries:
+        rows.append([p(when, s["table"]), p(work, s["table"]), p(reason, s["table"])])
+    table = Table(rows, colWidths=[23*mm, 68*mm, 78*mm], repeatRows=1)
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1F5A7A")),
+        ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#BCCCDC")),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1),
+         [colors.white, colors.HexColor("#F5F8FA")]),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+    ]))
+    return table
+
+
+def issue_resolution_table(s) -> Table:
+    rows = [[p("중간 문제", s["table_bold"]), p("원인", s["table_bold"]),
+             p("수정", s["table_bold"]), p("검증 결과", s["table_bold"])]]
+    entries = [
+        ("장애물 앞 충돌·정지", "고정 지도와 실시간 센서 반영 차이, 시작점 lethal-space",
+         "2D LiDAR costmap, SmacPlanner2D, RotationShim+DWB, 제한적 local escape",
+         "5개 월드 완료"),
+        ("이동 중 지도가 흔들림", "주행 중 SLAM 누적과 TF 오차가 구조 지도를 계속 변형",
+         "초기 지도 작성과 운용 localization을 분리하고 진행축을 관측 지도에서 설정",
+         "지도 기준 유지"),
+        ("파란문 좌표·색 오탐", "측면 카메라 projection, HSV 번짐, 같은 문의 반복 후보",
+         "YOLO bbox+HSV, 다중 관측 클러스터, red/opened 억제, 정렬 직전 재관측",
+         "오매칭 0"),
+        ("파란문을 남기고 탈출", "현재 보이는 후보가 없으면 탐색 완료로 판단",
+         "탐색 범위·마지막 신규 관측 유예·미방문 waypoint·EXITING 중 신규 파란문 복귀 조건",
+         "W3 4/4, W4 0/0"),
+        ("문에서 멀거나 비스듬히 개방", "Nav2 도착만으로는 팔 작업 자세를 보장하지 못함",
+         "target lock, 벽면 기준 주차점, fine translation/yaw, 최신 관측 gate",
+         "총 16문 정렬·개방"),
+        ("팔 통합 후 상태 전환 오류", "주행·정렬·개방·후퇴 타이밍이 한 FSM에서 충돌",
+         "main FSM과 manipulation sub-FSM 분리, joint feedback, retry/abandon, post-open retreat",
+         "통합 full PASS"),
+        ("월드 간 가짜 실패", "이전 ROS/Gazebo 자식 프로세스의 clock·TF가 다음 실행에 잔류",
+         "각 검증 전후 프로세스 정리와 고유 ROS_DOMAIN_ID 사용",
+         "연속 검증 가능"),
+    ]
+    for problem, cause, fix, result in entries:
+        rows.append([p(problem, s["table"]), p(cause, s["table"]),
+                     p(fix, s["table"]), p(result, s["table"])])
+    table = Table(rows, colWidths=[34*mm, 43*mm, 70*mm, 22*mm], repeatRows=1)
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1F5A7A")),
+        ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#BCCCDC")),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("ALIGN", (-1, 1), (-1, -1), "CENTER"),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1),
+         [colors.white, colors.HexColor("#F5F8FA")]),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+    ]))
+    return table
+
+
 def build_pdf(full_dir: Path, stress_dir: Path, manipulation_dir: Path,
               output: Path) -> None:
     regular, bold = register_fonts()
@@ -194,9 +269,10 @@ def build_pdf(full_dir: Path, stress_dir: Path, manipulation_dir: Path,
     story = []
 
     story += [Spacer(1, 12*mm), p("화재 대응 로봇", s["title"]),
-              p("관측 기반 자율주행·파란문 개방·비상구 탈출<br/>시뮬레이션 통합 검증 결과", s["title"]),
+              p("7월 2일 이후 개발 경과와<br/>시뮬레이션 통합 검증 결과", s["title"]),
               p("ROS 2 Humble · Gazebo · Nav2 · YOLOv8 · AgileX PIPER 연동 준비", s["subtitle"])]
-    badge = Table([[p("최신 전체 검증", s["center"]), p("World 1~5 STRICT PASS", s["center"])],
+    badge = Table([[p("이전 미팅 기준", s["center"]), p("2026-07-02", s["center"])],
+                   [p("최신 전체 검증", s["center"]), p("World 1~5 STRICT PASS", s["center"])],
                    [p("검증 기준일", s["center"]), p("2026-09-07", s["center"])],
                    [p("실제 로봇", s["center"]), p("현장 연동 전 단계", s["center"])]],
                   colWidths=[48*mm, 90*mm])
@@ -216,7 +292,23 @@ def build_pdf(full_dir: Path, stress_dir: Path, manipulation_dir: Path,
               p("주의: 본 결과는 Gazebo 통합 시뮬레이션 검증임. 실제 PIPER 힘 제어·실물 손잡이 검출·모바일 베이스 TF는 현장 검증이 남아 있음.", s["subtitle"]),
               PageBreak()]
 
-    story += [p("1. 시스템 구조", s["h1"])]
+    story += [p("1. 7월 2일 이후 진행 과정", s["h1"]),
+              p("7월 미팅 당시의 계획을 기준으로, 기능을 한 번에 붙이지 않고 주행 → 관측 기반 정책 → 로봇팔 → 엄격 검증 순으로 확장함.", s["body"]),
+              progress_timeline_table(s), Spacer(1, 4*mm),
+              p("핵심 변화", s["h2"]),
+              p("7월에는 '장애물을 피하고 지정 문으로 이동하는 시뮬레이션'이 중심이었다. 현재는 문 개수와 좌표를 주지 않은 상태에서 관측한 파란문을 지도에 기억하고, 하나씩 정렬·개방한 뒤 더 이상 없음을 확인하고 출구를 통과하는 통합 FSM으로 확장됐다.", s["body"]),
+              PageBreak()]
+
+    story += [p("2. 중간 실패와 해결 이유", s["h1"]),
+              p("반복 검증에서 단순 임계값 완화로 넘기지 않고, 실패가 발생한 좌표계·상태 전환·프로세스 수명 주기를 구분해 수정함.", s["body"]),
+              issue_resolution_table(s), Spacer(1, 5*mm),
+              p("현재 남아 있는 주행 해석", s["h2"]),
+              bullet("최신 full set은 임무 성공 관점에서 PASS지만, 누적 궤적에는 문 앞 정렬·개방 후 이탈·좌우 문 방문이 함께 포함돼 S자와 작은 고리가 나타남.", s["body"]),
+              bullet("동일 문 좌표가 프레임마다 흔들려 목표 보정 17~25회, 일부 월드에서 Nav2 목표 선점 7~13회가 발생해 큰 굴곡은 효율 개선 여지가 있음.", s["body"]),
+              bullet("이 문제는 문 누락이나 충돌 실패가 아니라 이동 시간과 경로 매끄러움의 문제이며, 현재 미팅 자료에서는 정책을 추가 변경하지 않고 한계로 기록함.", s["body"]),
+              PageBreak()]
+
+    story += [p("3. 현재 시스템 구조", s["h1"])]
     stages = [
         ("1", "관측", "front / front-left / front-right 카메라\n2D LiDAR /scan"),
         ("2", "의미 지도", "YOLO 문 bbox + HSV 색상\n문·장애물 map 좌표 메모리"),
@@ -242,7 +334,7 @@ def build_pdf(full_dir: Path, stress_dir: Path, manipulation_dir: Path,
               bullet("실제 운용에서의 초기 SLAM 지도 작성은 별도 준비 단계이며, 저장한 절대 지도를 localization에 투입하는 구조임.", s["body"]),
               PageBreak()]
 
-    story += [p("2. World 1~5 엄격 전체 검증", s["h1"]),
+    story += [p("4. World 1~5 엄격 전체 검증", s["h1"]),
               p("합격 조건: MISSION_COMPLETE, 기대 파란문 개방 수 일치, 고유 Gazebo 파란문 매칭 수 일치, rejected match 0, 차체 roll/pitch 20° 이하.", s["body"]),
               result_table(runs, s), Spacer(1, 6*mm)]
     stress = parse_run(
@@ -266,17 +358,17 @@ def build_pdf(full_dir: Path, stress_dir: Path, manipulation_dir: Path,
               p("2026-09-07 추가 CPU 부하 실행은 2/6 문 진행 중 목표 재계획 지연을 관찰한 뒤 중단했으며, 요청에 따라 주행 정책은 추가 수정하지 않고 참고 로그로만 보존함.", s["small"]),
               PageBreak()]
 
-    story += [p("3. 장애물 위치·크기와 실제 주행 궤적", s["h1"]),
+    story += [p("5. 장애물 위치·크기와 실제 주행 궤적", s["h1"]),
               p("주황 사각형은 Gazebo 월드 파일에서 직접 읽은 장애물 충돌체 크기와 위치이며, 검은 선은 map→base_link 관측 궤적임.", s["small"]),
               fitted_image(full_dir / "full_worlds_obstacle_paths.png", 180*mm, 235*mm),
-              PageBreak(), p("4. 문 관측·목표·정렬 결과", s["h1"]),
+              PageBreak(), p("6. 문 관측·목표·정렬 결과", s["h1"]),
               p("각 월드의 문 색상 관측점, 목표점, 개방 이벤트, 출구 완료점을 한 화면에 정리함. 점군 산포는 연속 프레임 투영값이며 실제 로봇 궤적은 검은 선임.", s["small"]),
               fitted_image(full_dir / "full_worlds_evidence.png", 180*mm, 235*mm),
               PageBreak()]
 
     combined = manipulation_dir / "gazebo_door_open_before_after.png"
     summary = parse_key_values(manipulation_dir / "summary.txt")
-    story += [p("5. Gazebo 문 개방 시각 증거", s["h1"]),
+    story += [p("7. Gazebo 문 개방 시각 증거", s["h1"]),
               p("동일한 Gazebo 카메라에서 개방 명령 전·후를 캡처한 원본 이미지임. 파란 힌지문은 레버 누름 단계 뒤 약 120° 목표로 회전하며, joint feedback이 목표 범위에 도달해야 성공으로 처리됨.", s["body"]),
               fitted_image(combined, 180*mm, 120*mm), Spacer(1, 3*mm),
               p(f"검증 요약: hinge={summary.get('after_hinge_rad', '기록 참조')} rad "
@@ -286,7 +378,7 @@ def build_pdf(full_dir: Path, stress_dir: Path, manipulation_dir: Path,
               p("한계: 전체 월드 PASS는 Gazebo 힌지 joint 명령과 피드백을 포함하지만, 실제 접촉력·마찰·레버 토크까지 입증하는 완전한 물리 접촉 시험은 아님.", s["subtitle"]),
               PageBreak()]
 
-    story += [p("6. 학습 모델 적용 상태", s["h1"]),
+    story += [p("8. 학습 모델 적용 상태", s["h1"]),
               p("문 검출 모델", s["h2"]),
               bullet("YOLOv8s Door 1-class best.pt가 simulation/real_robot launch 기본 경로에 연결됨.", s["body"]),
               bullet("OpenImages v7 Door 학습 결과: mAP50 0.6088, mAP50-95 0.3923, Precision 0.6184, Recall 0.5817.", s["body"]),
@@ -302,7 +394,7 @@ def build_pdf(full_dir: Path, stress_dir: Path, manipulation_dir: Path,
               bullet("검증 종료 시 ROS/Gazebo 자식 프로세스를 정리해 다음 월드의 clock/TF 오염을 방지함.", s["body"]),
               PageBreak()]
 
-    story += [p("7. 실제 로봇 전 남은 작업", s["h1"]),
+    story += [p("9. 실제 로봇 전 남은 작업", s["h1"]),
               bullet("PIPER CAN can0 연결 및 SDK/드라이버 통신 확인.", s["body"]),
               bullet("ros2 action list로 /piper_arm_controller/follow_joint_trajectory 제공 여부 확인. 없으면 MoveIt 실행 백엔드를 PIPER SDK 또는 ros2_control 경로로 확정.", s["body"]),
               bullet("PIPER MoveIt 단독 실행, 관절 한계, 충돌 모델, 그리퍼 open/close 값을 실측.", s["body"]),
