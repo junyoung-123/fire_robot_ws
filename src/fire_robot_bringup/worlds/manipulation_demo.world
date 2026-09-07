@@ -33,16 +33,36 @@
     </model>
     <model name='blue_hinged_door'>
       <pose>-2.35 -0.40 0 0 0 0</pose>
-      <link name='frame'><inertial><mass>20</mass><inertia><ixx>1</ixx><iyy>1</iyy><izz>1</izz></inertia></inertial></link>
+      <link name='frame'>
+        <inertial><mass>20</mass><inertia><ixx>1</ixx><iyy>1</iyy><izz>1</izz></inertia></inertial>
+        <visual name='hinge_post'>
+          <pose>0 0.80 1.0 0 0 0</pose>
+          <geometry><box><size>0.14 0.14 2.2</size></box></geometry>
+          <material><ambient>0.16 0.18 0.21 1</ambient><diffuse>0.22 0.24 0.28 1</diffuse></material>
+        </visual>
+      </link>
       <joint name='frame_fixed' type='fixed'><parent>world</parent><child>frame</child></joint>
       <link name='panel'>
         <pose>0 0.40 1.0 0 0 0</pose>
         <inertial><mass>8</mass><inertia><ixx>3.1</ixx><iyy>2.7</iyy><izz>0.43</izz></inertia></inertial>
         <collision name='panel_collision'><geometry><box><size>0.06 0.80 2.0</size></box></geometry></collision>
         <visual name='panel_visual'><geometry><box><size>0.06 0.80 2.0</size></box></geometry><material><ambient>0.04 0.14 0.92 1</ambient><diffuse>0.04 0.14 0.92 1</diffuse></material></visual>
-        <visual name='handle'><pose>0.07 0.25 -0.05 0 1.5708 0</pose><geometry><cylinder><radius>0.025</radius><length>0.16</length></cylinder></geometry><material><ambient>0.8 0.65 0.05 1</ambient></material></visual>
+        <collision name='handle_collision'>
+          <pose>-0.075 -0.30 -0.05 0 0 0</pose>
+          <geometry><box><size>0.09 0.22 0.06</size></box></geometry>
+        </collision>
+        <visual name='handle_backplate'>
+          <pose>-0.036 -0.30 -0.05 0 0 0</pose>
+          <geometry><box><size>0.025 0.09 0.26</size></box></geometry>
+          <material><ambient>0.82 0.66 0.05 1</ambient><diffuse>0.92 0.76 0.08 1</diffuse></material>
+        </visual>
+        <visual name='lever_handle'>
+          <pose>-0.082 -0.30 -0.05 0 0 0</pose>
+          <geometry><box><size>0.055 0.22 0.055</size></box></geometry>
+          <material><ambient>0.82 0.66 0.05 1</ambient><diffuse>0.92 0.76 0.08 1</diffuse></material>
+        </visual>
       </link>
-      <joint name='door_hinge' type='revolute'><parent>frame</parent><child>panel</child><axis><xyz>0 0 1</xyz><limit><lower>0</lower><upper>2.20</upper><effort>80</effort><velocity>1.4</velocity></limit><dynamics><damping>2.0</damping></dynamics></axis></joint>
+      <joint name='door_hinge' type='revolute'><pose>0 0.40 0 0 0 0</pose><parent>frame</parent><child>panel</child><axis><xyz>0 0 1</xyz><limit><lower>0</lower><upper>2.20</upper><effort>80</effort><velocity>1.4</velocity></limit><dynamics><damping>2.0</damping></dynamics></axis></joint>
       <plugin filename='ignition-gazebo-joint-position-controller-system' name='gz::sim::systems::JointPositionController'><joint_name>door_hinge</joint_name><topic>/sim/door_hinge_position_cmd</topic><p_gain>70</p_gain><d_gain>8</d_gain><cmd_max>80</cmd_max><cmd_min>-80</cmd_min></plugin>
       <plugin filename='gz-sim-joint-state-publisher-system' name='gz::sim::systems::JointStatePublisher'><topic>/door_joint_states</topic></plugin>
     </model>

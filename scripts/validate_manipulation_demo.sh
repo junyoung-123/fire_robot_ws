@@ -21,7 +21,7 @@ for _ in $(seq 1 24); do
 done
 
 service_output=$(timeout 20 ros2 service call /open_door fire_robot_interfaces/srv/OpenDoor \
-  '{door_id: manipulation_demo, handle_position: {header: {frame_id: base_link}, point: {x: 0.60, y: 0.0, z: 0.80}}, handle_detected: false, handle_detection_method: manual_demo, handle_confidence: 0.0}')
+  '{door_id: manipulation_demo, handle_position: {header: {frame_id: base_link}, point: {x: 0.52, y: -0.30, z: 0.80}}, handle_detected: false, handle_detection_method: manual_demo, handle_confidence: 0.0}')
 echo "${service_output}"
 grep -Eq 'success[=:] ?[Tt]rue' <<<"${service_output}"
 echo 'Door hinge state after /open_door:'

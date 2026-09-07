@@ -58,8 +58,8 @@ class ManipulationProofCapture(Node):
         req = OpenDoor.Request()
         req.door_id = 'manipulation_demo'
         req.handle_position.header.frame_id = 'base_link'
-        req.handle_position.point.x = 0.60
-        req.handle_position.point.y = 0.00
+        req.handle_position.point.x = 0.52
+        req.handle_position.point.y = -0.30
         req.handle_position.point.z = 0.80
         req.handle_detected = False
         req.handle_detection_method = 'manual_demo'
@@ -83,8 +83,8 @@ class ManipulationProofCapture(Node):
         req = OpenDoor.Request()
         req.door_id = 'manipulation_demo'
         req.handle_position.header.frame_id = 'base_link'
-        req.handle_position.point.x = 0.60
-        req.handle_position.point.y = 0.00
+        req.handle_position.point.x = 0.52
+        req.handle_position.point.y = -0.30
         req.handle_position.point.z = 0.80
         req.handle_detected = False
         req.handle_detection_method = 'manual_demo'
@@ -173,10 +173,10 @@ def make_collage(before: np.ndarray, after: np.ndarray, output: Path,
     h = min(before.shape[0], after.shape[0])
     before = before[:h]
     after = after[:h]
-    before = annotate(before, 'Before: closed blue hinged door',
+    before = annotate(before, 'Before: closed side-hinged lever door',
                       f'door_hinge={before_hinge:.3f} rad '
                       f'({math.degrees(before_hinge):.1f} deg)')
-    after = annotate(after, 'After: Gazebo door opened by /open_door',
+    after = annotate(after, 'After: lever pressed and door pushed open',
                      f'door_hinge={after_hinge:.3f} rad '
                      f'({math.degrees(after_hinge):.1f} deg), '
                      f'service_success={service_success}')

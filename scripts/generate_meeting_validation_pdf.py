@@ -369,7 +369,7 @@ def build_pdf(full_dir: Path, stress_dir: Path, manipulation_dir: Path,
     combined = manipulation_dir / "gazebo_door_open_before_after.png"
     summary = parse_key_values(manipulation_dir / "summary.txt")
     story += [p("7. Gazebo 문 개방 시각 증거", s["h1"]),
-              p("동일한 Gazebo 카메라에서 개방 명령 전·후를 캡처한 원본 이미지임. 파란 힌지문은 레버 누름 단계 뒤 약 120° 목표로 회전하며, joint feedback이 목표 범위에 도달해야 성공으로 처리됨.", s["body"]),
+              p("동일한 Gazebo 카메라에서 개방 명령 전·후를 캡처한 원본 이미지임. 회색 문틀 쪽 측면 힌지는 고정되고, 반대편 자유단의 노란 레버를 누른 뒤 문을 로봇에서 멀어지는 방향으로 밀어 약 120° 개방함. joint feedback이 목표 범위에 도달해야 성공으로 처리됨.", s["body"]),
               fitted_image(combined, 180*mm, 120*mm), Spacer(1, 3*mm),
               p(f"검증 요약: hinge={summary.get('after_hinge_rad', '기록 참조')} rad "
                 f"({summary.get('after_hinge_deg', '기록 참조')}°), "

@@ -26,7 +26,7 @@ Call the service from another sourced terminal:
 
 ```bash
 ros2 service call /open_door fire_robot_interfaces/srv/OpenDoor \
-  '{door_id: demo, handle_position: {header: {frame_id: base_link}, point: {x: 0.60, y: 0.0, z: 0.80}}, handle_detected: false, handle_detection_method: manual_demo, handle_confidence: 0.0}'
+  '{door_id: manipulation_demo, handle_position: {header: {frame_id: base_link}, point: {x: 0.52, y: -0.30, z: 0.80}}, handle_detected: false, handle_detection_method: manual_demo, handle_confidence: 0.0}'
 ```
 
 ## Automated headless validation
@@ -38,8 +38,9 @@ bash scripts/validate_manipulation_demo.sh
 The test passes only when `/open_door` returns success after feedback from
 `door_hinge` reaches about `+2.09` rad, 120 degrees, within the configured tolerance. It also
 prints the final Gazebo robot joint state. The simplified visual IK aims the
-arm at the requested handle, closes the gripper, retracts for `PULL_OPEN`, and
-leaves the door open for visual inspection.
+arm at the lever near the free edge, closes the gripper, presses the lever,
+executes `PUSH_OPEN`, and leaves the door open for visual inspection. The
+proof-only door uses a side hinge opposite the lever.
 
 This is a controlled integration simulation: the arm trajectory and hinged
 door command are coordinated by `manipulation_node`. It validates ROS-Gazebo
@@ -113,6 +114,11 @@ bash scripts/capture_manipulation_visual_proof.sh
 numeric evidence. The run passes only when the same capture sees
 `door_hinge` move from closed to about `+2.09` rad, 120 degrees, and `/open_door` returns
 success.
+
+Latest corrected visual proof: `2026-09-07`, PASS. The hinge is fixed at one
+side of the panel, the lever is near the opposite free edge, and positive
+rotation pushes the free edge away from the robot. Final hinge feedback was
+`2.096245 rad` (`120.106 degrees`) with `service_success=True`.
 
 Latest visual evidence is collected with the full-world proof images:
 

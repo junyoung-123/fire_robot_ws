@@ -67,3 +67,6 @@ regression result.
 The door-opening schematic is log-derived. Raw Gazebo before/after imagery and
 joint feedback are stored in the external meeting artifact folder and must be
 described as commanded hinge integration, not full contact-dynamics proof.
+The proof-only Gazebo door was corrected on 2026-09-07 to use a fixed side
+hinge and an opposite free-edge lever. The recaptured result reached
+`2.096245 rad` (`120.106 degrees`) with `service_success=True`.
