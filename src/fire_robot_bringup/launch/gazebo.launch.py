@@ -1,3 +1,6 @@
+import os
+
+from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess
 from launch.conditions import IfCondition, UnlessCondition
@@ -16,10 +19,20 @@ def generate_launch_description():
     enable_depth_camera = LaunchConfiguration('enable_depth_camera', default='false')
     spawn_x = LaunchConfiguration('spawn_x', default='-3.0')
     spawn_y = LaunchConfiguration('spawn_y', default='0.0')
+    spawn_z = LaunchConfiguration('spawn_z', default='0.07')
     spawn_yaw = LaunchConfiguration('spawn_yaw', default='0.0')
+    robot_xacro_file = LaunchConfiguration(
+        'robot_xacro_file', default='fire_robot.urdf.xacro')
+    front_stop_distance = LaunchConfiguration(
+        'front_stop_distance_m', default='0.48')
     gazebo_env = {
         'LIBGL_ALWAYS_SOFTWARE': '1',
         'MESA_GL_VERSION_OVERRIDE': '3.3',
+        'GZ_SIM_RESOURCE_PATH': ':'.join(filter(None, (
+            os.path.dirname(get_package_share_directory(
+                'fire_robot_description')),
+            os.environ.get('GZ_SIM_RESOURCE_PATH', ''),
+        ))),
     }
 
     world_path = PathJoinSubstitution([
@@ -28,7 +41,7 @@ def generate_launch_description():
 
     urdf_path = PathJoinSubstitution([
         FindPackageShare('fire_robot_description'), 'urdf',
-        'fire_robot.urdf.xacro',
+        robot_xacro_file,
     ])
 
     robot_description = ParameterValue(
@@ -56,7 +69,12 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument('spawn_x', default_value='-3.0'),
         DeclareLaunchArgument('spawn_y', default_value='0.0'),
+        DeclareLaunchArgument('spawn_z', default_value='0.07'),
         DeclareLaunchArgument('spawn_yaw', default_value='0.0'),
+        DeclareLaunchArgument(
+            'robot_xacro_file', default_value='fire_robot.urdf.xacro'),
+        DeclareLaunchArgument(
+            'front_stop_distance_m', default_value='0.48'),
 
         ExecuteProcess(
             cmd=[
@@ -116,7 +134,7 @@ def generate_launch_description():
                 'max_angular_z': 1.0,
                 'scan_topic': '/scan',
                 'scan_timeout_sec': 0.75,
-                'front_stop_distance_m': 0.48,
+                'front_stop_distance_m': front_stop_distance,
                 'rear_stop_distance_m': 0.0,
                 'rotation_stop_distance_m': 0.0,
                 'drive_stop_half_angle_deg': 35.0,
@@ -133,7 +151,7 @@ def generate_launch_description():
                 '-topic', '/robot_description',
                 '-x', spawn_x,
                 '-y', spawn_y,
-                '-z', '0.07',
+                '-z', spawn_z,
                 '-Y', spawn_yaw,
             ],
             output='screen',

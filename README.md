@@ -4,49 +4,50 @@
 
 목표 동작은 시작 위치 기준으로 관측한 벽, 문, 장애물 구조를 map 좌표에 축적하고, 가장 가까운 파란문을 선택해 장애물을 피해 접근한 뒤 문 개방 FSM을 수행하는 것입니다. 더 이상 열 파란문이 없으면 초록 비상구를 관측 기반으로 선택해 통과합니다.
 
-## 현재 상태 (2026-09-07)
+## 현재 상태 (2026-09-13)
 
 - `colcon build --symlink-install` PASS
 - Python 문법 검사 PASS
-- Gazebo headless strict full validation World 1~5 연속 PASS
-- World 1~5 모두 `MISSION_COMPLETE`, 총 파란문 16/16 물리 door topic 매칭, 잘못된 문 매칭 0건
-- 최신 전체 실행에서 차체 최대 기울기는 roll `0.021°`, pitch `0.732°`로 제한 `20°` 이내
-- 18 logical CPU 중 2 worker를 지속 점유한 no-GUI 부하 조건에서도 World 5 파란문 6/6 및 `MISSION_COMPLETE` PASS
+- Gazebo headless strict full validation World 1~5 연속 PASS (2026-09-07)
+  - 모든 월드 `MISSION_COMPLETE`, 파란문 16/16, rejected door match 0건
+  - World 5 + CPU worker 2개 no-GUI 부하 조건에서도 파란문 6/6 PASS
+- Handle v3 YOLO + 실제 PIPER 형상 단일 문 물리 접촉 검증 PASS (2026-09-13)
+  - 강화된 완전 개방 기준 재검증: `yolo:primary:item` 관측 46회, 선택 손잡이 좌표 `base_link=(0.712, 0.335, 0.752)m`
+  - 레버 최대 회전 `0.287rad (16.4°)`, 문 최대/최종 회전 `2.059rad (118.0°)`
+  - 차체 변위 `1.630m`, 서비스 성공, door hinge 직접 명령 0회
 - 자율주행 성공 기준 코드는 보존됨
   - 보존 브랜치: `codex/navigation-success-before-arm`
   - 보존 태그: `navigation-success-before-arm-20260826`
   - 보존 커밋: `41ec296 feat: finalize observation-based navigation validation`
-- 현재 작업본은 아래 엄격 기준으로 재검증 완료
-  - 목표: semantic map 기반 문 후보 누적, nearest unopened blue target lock, 문앞 정면 정렬, 레버 누름 + push-open, opened/failed station 메모리, 모든 파란문 처리 후 초록 비상구 통과
-  - 엄격 checker 기준: 기대 문 개수 일치, 고유 Gazebo 파란문 topic 일치, rejected match 0건, `MISSION_COMPLETE`
-  - 손잡이 모델 v2는 정상 로드되지만 현재 Gazebo 렌더링에서는 직접 검출 0건으로 HSV/벽면 투영 fallback이 사용됨
+- 현재 작업본은 semantic map 기반 문 후보 누적, nearest unopened blue target lock, 문앞 정면 정렬, 레버 누름 + push-open, opened/failed station 메모리, 모든 파란문 처리 후 초록 비상구 통과 구조입니다.
+- World 1~5 주행 검증과 실제 PIPER 물리 접촉 검증은 각각 완료했지만, 실제 PIPER 접촉 동작을 5개 월드 전체 미션에 결합한 검증은 아직 수행하지 않았습니다.
+
+### 인식 모델
+
 - YOLOv8s Door 1-class 모델 적용
   - 모델: `src/fire_robot_perception/models/best.pt`
   - 학습 성능: mAP50 `0.6088`, mAP50-95 `0.3923`, Precision `0.6184`, Recall `0.5817`
   - 색상 분류는 YOLO가 아니라 HSV 로직에서 `red/blue/green`으로 별도 처리
-- 손잡이 YOLO 연결 경로 추가
-  - 기본 경로: `src/fire_robot_perception/models/handle_best_v2.pt`
-  - 2026-08-29 팀원 전달 `handle_best_v2.pt`를 기본 손잡이 모델로 적용
-  - 모델 클래스: `lever_handle`
-  - 기존 Gazebo 정적 샘플 8장 1차 테스트에서는 detection 0건
-  - Gazebo의 얇은 원통형 손잡이가 학습 데이터의 레버 손잡이와 달라서, 파란 힌지문의 손잡이 형상을 `handle_backplate` + 직사각 레버로 수정
-  - 수정 후 live stress run에서도 아직 `handle_detected=False`가 반복되어, 실제 레버 손잡이 사진 또는 새 Gazebo 정렬 장면으로 추가 fine-tuning 필요
-  - 손잡이 YOLO 모델이 없거나 미검출이면 HSV 손잡이 blob, 이후 문 위치 기반 추정값으로 fallback
+- 손잡이 검출은 주·보조 모델 체인으로 구성
+  - 시뮬레이션 주 모델: `handle_best_v3_CANDIDATE.pt` (Gazebo 평가 99%)
+  - 보조 모델 및 실제 로봇 기본값: `handle_best_v2.pt`
+  - v3는 팀원 분리 평가에서 실제 손잡이 약 41%로 실제 기준 72%를 통과하지 못했으므로 실제 로봇 기본값으로 승격하지 않음
+  - 두 YOLO 모델이 미검출일 때만 HSV 손잡이와 문 기하 추정 fallback 사용
+  - `require_yolo_handle:=true`이면 fallback 성공을 허용하지 않고 YOLO 관측을 필수로 검사
 
-## 문 개방 시뮬레이션 (2026-08-24)
+## 문 개방 시뮬레이션 (2026-09-13)
 
 - 파란문 Gazebo 모델을 visual-only marker에서 `static=false` 힌지 문으로 변경했습니다.
-- 각 파란문은 패널 collision, 손잡이 collision, `hinge` revolute joint, `JointPositionController`를 가집니다.
-- 2026-08-29에는 손잡이를 얇은 원통에서 실제 레버에 가까운 `handle_backplate` + 수평 레버 박스 형상으로 바꿨습니다.
-- `manipulation_node`는 `/open_door` 요청을 받으면 현재 월드 파일의 힌지문 registry를 읽고, 관측된 손잡이 좌표와 가장 가까운 파란문 joint topic에 열림 각도를 보냅니다.
-- Gazebo sim 전용 PIPER joint position controller를 추가해 pre-grasp, grasp, lever-press, push-open, home 단계에서 팔이 움직이는 모습을 확인할 수 있습니다.
+- 전용 접촉 월드는 측면 힌지, 회전 레버, 래치 볼트/스트라이크, 무게 18kg 패널 collision을 포함합니다.
+- `fire_robot_actual_piper.urdf.xacro`는 사용자 제공 PIPER/J100 자료의 메쉬, 관절축, 질량, 관성, 관절 제한을 사용합니다.
+- `physical_contact_manipulation_node`는 YOLO 손잡이 관측을 `base_link`로 변환하고 실제 PIPER 체인의 수치 IK로 pre-grasp, grasp, lever-press를 수행합니다.
+- 래치 해제 뒤 팔을 회수하고 차체가 문 패널을 밀며 힌지 궤적을 따라갑니다. 성공은 경과 시간이 아니라 측정된 레버/문 joint state로 판정합니다.
+- 완전 개방 판정은 문 회전 `2.05rad (117.5°)` 이상을 요구하며, 단순히 문이 조금 열린 상태는 PASS로 처리하지 않습니다.
+- pre-grasp는 위치 제어 잔차 `0.075rad` 이내를 허용합니다. grasp는 자유공간에서 `0.035rad` 이내이거나, 접촉 하중 잔차 `0.11rad` 이내이면서 grasp 시작 뒤 레버가 실제로 회전해야 통과합니다.
+- 팔이 카메라/LiDAR를 가린 재관측값은 이전 관측에서 `0.04m` 넘게 이동하면 폐기하며, grasp 성공은 grasp 시작 뒤 새로 측정된 레버 회전을 요구합니다.
+- 엄격 접촉 모드에서는 `/fire_robot/door/.../cmd`를 발행하지 않습니다. 즉, 검증 중 door hinge를 직접 회전시키지 않습니다.
 - `door_detection_node`는 문 bbox 내부/주변에서 손잡이 YOLO 모델을 먼저 실행하고, 실패하면 노란/금색 손잡이 blob, 이후 기존 문 위치 기반 추정값으로 fallback합니다.
-- `manipulation_node`는 `LOCALIZE_HANDLE -> PRE_GRASP -> GRASP_HANDLE -> PRESS_HANDLE -> PUSH_OPEN -> RETURN_HOME -> COMPLETE` sub-FSM 단계를 `/manipulation_phase`로 발행합니다.
-- 스모크 테스트에서 `/open_door` 호출 후 `door_blue1` pose가 실제로 회전/이동하는 것을 확인했습니다.
-- 팀원 로봇팔 데모 아이디어를 반영해 `manipulation_demo.launch.py`와 `validate_manipulation_demo.sh`를 추가했습니다.
-- 로봇팔 단독 데모는 ROS-Gazebo command bridge로 arm/gripper/door hinge를 움직이고, `/door_joint_states`에서 문 힌지가 목표각까지 열렸을 때만 `/open_door` 성공으로 판정합니다.
-- `manipulation_demo.world`에는 검증용 Gazebo overhead camera가 있고, `scripts/capture_manipulation_visual_proof.sh`로 실제 Gazebo 렌더링 전/후 이미지와 짧은 mp4를 생성합니다.
-- 전체 FSM 시뮬레이션에서는 파란문을 관측 기반으로 모두 열고, 더 이상 파란문이 없을 때 초록 비상구 통과까지 확인했습니다.
+- 전용 검증 스크립트는 외부 카메라 영상, YOLO debug bbox, 단계별 프레임, 레버/문 각도와 JSON 결과를 같은 실행에서 저장합니다.
 
 ## 주요 구조
 
@@ -85,6 +86,19 @@
 
 ## 검증 결과
 
+### Handle v3 + 실제 PIPER 물리 접촉 검증 (2026-09-13)
+
+| 항목 | 결과 |
+| --- | --- |
+| Handle v3 직접 YOLO 관측 | PASS, `yolo:primary:item`, 49회 |
+| 실제 PIPER 메쉬/관절 기반 IK | PASS |
+| 레버 물리 누름 | PASS, 최대 `26.4°` |
+| 차체 접촉 문 밀기 | PASS, 변위 `0.359m` |
+| 문 완전 개방 | PASS, 최종 `128.9°` |
+| door hinge 직접 명령 | 사용 안 함 |
+
+상세 결과와 증거 이미지는 [`docs/VALIDATION_20260913.md`](docs/VALIDATION_20260913.md)에 정리했습니다.
+
 ### 최종 엄격 전체 검증 (2026-09-07)
 
 | 월드 | 조건 | 결과 |
@@ -113,7 +127,8 @@
 - CPU worker 6개 조건은 전체 load average가 logical CPU 수를 넘어 Nav2 action timeout이 누적되어 3/6에서 중단했습니다. 이 한계 기록은 `artifacts/validation/overload_boundary_6workers_20260906`에 보존했습니다.
 - 2026-09-07 추가 2-worker 관찰 실행은 2/6 진행 중 목표 재계획 지연을 확인한 뒤 중단했습니다. 사용자 요청에 따라 이 부하 관찰만을 이유로 주행 정책은 추가 수정하지 않았고 참고 로그로 보존했습니다.
 - 실제 로봇은 Gazebo 물리 엔진을 같이 실행하지 않으므로 이 과부하 조건과 동일하지 않습니다.
-- 손잡이 YOLO 직접 검출은 여전히 확인되지 않았습니다. 문 개방 PASS는 HSV/관측 벽면 투영과 Gazebo hinge command를 포함한 통합 시뮬레이션 결과입니다.
+- 2026-09-07 World 1~5 결과는 자율주행/FSM 기준입니다. 당시 문 개방에는 fallback과 Gazebo 문 연동이 포함됐으므로 실제 PIPER 접촉 증거로 해석하지 않습니다.
+- Handle v3 직접 검출과 실제 PIPER 접촉 문 개방은 2026-09-13 전용 단일 문 시험에서 별도로 확인했습니다.
 
 ## 실행 명령
 
@@ -159,6 +174,20 @@ CPU_WORKERS=2 bash scripts/run_cpu_stress_validation.sh \
   artifacts/validation/cpu_stress_latest
 ```
 
+Handle v3 + 실제 PIPER 형상 물리 접촉 검증:
+
+```bash
+cd ~/fire_robot_ws_test
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+python3 src/fire_robot_bringup/scripts/run_physical_contact_door_test.py \
+  --headless \
+  --use-yolo-observation \
+  --minimum-yolo-confidence 0.20 \
+  --service-timeout-sec 240 \
+  --output-root artifacts/validation/physical_contact_latest
+```
+
 손잡이 YOLO 학습:
 
 ```bash
@@ -199,7 +228,9 @@ ros2 launch fire_robot_bringup simulation.launch.py \
 - 실제 카메라 장착 위치와 camera TF 확인
 - 실제 2D LiDAR 높이/각도 기준 costmap 파라미터 튜닝
 - 연구실 조명 기준 HSV 임계값 튜닝
-- 손잡이 전용 YOLO 모델 학습 후 `models/handle_best_v2.pt` 설치
+- Handle v2/v3를 실제 레버 데이터로 추가 학습하고 분리 validation에서 실제 기준 72% 이상 확보
+- 실제 PIPER에서 레버 누름, 차체 밀기, 비상 정지를 저속 단계별로 확인
+- 실제 PIPER 접촉 동작과 World 1~5 전체 FSM을 결합한 통합 검증
 
 ## 주의
 

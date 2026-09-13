@@ -15,12 +15,15 @@ from sensor_msgs.msg import Image
 
 
 class HandleDebugCapture(Node):
-    def __init__(self, output_dir: Path, timeout_sec: float):
+    def __init__(self, output_dir: Path, timeout_sec: float,
+                 method_contains: str):
         super().__init__('handle_debug_capture')
         self.output_dir = output_dir
         self.timeout_time = time.monotonic() + timeout_sec
+        self.method_contains = method_contains.strip().lower()
         self.done = False
         self.latest_image = None
+        self.pending_result = None
         self.result = {
             'captured': False,
             'reason': 'timeout',
@@ -38,17 +41,22 @@ class HandleDebugCapture(Node):
         if msg.encoding == 'rgb8':
             image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
         self.latest_image = image.copy()
+        if self.pending_result is not None:
+            image_path = self.output_dir / 'blue_handle_debug.png'
+            self.output_dir.mkdir(parents=True, exist_ok=True)
+            image_written = cv2.imwrite(str(image_path), self.latest_image)
+            self.result = dict(self.pending_result)
+            self.result['debug_image'] = str(image_path) if image_written else ''
+            self._finish()
 
     def _door_callback(self, msg: DoorInfo):
         if msg.door_color != 'blue' or not msg.handle_detected:
             return
+        if (self.method_contains
+                and self.method_contains not in msg.handle_detection_method.lower()):
+            return
 
-        image_path = self.output_dir / 'blue_handle_debug.png'
-        image_written = False
-        if self.latest_image is not None:
-            image_written = cv2.imwrite(str(image_path), self.latest_image)
-
-        self.result = {
+        self.pending_result = {
             'captured': True,
             'door_id': msg.door_id,
             'door_color': msg.door_color,
@@ -61,9 +69,8 @@ class HandleDebugCapture(Node):
             'handle_z': float(msg.handle_position.point.z),
             'door_x': float(msg.door_pose.pose.position.x),
             'door_y': float(msg.door_pose.pose.position.y),
-            'debug_image': str(image_path) if image_written else '',
+            'debug_image': '',
         }
-        self._finish()
 
     def _finish(self):
         if self.done:
@@ -81,11 +88,13 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--output-dir', required=True)
     parser.add_argument('--timeout-sec', type=float, default=30.0)
+    parser.add_argument('--method-contains', default='')
     args = parser.parse_args()
 
     output_dir = Path(args.output_dir).expanduser()
     rclpy.init()
-    node = HandleDebugCapture(output_dir, args.timeout_sec)
+    node = HandleDebugCapture(
+        output_dir, args.timeout_sec, args.method_contains)
     while rclpy.ok() and not node.done and time.monotonic() < node.timeout_time:
         rclpy.spin_once(node, timeout_sec=0.1)
     if not node.done:

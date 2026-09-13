@@ -6,8 +6,9 @@ MoveIt2(moveit_py) 기반 PIPER 로봇팔 문 개방 노드.
 동작 시퀀스:
   1. Pre-grasp  : 손잡이 앞 10cm 위치로 팔 이동
   2. Grasp      : 손잡이 위치로 직선 이동 + 그리퍼 닫기
-  3. Push/Pull  : 손잡이를 밀거나 당겨 힌지 문 개방 (기본 Push)
-  4. Home       : 기본 자세 복귀
+  3. Press      : 레버를 아래로 눌러 래치 해제
+  4. Base push  : 팔은 레버 누름 자세를 유지하고 모바일 베이스가 전진
+  5. Release    : 손잡이를 놓고 팔 복귀 후 차체 후진
 
 의존 패키지: moveit_py (MoveIt2 Python bindings)
 실제 하드웨어 연동 시 MoveItPy 초기화 블록의 주석을 해제하세요.
@@ -111,6 +112,7 @@ class ManipulationNode(Node):
         self.declare_parameter('post_open_backoff_detach_first', True)
         self.declare_parameter(
             'sim_handle_detach_topic', '/fire_robot/sim_arm/handle_detach')
+        self.declare_parameter('sim_detach_handle_before_base_push', False)
         self.declare_parameter('control_backend', 'moveit')
         self.declare_parameter('manipulation_frame', 'base_link')
         self.declare_parameter('tf_timeout_sec', 1.0)
@@ -220,7 +222,7 @@ class ManipulationNode(Node):
             self.get_parameter('post_open_backoff_enabled').value)
         self._post_open_backoff_linear_x = min(
             0.0,
-            max(-0.05, float(
+            max(-0.15, float(
                 self.get_parameter('post_open_backoff_linear_x').value)))
         self._post_open_backoff_sec = max(
             0.0, float(self.get_parameter('post_open_backoff_sec').value))
@@ -228,6 +230,8 @@ class ManipulationNode(Node):
             self.get_parameter('post_open_backoff_detach_first').value)
         self._sim_handle_detach_topic = str(
             self.get_parameter('sim_handle_detach_topic').value)
+        self._sim_detach_handle_before_base_push = bool(
+            self.get_parameter('sim_detach_handle_before_base_push').value)
         self._control_backend = str(
             self.get_parameter('control_backend').value).strip().lower()
         self._manipulation_frame = self.get_parameter('manipulation_frame').value
@@ -274,6 +278,7 @@ class ManipulationNode(Node):
         self._sim_ros_float_pubs: dict[str, object] = {}
         self._sim_door_position: float | None = None
         self._sim_door_initial_position: float | None = None
+        self._sim_push_hold_targets: dict[str, float] | None = None
         if self._sim_mode and self._sim_verify_door_feedback:
             self.create_subscription(
                 JointState,
@@ -357,6 +362,7 @@ class ManipulationNode(Node):
         self._last_sim_open_was_idempotent = False
         self._last_sim_open_topic = ''
         self._last_sim_open_xy = None
+        self._sim_push_hold_targets = None
 
         if self._require_detected_handle and not handle_detected:
             response.success = False
@@ -448,10 +454,43 @@ class ManipulationNode(Node):
                 self._set_manip_phase('FAILED_PRESS_HANDLE', door_id)
                 return False
 
-        open_phase = (
-            'PULL_OPEN'
-            if self._door_open_motion == 'pull'
-            else 'PUSH_OPEN')
+            if self._sim_mode and self._sim_detach_handle_before_base_push:
+                if (
+                        self._sim_door_contact_only
+                        and self._sim_push_follow_enabled):
+                    self._set_manip_phase('LATCH_CLEAR_PUSH', door_id)
+                    self.get_logger().info(
+                        'Keeping the lever pressed while the chassis pushes '
+                        'the panel clear of the latch')
+                    if not self._run_sim_latch_clear_push():
+                        self.get_logger().error('Latch-clear push failed')
+                        self._set_manip_phase(
+                            'FAILED_LATCH_CLEAR_PUSH', door_id)
+                        return False
+                self._set_manip_phase('LATCH_RELEASED', door_id)
+                self.get_logger().info(
+                    'Lever press complete; releasing the temporary sim grasp '
+                    'constraint before the chassis push')
+                self._publish_ign_empty(self._sim_handle_detach_topic)
+                self._command_sim_gripper(GRIPPER_OPEN)
+                time.sleep(0.25)
+                self._set_manip_phase('ARM_CLEAR_FOR_BASE_PUSH', door_id)
+                self.get_logger().info(
+                    'Retracting the arm clear of the panel; the chassis will '
+                    'provide all remaining opening force')
+                self._command_sim_arm_pose('home', None)
+                self._sim_push_hold_targets = None
+                time.sleep(max(0.6, self._sim_step_sec))
+
+        if self._door_open_motion == 'pull':
+            open_phase = 'PULL_OPEN'
+        elif (
+                self._sim_mode
+                and self._sim_door_contact_only
+                and self._sim_push_follow_enabled):
+            open_phase = 'BASE_PUSH_OPEN'
+        else:
+            open_phase = 'PUSH_OPEN'
         self._set_manip_phase(open_phase, door_id)
         self.get_logger().info(
             f"Step {'4/5' if do_lever_press else '3/4'}: "
@@ -462,6 +501,13 @@ class ManipulationNode(Node):
                 f'{self._door_open_motion.title()} failed')
             self._set_manip_phase(f'FAILED_{open_phase}', door_id)
             return False
+
+        if self._sim_mode and self._post_open_backoff_detach_first:
+            self._set_manip_phase('RELEASE_HANDLE', door_id)
+            self.get_logger().info(
+                'Releasing the lever before arm recovery and base backoff')
+            self._command_sim_gripper(GRIPPER_OPEN)
+            self._publish_ign_empty(self._sim_handle_detach_topic)
 
         self._set_manip_phase('RETURN_HOME', door_id)
         self.get_logger().info(
@@ -611,6 +657,8 @@ class ManipulationNode(Node):
             self.get_logger().info(
                 f'  [SIM] Pressing lever down '
                 f'{self._lever_press_distance:.3f}m before push')
+            self._sim_push_hold_targets = self._sim_arm_targets_for_stage(
+                'press', pressed)
             self._command_sim_arm_pose('press', pressed)
             time.sleep(self._sim_step_sec)
             return True
@@ -672,13 +720,17 @@ class ManipulationNode(Node):
         """손잡이를 잡은 상태에서 문을 로봇 전방으로 밀어 연다."""
         if self._sim_mode:
             self.get_logger().info(
-                f'  [SIM] Pushing handle and opening hinged Gazebo door '
+                f'  [SIM] Holding the pressed handle while the base opens '
+                f'the hinged Gazebo door '
                 f'{self._sim_door_open_angle:.2f}rad')
             if (
                     self._sim_door_contact_only
                     and self._sim_door_initial_position is None):
                 self._sim_door_initial_position = self._sim_door_position
-            self._command_sim_arm_pose('push', handle_pos)
+            if not (
+                    self._sim_door_contact_only
+                    and self._sim_push_follow_enabled):
+                self._command_sim_arm_pose('push', handle_pos)
             door_match_handle = door_frame_handle_pos or handle_pos
             if not self._open_sim_gazebo_door(door_match_handle, door_id):
                 return False
@@ -1157,68 +1209,41 @@ class ManipulationNode(Node):
             initial = 0.0
 
         self.get_logger().info(
-            '  [SIM] Running coordinated arm/base push-follow during '
-            'contact-only verification.')
+            '  [SIM] Holding the pressed lever pose while the mobile base '
+            'pushes the door open.')
         deadline = time.monotonic() + self._sim_feedback_timeout
         best_delta = 0.0
+        hold_targets = self._sim_push_hold_targets
+        if hold_targets is None and not self._sim_detach_handle_before_base_push:
+            hold_targets = {
+                'joint1': 0.50,
+                'joint2': 0.73,
+                'joint3': 0.05,
+                'joint4': 0.0,
+                'joint5': 0.12,
+                'joint6': 0.0,
+            }
+        # The first short straight segment puts the chassis against the panel.
+        # The following arc lets the differential base continue through the
+        # doorway. The arm target is intentionally identical in every stage:
+        # the arm releases the latch, while chassis motion supplies the push.
         stages = [
-            (
-                {'joint1': 0.45, 'joint2': 1.20, 'joint3': -0.16,
-                 'joint4': 0.0, 'joint5': -0.06, 'joint6': 0.0},
-                self._sim_push_follow_linear_x,
-                self._sim_push_follow_angular_z,
-            ),
-            (
-                {'joint1': 0.62, 'joint2': 1.20, 'joint3': -0.18,
-                 'joint4': 0.0, 'joint5': -0.08, 'joint6': 0.0},
-                self._sim_push_follow_linear_x,
-                self._sim_push_follow_angular_z * 1.05,
-            ),
-            (
-                {'joint1': 0.82, 'joint2': 1.16, 'joint3': -0.16,
-                 'joint4': 0.0, 'joint5': -0.08, 'joint6': 0.0},
-                self._sim_push_follow_linear_x * 0.95,
-                self._sim_push_follow_angular_z * 1.10,
-            ),
-            (
-                {'joint1': 1.02, 'joint2': 1.08, 'joint3': -0.08,
-                 'joint4': 0.0, 'joint5': -0.06, 'joint6': 0.0},
-                self._sim_push_follow_linear_x * 0.85,
-                self._sim_push_follow_angular_z * 1.15,
-            ),
-            (
-                {'joint1': 1.18, 'joint2': 0.98, 'joint3': -0.02,
-                 'joint4': 0.0, 'joint5': -0.04, 'joint6': 0.0},
-                self._sim_push_follow_linear_x * 0.70,
-                self._sim_push_follow_angular_z * 1.20,
-            ),
-            (
-                {'joint1': 1.34, 'joint2': 0.88, 'joint3': 0.04,
-                 'joint4': 0.0, 'joint5': -0.02, 'joint6': 0.0},
-                self._sim_push_follow_linear_x * 0.62,
-                self._sim_push_follow_angular_z * 1.35,
-            ),
-            (
-                {'joint1': 1.46, 'joint2': 0.78, 'joint3': 0.10,
-                 'joint4': 0.0, 'joint5': 0.00, 'joint6': 0.0},
-                self._sim_push_follow_linear_x * 0.52,
-                self._sim_push_follow_angular_z * 1.55,
-            ),
-            (
-                {'joint1': 1.55, 'joint2': 0.70, 'joint3': 0.15,
-                 'joint4': 0.0, 'joint5': 0.02, 'joint6': 0.0},
-                self._sim_push_follow_linear_x * 0.42,
-                self._sim_push_follow_angular_z * 1.70,
-            ),
+            (self._sim_push_follow_linear_x * 0.70, 0.0, 1.0),
+            (self._sim_push_follow_linear_x,
+             self._sim_push_follow_angular_z * 0.75, 2.0),
+            (self._sim_push_follow_linear_x * 0.90,
+             self._sim_push_follow_angular_z * 1.35, 4.0),
         ]
 
         try:
-            for arm_targets, linear_x, angular_z in stages:
+            for linear_x, angular_z, duration_scale in stages:
                 stage_end = min(
                     deadline,
-                    time.monotonic() + self._sim_push_follow_stage_sec)
+                    time.monotonic()
+                    + self._sim_push_follow_stage_sec * duration_scale)
                 while time.monotonic() < stage_end:
-                    self._publish_sim_arm_targets(arm_targets)
+                    if hold_targets is not None:
+                        self._publish_sim_arm_targets(hold_targets)
                     self._publish_sim_cmd_vel(linear_x, angular_z)
                     position = self._sim_door_position
                     if position is not None:
@@ -1233,6 +1258,11 @@ class ManipulationNode(Node):
                     time.sleep(0.05)
 
             while time.monotonic() < deadline:
+                if hold_targets is not None:
+                    self._publish_sim_arm_targets(hold_targets)
+                self._publish_sim_cmd_vel(
+                    self._sim_push_follow_linear_x * 0.75,
+                    self._sim_push_follow_angular_z * 1.35)
                 position = self._sim_door_position
                 if position is not None:
                     best_delta = max(best_delta, abs(position - initial))
@@ -1251,6 +1281,51 @@ class ManipulationNode(Node):
             '  [SIM] Contact-follow door motion did not reach threshold; '
             f'initial={initial:.3f}, last={self._sim_door_position}, '
             f'best_delta={best_delta:.3f}, required={min_delta:.3f} rad')
+        return False
+
+    def _run_sim_latch_clear_push(self) -> bool:
+        """Open the door slightly while the arm still depresses the lever."""
+        initial = self._sim_door_initial_position
+        if initial is None:
+            initial = self._sim_door_position
+        if initial is None:
+            initial = 0.0
+
+        required_delta = min(
+            0.25, max(0.15, self._sim_door_contact_min_angle * 0.10))
+        deadline = time.monotonic() + max(
+            8.0, self._sim_push_follow_stage_sec * 6.0)
+        best_delta = 0.0
+        hold_targets = self._sim_push_hold_targets
+
+        try:
+            while time.monotonic() < deadline:
+                position = self._sim_door_position
+                if position is not None:
+                    best_delta = max(best_delta, abs(position - initial))
+                    if best_delta >= required_delta:
+                        self.get_logger().info(
+                            '  [SIM] Latch clearance verified from physical '
+                            f'door motion: delta={best_delta:.3f}rad')
+                        return True
+
+                if hold_targets is not None:
+                    self._publish_sim_arm_targets(hold_targets)
+                if best_delta < 0.03:
+                    linear_x = min(0.08, self._sim_push_follow_linear_x)
+                    angular_z = 0.0
+                else:
+                    linear_x = min(0.08, self._sim_push_follow_linear_x)
+                    angular_z = self._sim_push_follow_angular_z * 0.75
+                self._publish_sim_cmd_vel(linear_x, angular_z)
+                time.sleep(0.05)
+        finally:
+            self._publish_sim_cmd_vel(0.0, 0.0)
+
+        self.get_logger().error(
+            '  [SIM] Latch-clear motion did not reach threshold; '
+            f'initial={initial:.3f}, last={self._sim_door_position}, '
+            f'best_delta={best_delta:.3f}, required={required_delta:.3f}rad')
         return False
 
     def _command_sim_arm_pose(self, stage: str,
@@ -1321,60 +1396,61 @@ class ManipulationNode(Node):
         px = float(handle_pos.point.x)
         py = float(handle_pos.point.y)
         pz = float(handle_pos.point.z)
-        # If TF was unavailable during a standalone service smoke test, map
-        # coordinates can leak into this visual-only arm controller. Clamp them
-        # to a plausible relative reach so the sim arm still moves sensibly.
-        px = self._clamp(px, 0.18, 0.75)
-        py = self._clamp(py, -0.65, 0.65)
-        pz = self._clamp(pz, 0.55, 1.15)
-
-        yaw = self._clamp(math.atan2(py, max(0.12, px)), -1.35, 1.35)
-        radial = math.hypot(px, py)
-        extension = self._clamp((radial - 0.22) / 0.42, 0.0, 1.0)
-        height = self._clamp((pz - 0.82) / 0.35, -1.0, 1.0)
-
-        stage_extension = {
-            'pre_grasp': max(0.0, extension - 0.20),
-            'grasp': extension,
-            'press': extension,
-            'pull': max(0.0, extension - 0.45),
-            'push': min(1.0, extension + 0.55),
-        }.get(stage)
-        if stage_extension is None:
+        if stage == 'pre_grasp':
+            px -= PRE_GRASP_OFFSET
+        elif stage == 'pull':
+            px -= PULL_DISTANCE
+        elif stage == 'push':
+            px += PULL_DISTANCE
+        elif stage not in ('grasp', 'press'):
             return None
 
-        # Lightweight FK-calibrated targets for the simplified PIPER xacro.
-        # Positive joint2 extends the actual collision geometry forward; the
-        # previous visual-only sign looked plausible but left the gripper above
-        # the base, which cannot validate contact dynamics.
-        joint2 = self._clamp(
-            0.25 + 0.66 * stage_extension - 0.08 * height,
-            0.20, 1.15)
-        joint3 = self._clamp(
-            0.26 - 0.42 * stage_extension + 0.08 * height,
-            -0.30, 0.45)
-        joint5 = self._clamp(
-            0.02 - 0.08 * height,
-            -0.25, 0.25)
+        return self._sim_arm_ik_targets(px, py, pz)
 
-        if stage == 'push':
-            yaw = self._clamp(yaw * 1.08, -1.45, 1.45)
-            joint2 = self._clamp(joint2 + 0.25, 0.20, 1.20)
-            joint5 = self._clamp(joint5 - 0.04, -0.25, 0.25)
-        elif stage == 'press':
-            joint2 = self._clamp(joint2 + 0.05, 0.20, 1.20)
-            joint3 = self._clamp(joint3 + 0.06, -0.30, 0.45)
-            joint5 = self._clamp(joint5 + 0.10, -0.25, 0.25)
-        elif stage == 'pull':
-            joint2 = self._clamp(joint2 - 0.05, 0.20, 1.15)
-            joint3 = self._clamp(joint3 + 0.05, -0.30, 0.45)
+    def _sim_arm_ik_targets(
+            self, px: float, py: float, pz: float) -> dict[str, float]:
+        """Two-link IK matched to the simplified PIPER collision chain."""
+        px = self._clamp(px, 0.18, 0.72)
+        py = self._clamp(py, -0.62, 0.62)
+        pz = self._clamp(pz, 0.48, 1.02)
+
+        shoulder_x = 0.05
+        shoulder_z = 0.182
+        upper = 0.25
+        forearm_tool = 0.48
+        finger_center_offset = 0.03
+
+        dx = px - shoulder_x
+        radial = max(0.02, math.hypot(dx, py))
+        dz = pz - finger_center_offset - shoulder_z
+        distance = math.hypot(radial, dz)
+        min_reach = abs(forearm_tool - upper) + 1e-3
+        max_reach = upper + forearm_tool - 1e-3
+        if distance < min_reach or distance > max_reach:
+            scale = self._clamp(distance, min_reach, max_reach) / max(
+                1e-6, distance)
+            radial *= scale
+            dz *= scale
+
+        cos_elbow = self._clamp(
+            (radial * radial + dz * dz - upper * upper
+             - forearm_tool * forearm_tool)
+            / (2.0 * upper * forearm_tool),
+            -1.0, 1.0)
+        joint3 = -math.acos(cos_elbow)
+        joint2 = (
+            math.atan2(radial, dz)
+            - math.atan2(
+                forearm_tool * math.sin(joint3),
+                upper + forearm_tool * math.cos(joint3)))
+        yaw = math.atan2(py, dx)
 
         return {
-            'joint1': yaw,
-            'joint2': joint2,
-            'joint3': joint3,
+            'joint1': self._clamp(yaw, -1.45, 1.45),
+            'joint2': self._clamp(joint2, -1.95, 1.95),
+            'joint3': self._clamp(joint3, -2.20, 2.20),
             'joint4': 0.0,
-            'joint5': joint5,
+            'joint5': 0.0,
             'joint6': 0.0,
         }
 

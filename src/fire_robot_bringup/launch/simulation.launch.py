@@ -35,6 +35,10 @@ def generate_launch_description():
         FindPackageShare('fire_robot_perception'), 'models', 'best.pt',
     ]))
     handle_model_path = LaunchConfiguration('handle_model_path', default=PathJoinSubstitution([
+        FindPackageShare('fire_robot_perception'), 'models', 'handle_best_v3_CANDIDATE.pt',
+    ]))
+    handle_fallback_model_path = LaunchConfiguration(
+        'handle_fallback_model_path', default=PathJoinSubstitution([
         FindPackageShare('fire_robot_perception'), 'models', 'handle_best_v2.pt',
     ]))
     publish_debug_image = LaunchConfiguration('publish_debug_image', default='false')
@@ -402,6 +406,7 @@ def generate_launch_description():
                     'use_sim_time': use_sim_time,
                     'model_path': door_model_path,
                     'handle_model_path': handle_model_path,
+                    'handle_fallback_model_path': handle_fallback_model_path,
                     'confidence_threshold': 0.20,
                     'yolo_min_interval_sec': 2.40,
                     'yolo_imgsz': 320,
@@ -877,9 +882,16 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'handle_model_path',
             default_value=PathJoinSubstitution([
+                FindPackageShare('fire_robot_perception'), 'models', 'handle_best_v3_CANDIDATE.pt',
+            ]),
+            description='Primary YOLO door-handle detector weight path.',
+        ),
+        DeclareLaunchArgument(
+            'handle_fallback_model_path',
+            default_value=PathJoinSubstitution([
                 FindPackageShare('fire_robot_perception'), 'models', 'handle_best_v2.pt',
             ]),
-            description='YOLO door-handle detector weight path. If absent, HSV handle fallback is used.',
+            description='Secondary handle model used when the primary has no valid ROI detection.',
         ),
         DeclareLaunchArgument(
             'publish_debug_image',

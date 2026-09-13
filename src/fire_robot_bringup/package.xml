@@ -19,6 +19,20 @@
   <exec_depend>xacro</exec_depend>
   <exec_depend>moveit_ros_move_group</exec_depend>
 
+  <!-- Validation runners and proof-image generation. -->
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>fire_robot_interfaces</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>tf2_geometry_msgs</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>python3-matplotlib</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-opencv</exec_depend>
+  <exec_depend>python3-pil</exec_depend>
+
   <buildtool_depend>ament_python</buildtool_depend>
 
   <export>

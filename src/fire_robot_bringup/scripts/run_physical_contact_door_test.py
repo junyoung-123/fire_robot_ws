@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import signal
+import shutil
 import subprocess
 import sys
 import time
@@ -24,11 +26,18 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
+import cv2
 import rclpy
+import tf2_geometry_msgs
+import tf2_ros
+from fire_robot_interfaces.msg import DoorInfo
 from fire_robot_interfaces.srv import OpenDoor
 from geometry_msgs.msg import PointStamped, Twist
+from nav_msgs.msg import Odometry
 from PIL import Image as PilImage
+from rclpy.duration import Duration
 from rclpy.node import Node
+from rclpy.time import Time
 from sensor_msgs.msg import Image, JointState
 from std_msgs.msg import Float64, String
 
@@ -37,8 +46,19 @@ from std_msgs.msg import Float64, String
 class ContactRecord:
     start_wall_time: float = field(default_factory=time.monotonic)
     door_samples: list[tuple[float, float]] = field(default_factory=list)
+    lever_samples: list[tuple[float, float]] = field(default_factory=list)
+    base_samples: list[tuple[float, float, float]] = field(default_factory=list)
     phases: list[tuple[float, str]] = field(default_factory=list)
     latest_image: Image | None = None
+    latest_overhead_image: Image | None = None
+    latest_detection_image: Image | None = None
+    yolo_detection_image: Image | None = None
+    capture_next_yolo_debug: bool = False
+    latest_yolo_door: DoorInfo | None = None
+    latest_yolo_handle_odom: PointStamped | None = None
+    latest_odom: Odometry | None = None
+    yolo_observations: list[dict[str, object]] = field(default_factory=list)
+    latest_phase: str = "WAITING"
     saved_images: list[str] = field(default_factory=list)
 
 
@@ -46,12 +66,21 @@ class ContactProbe(Node):
     def __init__(self, record: ContactRecord):
         super().__init__("physical_contact_probe")
         self.record = record
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
         self.create_subscription(
             JointState, "/door_joint_states", self._door_cb, 20)
         self.create_subscription(
             String, "/manipulation_phase", self._phase_cb, 20)
         self.create_subscription(
-            Image, "/proof/overhead/image", self._image_cb, 5)
+            Image, "/proof/perspective/image", self._image_cb, 10)
+        self.create_subscription(
+            Image, "/proof/overhead/image", self._overhead_image_cb, 5)
+        self.create_subscription(
+            Image, "/door_detection/debug", self._detection_image_cb, 10)
+        self.create_subscription(
+            DoorInfo, "/detected_door", self._detected_door_cb, 20)
+        self.create_subscription(Odometry, "/odom", self._odom_cb, 20)
         self.client = self.create_client(OpenDoor, "/open_door")
         self.arm_publishers = {
             f"joint{i}": self.create_publisher(
@@ -63,50 +92,252 @@ class ContactProbe(Node):
         self.arm_publishers["gripper_right_joint"] = self.create_publisher(
             Float64, "/fire_robot/sim_arm/gripper_right_joint_cmd", 10)
         self.cmd_vel_pub = self.create_publisher(Twist, "/cmd_vel", 10)
+        self.manual_cmd_vel_pub = self.create_publisher(
+            Twist, "/cmd_vel_manual", 10)
+        self._video_path: Path | None = None
+        self._video_writer = None
+        self._video_fps = 10.0
+        self._last_video_frame_at = 0.0
+        self._keyframe_dir: Path | None = None
+        self._last_keyframe_phase = ""
 
     def _stamp(self) -> float:
         return time.monotonic() - self.record.start_wall_time
 
     def _door_cb(self, msg: JointState):
-        try:
-            index = msg.name.index("door_hinge")
-        except ValueError:
-            return
-        try:
-            angle = float(msg.position[index])
-        except (IndexError, ValueError):
-            return
-        self.record.door_samples.append((self._stamp(), angle))
+        for name, values in (
+                ("door_hinge", self.record.door_samples),
+                ("lever_joint", self.record.lever_samples)):
+            try:
+                index = msg.name.index(name)
+                angle = float(msg.position[index])
+            except (ValueError, IndexError):
+                continue
+            values.append((self._stamp(), angle))
 
     def _phase_cb(self, msg: String):
         self.record.phases.append((self._stamp(), msg.data))
+        self.record.latest_phase = msg.data.split(":", 1)[0]
 
     def _image_cb(self, msg: Image):
         self.record.latest_image = msg
+        self._record_video_frame(msg)
+
+    def _overhead_image_cb(self, msg: Image):
+        self.record.latest_overhead_image = msg
+
+    def _detection_image_cb(self, msg: Image):
+        self.record.latest_detection_image = msg
+        if self.record.capture_next_yolo_debug:
+            self.record.yolo_detection_image = msg
+            self.record.capture_next_yolo_debug = False
+
+    def _detected_door_cb(self, msg: DoorInfo):
+        method = str(msg.handle_detection_method or '')
+        if (
+                msg.door_color != 'blue'
+                or not msg.handle_detected
+                or not method.startswith('yolo:primary')):
+            return
+        self.record.latest_yolo_door = msg
+        self.record.capture_next_yolo_debug = True
+        fixed_handle = _door_handle_in_odom(msg, self.tf_buffer)
+        if fixed_handle is not None:
+            self.record.latest_yolo_handle_odom = fixed_handle
+        point = msg.handle_position.point
+        observation = {
+            'time_sec': self._stamp(),
+            'door_id': str(msg.door_id),
+            'method': method,
+            'confidence': float(msg.handle_confidence),
+            'frame_id': str(msg.handle_position.header.frame_id),
+            'xyz': [float(point.x), float(point.y), float(point.z)],
+        }
+        if fixed_handle is not None:
+            fixed = fixed_handle.point
+            observation['odom_xyz'] = [
+                float(fixed.x), float(fixed.y), float(fixed.z)]
+        self.record.yolo_observations.append(observation)
+
+    def _odom_cb(self, msg: Odometry):
+        self.record.latest_odom = msg
+        self.record.base_samples.append((
+            self._stamp(),
+            float(msg.pose.pose.position.x),
+            float(msg.pose.pose.position.y)))
+
+    def start_recording(self, path: Path, fps: float, keyframe_dir: Path):
+        self._video_path = path
+        self._video_fps = max(1.0, float(fps))
+        self._keyframe_dir = keyframe_dir
+        self._keyframe_dir.mkdir(parents=True, exist_ok=True)
+
+    def stop_recording(self):
+        if self._video_writer is not None:
+            self._video_writer.release()
+            self._video_writer = None
+
+    def _record_video_frame(self, msg: Image):
+        if self._video_path is None:
+            return
+        now = time.monotonic()
+        if now - self._last_video_frame_at < 1.0 / self._video_fps:
+            return
+        rgb = _ros_image_to_rgb(msg)
+        if rgb is None:
+            return
+        proof_frame = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+        frame = self._compose_video_frame(proof_frame)
+        if self._video_writer is None:
+            height, width = frame.shape[:2]
+            self._video_writer = cv2.VideoWriter(
+                str(self._video_path),
+                cv2.VideoWriter_fourcc(*"mp4v"),
+                self._video_fps,
+                (width, height))
+            if not self._video_writer.isOpened():
+                raise RuntimeError(
+                    f"Failed to open video writer: {self._video_path}")
+        self._video_writer.write(frame)
+        self._last_video_frame_at = now
+
+        phase = self.record.latest_phase
+        if self._keyframe_dir is not None and phase != self._last_keyframe_phase:
+            cv2.imwrite(str(self._keyframe_dir / f"{phase.lower()}.png"), frame)
+            self._last_keyframe_phase = phase
+
+    def _compose_video_frame(self, proof_frame: np.ndarray) -> np.ndarray:
+        panel_width = 640
+        panel_height = 360
+        frame = np.full((500, panel_width * 2, 3), 242, dtype=np.uint8)
+        left = cv2.resize(proof_frame, (panel_width, panel_height))
+        debug_msg = (
+            self.record.yolo_detection_image
+            or self.record.latest_detection_image)
+        debug_rgb = _ros_image_to_rgb(debug_msg)
+        if debug_rgb is None:
+            right = np.full_like(left, 225)
+            cv2.putText(
+                right, 'Waiting for /door_detection/debug', (80, 185),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.72, (45, 45, 45), 2,
+                cv2.LINE_AA)
+        else:
+            right = cv2.resize(
+                cv2.cvtColor(debug_rgb, cv2.COLOR_RGB2BGR),
+                (panel_width, panel_height))
+        frame[92:92 + panel_height, :panel_width] = left
+        frame[92:92 + panel_height, panel_width:] = right
+
+        door_angle = (
+            self.record.door_samples[-1][1]
+            if self.record.door_samples else 0.0)
+        lever_angle = (
+            self.record.lever_samples[-1][1]
+            if self.record.lever_samples else 0.0)
+        base_distance = 0.0
+        if len(self.record.base_samples) >= 2:
+            _, x0, y0 = self.record.base_samples[0]
+            _, x1, y1 = self.record.base_samples[-1]
+            base_distance = math.hypot(x1 - x0, y1 - y0)
+
+        cv2.rectangle(frame, (0, 0), (frame.shape[1], 92), (12, 18, 30), -1)
+        cv2.putText(
+            frame,
+            f"Phase: {self.record.latest_phase}",
+            (22, 34), cv2.FONT_HERSHEY_SIMPLEX, 0.86,
+            (255, 255, 255), 2, cv2.LINE_AA)
+        cv2.putText(
+            frame,
+            f"lever={math.degrees(lever_angle):.1f} deg | "
+            f"door={math.degrees(door_angle):.1f} deg | "
+            f"base displacement={base_distance:.2f} m",
+            (22, 72), cv2.FONT_HERSHEY_SIMPLEX, 0.72,
+            (120, 220, 255), 2, cv2.LINE_AA)
+        cv2.rectangle(frame, (0, 452), (frame.shape[1], 500), (12, 18, 30), -1)
+        cv2.putText(
+            frame, 'EXTERNAL PROOF CAMERA', (18, 444),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.62, (25, 25, 25), 2,
+            cv2.LINE_AA)
+        cv2.putText(
+            frame, 'YOLO DETECTION SNAPSHOT (SAME RUN)',
+            (panel_width + 18, 444),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.62, (25, 25, 25), 2,
+            cv2.LINE_AA)
+        handle_text = 'YOLO: waiting for primary detection'
+        if self.record.latest_yolo_door is not None:
+            door = self.record.latest_yolo_door
+            point = door.handle_position.point
+            handle_text = (
+                f"YOLO: {door.handle_detection_method} "
+                f"conf={door.handle_confidence:.2f} | "
+                f"handle[{door.handle_position.header.frame_id}]="
+                f"({point.x:.2f},{point.y:.2f},{point.z:.2f})")
+        cv2.putText(
+            frame,
+            handle_text,
+            (22, 482), cv2.FONT_HERSHEY_SIMPLEX, 0.57,
+            (255, 255, 255), 2, cv2.LINE_AA)
+        return frame
+
+
+def _ros_image_to_rgb(msg: Image | None) -> np.ndarray | None:
+    if msg is None:
+        return None
+    encoding = (msg.encoding or "").lower()
+    channels = 3
+    if encoding in ("rgba8", "bgra8"):
+        channels = 4
+    elif encoding in ("mono8", "8uc1"):
+        channels = 1
+    data = np.frombuffer(msg.data, dtype=np.uint8)
+    try:
+        if channels == 1:
+            image = data.reshape((msg.height, msg.width))
+            return cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+        image = data.reshape((msg.height, msg.width, channels))
+    except ValueError:
+        return None
+    if encoding == "bgr8":
+        image = image[..., ::-1]
+    elif encoding == "bgra8":
+        image = image[..., [2, 1, 0, 3]]
+    if channels == 4:
+        image = image[..., :3]
+    return np.ascontiguousarray(image)
 
 
 def _save_ros_image(msg: Image | None, path: Path) -> bool:
-    if msg is None:
+    image = _ros_image_to_rgb(msg)
+    if image is None:
         return False
-    encoding = (msg.encoding or "").lower()
-    channels = 3
-    mode = "RGB"
-    if encoding in ("rgba8", "bgra8"):
-        channels = 4
-        mode = "RGBA"
-    elif encoding in ("mono8", "8uc1"):
-        channels = 1
-        mode = "L"
-
-    data = np.frombuffer(msg.data, dtype=np.uint8)
-    if channels == 1:
-        image = data.reshape((msg.height, msg.width))
-    else:
-        image = data.reshape((msg.height, msg.width, channels))
-    if encoding in ("bgr8", "bgra8"):
-        image = image[..., [2, 1, 0] + ([3] if channels == 4 else [])]
-    PilImage.fromarray(image, mode=mode).save(path)
+    PilImage.fromarray(image, mode="RGB").save(path)
     return True
+
+
+def _door_handle_in_odom(
+        door: DoorInfo, tf_buffer: tf2_ros.Buffer) -> PointStamped | None:
+    source_frame = str(door.handle_position.header.frame_id or '')
+    source = door.handle_position.point
+    if source_frame == 'odom':
+        fixed = PointStamped()
+        fixed.header = door.handle_position.header
+        fixed.point.x = float(source.x)
+        fixed.point.y = float(source.y)
+        fixed.point.z = float(source.z)
+        return fixed
+    if not source_frame:
+        return None
+    observed = PointStamped()
+    observed.header = door.handle_position.header
+    # The observation is retained while the base approaches the door. Use the
+    # complete TF (including the base_link height), not a planar x/y shortcut.
+    observed.header.stamp = Time().to_msg()
+    observed.point = source
+    try:
+        return tf_buffer.transform(
+            observed, 'odom', timeout=Duration(seconds=0.10))
+    except Exception:
+        return None
 
 
 def _plot_angles(record: ContactRecord, out_path: Path, min_angle_rad: float):
@@ -177,17 +408,45 @@ def _run_full_open_sweep(node: ContactProbe):
 
 
 def _publish_cmd_vel(node: ContactProbe, linear_x: float, angular_z: float,
-                     seconds: float):
+                     seconds: float, manual: bool = False):
+    publisher = (
+        node.manual_cmd_vel_pub if manual else node.cmd_vel_pub)
     deadline = time.monotonic() + seconds
     while time.monotonic() < deadline:
         msg = Twist()
         msg.linear.x = float(linear_x)
         msg.angular.z = float(angular_z)
-        node.cmd_vel_pub.publish(msg)
+        publisher.publish(msg)
         rclpy.spin_once(node, timeout_sec=0.05)
     msg = Twist()
-    node.cmd_vel_pub.publish(msg)
+    publisher.publish(msg)
     rclpy.spin_once(node, timeout_sec=0.1)
+
+
+def _publish_manual_cmd_vel_for_distance(
+        node: ContactProbe, distance_m: float,
+        linear_x: float, timeout_sec: float) -> float:
+    if distance_m <= 0.0 or node.record.latest_odom is None:
+        return 0.0
+    start = node.record.latest_odom.pose.pose.position
+    start_x = float(start.x)
+    start_y = float(start.y)
+    deadline = time.monotonic() + max(1.0, float(timeout_sec))
+    travelled = 0.0
+    while time.monotonic() < deadline and travelled < distance_m:
+        msg = Twist()
+        msg.linear.x = float(linear_x)
+        node.manual_cmd_vel_pub.publish(msg)
+        rclpy.spin_once(node, timeout_sec=0.05)
+        if node.record.latest_odom is not None:
+            current = node.record.latest_odom.pose.pose.position
+            travelled = math.hypot(
+                float(current.x) - start_x,
+                float(current.y) - start_y)
+    stop = Twist()
+    node.manual_cmd_vel_pub.publish(stop)
+    rclpy.spin_once(node, timeout_sec=0.2)
+    return float(travelled)
 
 
 def _run_mobile_full_open_follow(node: ContactProbe):
@@ -231,22 +490,95 @@ def _wait_for_ready(node: ContactProbe, timeout_sec: float) -> bool:
     return False
 
 
+def _wait_for_yolo_observation(
+        node: ContactProbe, timeout_sec: float,
+        minimum_observations: int,
+        minimum_confidence: float,
+        search_approach_m: float,
+        search_speed_mps: float) -> tuple[DoorInfo, PointStamped] | None:
+    deadline = time.monotonic() + timeout_sec
+    required = max(1, int(minimum_observations))
+    start_xy: tuple[float, float] | None = None
+    valid: list[dict[str, object]] = []
+    seen_count = 0
+    try:
+        while time.monotonic() < deadline:
+            rclpy.spin_once(node, timeout_sec=0.1)
+            odom = node.record.latest_odom
+            if odom is not None and start_xy is None:
+                position = odom.pose.pose.position
+                start_xy = (float(position.x), float(position.y))
+
+            observations = node.record.yolo_observations
+            for observation in observations[seen_count:]:
+                seen_count += 1
+                xyz = observation.get('xyz', [])
+                confidence = float(observation.get('confidence', 0.0))
+                if len(xyz) != 3 or confidence < minimum_confidence:
+                    continue
+                x, y, z = (float(value) for value in xyz)
+                if not (0.30 <= x <= 1.20 and abs(y) <= 0.60
+                        and 0.45 <= z <= 1.05):
+                    continue
+                valid.append(observation)
+                valid = valid[-required:]
+
+            if len(valid) >= required:
+                xs = [float(item['xyz'][0]) for item in valid]
+                ys = [float(item['xyz'][1]) for item in valid]
+                zs = [float(item['xyz'][2]) for item in valid]
+                stable = (
+                    max(xs) - min(xs) <= 0.14
+                    and max(ys) - min(ys) <= 0.12
+                    and max(zs) - min(zs) <= 0.12)
+                if (
+                        stable
+                        and node.record.latest_yolo_door is not None
+                        and node.record.latest_yolo_handle_odom is not None):
+                    return (
+                        node.record.latest_yolo_door,
+                        node.record.latest_yolo_handle_odom)
+
+            travelled = 0.0
+            if start_xy is not None and odom is not None:
+                position = odom.pose.pose.position
+                travelled = math.hypot(
+                    float(position.x) - start_xy[0],
+                    float(position.y) - start_xy[1])
+            command = Twist()
+            if travelled < max(0.0, search_approach_m):
+                command.linear.x = max(0.0, search_speed_mps)
+            node.manual_cmd_vel_pub.publish(command)
+    finally:
+        node.manual_cmd_vel_pub.publish(Twist())
+        rclpy.spin_once(node, timeout_sec=0.2)
+    return None
+
+
 def _start_launch(log_path: Path, headless: bool,
                   door_open_motion: str,
-                  min_angle_rad: float) -> subprocess.Popen:
+                  min_angle_rad: float,
+                  use_yolo_observation: bool) -> subprocess.Popen:
     headless_arg = "true" if headless else "false"
-    command = (
-        "cd /home/junyoung/fire_robot_ws_test && "
-        "source /opt/ros/humble/setup.bash && "
-        "source install/setup.bash && "
-        "ros2 launch fire_robot_bringup physical_contact_door_test.launch.py "
-        f"headless:={headless_arg} use_rviz:=false "
-        f"door_open_motion:={door_open_motion} "
-        f"contact_min_angle_rad:={float(min_angle_rad):.6f}"
-    )
+    perception_arg = "true" if use_yolo_observation else "false"
+    ros2 = shutil.which("ros2")
+    if ros2 is None:
+        raise RuntimeError(
+            "ros2 was not found. Source ROS2 and this workspace before "
+            "running the physical-contact validation.")
+    command = [
+        ros2, "launch", "fire_robot_bringup",
+        "physical_contact_door_test.launch.py",
+        f"headless:={headless_arg}",
+        "use_rviz:=false",
+        f"enable_perception:={perception_arg}",
+        f"require_yolo_handle:={perception_arg}",
+        f"door_open_motion:={door_open_motion}",
+        f"contact_min_angle_rad:={float(min_angle_rad):.6f}",
+    ]
     log_file = log_path.open("w", encoding="utf-8", errors="replace")
     return subprocess.Popen(
-        ["bash", "-lc", command],
+        command,
         stdout=log_file,
         stderr=subprocess.STDOUT,
         preexec_fn=os.setsid,
@@ -278,21 +610,26 @@ def run(args: argparse.Namespace) -> int:
     if not args.attach:
         proc = _start_launch(
             launch_log, args.headless, args.door_open_motion,
-            args.min_angle_rad)
+            args.min_angle_rad, args.use_yolo_observation)
         time.sleep(args.launch_settle_sec)
 
     rclpy.init()
     record = ContactRecord()
     node = ContactProbe(record)
+    video_path = output_dir / "gazebo_lever_press_base_push.mp4"
+    keyframe_dir = output_dir / "phases"
     result: dict[str, object] = {
         "test": "physical_contact_door_test",
         "door_hinge_command_topic_used": False,
         "arm_joint_commands_used": True,
-        "mobile_base_commands_used": args.mobile_follow,
+        "mobile_base_commands_used": True,
         "door_open_motion": args.door_open_motion,
         "extra_sweep": args.extra_sweep,
         "attach_grasp_joint": args.attach_grasp_joint,
         "min_angle_rad": args.min_angle_rad,
+        "use_yolo_observation": args.use_yolo_observation,
+        "handle_model_role_required": (
+            "primary" if args.use_yolo_observation else "fixture"),
         "handle_frame": "base_link",
         "handle_xyz": [args.handle_x, args.handle_y, args.handle_z],
         "pass": False,
@@ -301,29 +638,130 @@ def run(args: argparse.Namespace) -> int:
     try:
         ready = _wait_for_ready(node, args.ready_timeout_sec)
         result["ready"] = ready
-        before_path = output_dir / "before_overhead.png"
+        node.start_recording(video_path, args.video_fps, keyframe_dir)
+        _spin_for(node, 1.0)
+        before_path = output_dir / "before_perspective.png"
         if _save_ros_image(record.latest_image, before_path):
             record.saved_images.append(str(before_path))
+        before_overhead_path = output_dir / "before_overhead.png"
+        if _save_ros_image(record.latest_overhead_image, before_overhead_path):
+            record.saved_images.append(str(before_overhead_path))
+        before_debug_path = output_dir / "before_detection_debug.png"
+        if _save_ros_image(record.latest_detection_image, before_debug_path):
+            record.saved_images.append(str(before_debug_path))
 
         if not ready:
             result["error"] = "Timed out waiting for /door_joint_states and /open_door."
         else:
             initial = record.door_samples[-1][1] if record.door_samples else 0.0
+            initial_lever = (
+                record.lever_samples[-1][1] if record.lever_samples else 0.0)
             req = OpenDoor.Request()
-            req.door_id = "physical_contact_test_door"
-            req.handle_position = PointStamped()
-            req.handle_position.header.frame_id = "base_link"
-            req.handle_position.point.x = float(args.handle_x)
-            req.handle_position.point.y = float(args.handle_y)
-            req.handle_position.point.z = float(args.handle_z)
-            req.handle_detected = True
-            req.handle_detection_method = "test_fixture_contact_handle"
-            req.handle_confidence = 1.0
+            request_ready = True
+            if args.use_yolo_observation:
+                observed = _wait_for_yolo_observation(
+                    node, args.yolo_timeout_sec,
+                    args.minimum_yolo_observations,
+                    args.minimum_yolo_confidence,
+                    args.yolo_search_approach_m,
+                    args.yolo_search_speed_mps)
+                if observed is None:
+                    request_ready = False
+                    result["error"] = (
+                        "No repeated yolo:primary handle observation was "
+                        "received before timeout.")
+                else:
+                    observed_door, _fixed_handle = observed
+                    _spin_for(node, 0.5)
+                    yolo_path = output_dir / "yolo_primary_detection.png"
+                    if _save_ros_image(
+                            record.yolo_detection_image, yolo_path):
+                        record.saved_images.append(str(yolo_path))
 
-            future = node.client.call_async(req)
+                    source = observed_door.handle_position.point
+                    approach_distance = 0.0
+                    if (
+                            observed_door.handle_position.header.frame_id
+                            == 'base_link'):
+                        approach_distance = min(
+                            args.max_observation_approach_m,
+                            max(0.0, float(source.x)
+                                - args.target_handle_x_m))
+                    if approach_distance > 0.01:
+                        actual_approach = _publish_manual_cmd_vel_for_distance(
+                            node, approach_distance,
+                            args.observation_approach_speed_mps,
+                            args.observation_approach_timeout_sec)
+                        _spin_for(node, 0.7)
+                    else:
+                        actual_approach = 0.0
+
+                    # Reacquire after the base motion and command the arm from
+                    # the newest camera/LiDAR observation in base_link. This
+                    # prevents a stale pre-approach coordinate from being
+                    # transformed through a changed robot pose.
+                    latest_door = record.latest_yolo_door
+                    if (
+                            latest_door is not None
+                            and latest_door.handle_position.header.frame_id
+                            == 'base_link'
+                            and latest_door.handle_detected
+                            and str(latest_door.handle_detection_method).startswith(
+                                'yolo:primary')
+                            and float(latest_door.handle_confidence)
+                            >= args.minimum_yolo_confidence):
+                        observed_door = latest_door
+
+                    current_handle = PointStamped()
+                    current_handle.header = observed_door.handle_position.header
+                    current_handle.header.stamp.sec = 0
+                    current_handle.header.stamp.nanosec = 0
+                    current_handle.point = observed_door.handle_position.point
+                    req.door_id = str(observed_door.door_id)
+                    req.handle_position = current_handle
+                    req.handle_detected = True
+                    req.handle_detection_method = str(
+                        observed_door.handle_detection_method)
+                    req.handle_confidence = float(
+                        observed_door.handle_confidence)
+                    result.update({
+                        "handle_source": "door_detection_node",
+                        "handle_method": req.handle_detection_method,
+                        "handle_confidence": req.handle_confidence,
+                        "handle_frame": req.handle_position.header.frame_id,
+                        "handle_xyz": [
+                            float(req.handle_position.point.x),
+                            float(req.handle_position.point.y),
+                            float(req.handle_position.point.z),
+                        ],
+                        "initial_observed_handle_frame": str(
+                            observed_door.handle_position.header.frame_id),
+                        "initial_observed_handle_xyz": [
+                            float(source.x), float(source.y), float(source.z)],
+                        "observation_approach_distance_m": approach_distance,
+                        "observation_approach_actual_m": actual_approach,
+                        "yolo_observation_count": len(
+                            record.yolo_observations),
+                    })
+            else:
+                req.door_id = "physical_contact_test_door"
+                req.handle_position = PointStamped()
+                req.handle_position.header.frame_id = "base_link"
+                req.handle_position.point.x = float(args.handle_x)
+                req.handle_position.point.y = float(args.handle_y)
+                req.handle_position.point.z = float(args.handle_z)
+                req.handle_detected = True
+                req.handle_detection_method = "test_fixture_contact_handle"
+                req.handle_confidence = 1.0
+
+            future = node.client.call_async(req) if request_ready else None
             deadline = time.monotonic() + args.service_timeout_sec
             attach_sent = False
-            while rclpy.ok() and not future.done() and time.monotonic() < deadline:
+            while (
+                    rclpy.ok()
+                    and future is not None
+                    and not future.done()
+                    and time.monotonic() < deadline):
                 rclpy.spin_once(node, timeout_sec=0.1)
                 if args.attach_grasp_joint and not attach_sent:
                     latest_phase = record.phases[-1][1] if record.phases else ""
@@ -345,30 +783,59 @@ def run(args: argparse.Namespace) -> int:
                 _spin_for(node, args.post_wait_sec)
 
             service_success = False
-            service_message = "service call timed out"
-            if future.done():
+            service_message = (
+                "service call timed out" if request_ready
+                else "service was not called")
+            if future is not None and future.done():
                 response = future.result()
                 if response is not None:
                     service_success = bool(response.success)
                     service_message = str(response.message)
 
             angles = [a for _, a in record.door_samples]
+            lever_angles = [a for _, a in record.lever_samples]
             final = angles[-1] if angles else initial
             max_delta = max((abs(a - initial) for a in angles), default=0.0)
+            final_lever = (
+                lever_angles[-1] if lever_angles else initial_lever)
+            max_lever_delta = max(
+                (abs(a - initial_lever) for a in lever_angles), default=0.0)
+            base_displacement = 0.0
+            if len(record.base_samples) >= 2:
+                _, x0, y0 = record.base_samples[0]
+                _, x1, y1 = record.base_samples[-1]
+                base_displacement = math.hypot(x1 - x0, y1 - y0)
             result.update({
                 "service_success": service_success,
                 "service_message": service_message,
                 "initial_angle_rad": initial,
                 "final_angle_rad": final,
                 "max_delta_rad": max_delta,
+                "initial_lever_angle_rad": initial_lever,
+                "final_lever_angle_rad": final_lever,
+                "max_lever_delta_rad": max_lever_delta,
+                "base_displacement_m": base_displacement,
+                "yolo_observations": record.yolo_observations,
                 "sample_count": len(record.door_samples),
                 "phases": record.phases,
-                "pass": service_success and max_delta >= args.min_angle_rad,
+                "pass": (
+                    service_success
+                    and max_delta >= args.min_angle_rad
+                    and abs(final - initial) >= args.min_angle_rad - 0.12
+                    and max_lever_delta >= args.min_lever_press_rad),
             })
 
-        after_path = output_dir / "after_overhead.png"
+        _spin_for(node, 1.0)
+        node.stop_recording()
+        after_path = output_dir / "after_perspective.png"
         if _save_ros_image(record.latest_image, after_path):
             record.saved_images.append(str(after_path))
+        after_overhead_path = output_dir / "after_overhead.png"
+        if _save_ros_image(record.latest_overhead_image, after_overhead_path):
+            record.saved_images.append(str(after_overhead_path))
+        after_debug_path = output_dir / "after_detection_debug.png"
+        if _save_ros_image(record.latest_detection_image, after_debug_path):
+            record.saved_images.append(str(after_debug_path))
         angle_plot = output_dir / "door_hinge_angle.png"
         _plot_angles(record, angle_plot, args.min_angle_rad)
         record.saved_images.append(str(angle_plot))
@@ -377,8 +844,11 @@ def run(args: argparse.Namespace) -> int:
             "launch_log": str(launch_log),
             "images": record.saved_images,
             "angle_plot": str(angle_plot),
+            "video": str(video_path),
+            "phase_keyframes": str(keyframe_dir),
         }
     finally:
+        node.stop_recording()
         node.destroy_node()
         rclpy.shutdown()
         if not args.attach:
@@ -396,15 +866,30 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--output-root",
-        default="/mnt/c/Users/황준영/Documents/졸업작품/검증결과",
+        default="artifacts/validation/physical_contact",
     )
     parser.add_argument("--attach", action="store_true")
     parser.add_argument("--headless", action="store_true", default=True)
     parser.add_argument("--launch-settle-sec", type=float, default=8.0)
     parser.add_argument("--ready-timeout-sec", type=float, default=25.0)
-    parser.add_argument("--service-timeout-sec", type=float, default=35.0)
+    parser.add_argument("--service-timeout-sec", type=float, default=240.0)
     parser.add_argument("--post-wait-sec", type=float, default=2.0)
-    parser.add_argument("--min-angle-rad", type=float, default=0.75)
+    parser.add_argument("--min-angle-rad", type=float, default=2.05)
+    parser.add_argument("--min-lever-press-rad", type=float, default=0.08)
+    parser.add_argument("--video-fps", type=float, default=10.0)
+    parser.add_argument("--use-yolo-observation", action="store_true")
+    parser.add_argument("--yolo-timeout-sec", type=float, default=40.0)
+    parser.add_argument("--minimum-yolo-observations", type=int, default=2)
+    parser.add_argument("--minimum-yolo-confidence", type=float, default=0.45)
+    parser.add_argument("--yolo-search-approach-m", type=float, default=0.45)
+    parser.add_argument("--yolo-search-speed-mps", type=float, default=0.04)
+    parser.add_argument("--target-handle-x-m", type=float, default=0.58)
+    parser.add_argument(
+        "--observation-approach-speed-mps", type=float, default=0.08)
+    parser.add_argument(
+        "--observation-approach-timeout-sec", type=float, default=40.0)
+    parser.add_argument(
+        "--max-observation-approach-m", type=float, default=0.85)
     parser.add_argument(
         "--door-open-motion", choices=("pull", "push"), default="push")
     parser.add_argument("--extra-sweep", action="store_true")
@@ -412,7 +897,7 @@ def main() -> int:
     parser.add_argument("--mobile-follow", action="store_true")
     parser.add_argument("--handle-x", type=float, default=0.43)
     parser.add_argument("--handle-y", type=float, default=0.24)
-    parser.add_argument("--handle-z", type=float, default=0.83)
+    parser.add_argument("--handle-z", type=float, default=0.66)
     return run(parser.parse_args())
 
 

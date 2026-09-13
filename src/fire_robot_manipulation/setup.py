@@ -20,6 +20,7 @@ setup(
     entry_points={
         'console_scripts': [
             'manipulation_node = fire_robot_manipulation.manipulation_node:main',
+            'physical_contact_manipulation_node = fire_robot_manipulation.physical_contact_manipulation_node:main',
         ],
     },
 )

@@ -35,6 +35,8 @@ import tf2_geometry_msgs
 from cv_bridge import CvBridge
 from rclpy.node import Node
 from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.qos import qos_profile_sensor_data
+from rclpy.time import Time
 from sensor_msgs.msg import Image, CameraInfo, LaserScan
 from geometry_msgs.msg import PointStamped, PoseStamped
 
@@ -101,6 +103,7 @@ class DoorDetectionNode(Node):
 
         self.declare_parameter('model_path', '')
         self.declare_parameter('handle_model_path', '')
+        self.declare_parameter('handle_fallback_model_path', '')
         self.declare_parameter('confidence_threshold', 0.40)
         self.declare_parameter('yolo_min_interval_sec', 0.50)
         self.declare_parameter('yolo_imgsz', 0)
@@ -195,6 +198,8 @@ class DoorDetectionNode(Node):
 
         model_path       = self.get_parameter('model_path').value
         handle_model_path = self.get_parameter('handle_model_path').value
+        handle_fallback_model_path = self.get_parameter(
+            'handle_fallback_model_path').value
         self._conf       = self.get_parameter('confidence_threshold').value
         self._yolo_min_interval_sec = max(
             0.0, float(self.get_parameter('yolo_min_interval_sec').value))
@@ -385,13 +390,13 @@ class DoorDetectionNode(Node):
             self.create_subscription(
                 Image, source.image_topic,
                 lambda msg, src=source: self.image_callback(msg, src),
-                10, callback_group=cb)
+                qos_profile_sensor_data, callback_group=cb)
             self.create_subscription(
                 CameraInfo, source.info_topic,
                 lambda msg, src=source: self.camera_info_callback(msg, src),
-                10)
+                qos_profile_sensor_data, callback_group=cb)
         self.create_subscription(
-            LaserScan, '/scan', self.radar_callback, 10,
+            LaserScan, '/scan', self.radar_callback, qos_profile_sensor_data,
             callback_group=cb)
 
         if self._use_depth:
@@ -408,12 +413,21 @@ class DoorDetectionNode(Node):
         # YOLOv8 로드
         self._configure_inference_threads()
         self._model = self._load_model(model_path)
-        self._handle_model = self._load_handle_model(
-            handle_model_path, door_model_path=str(model_path))
+        self._handle_model, self._handle_yolo_class_ids = (
+            self._load_handle_model(
+                handle_model_path,
+                door_model_path=str(model_path),
+                role='primary'))
+        self._handle_fallback_model, self._handle_fallback_yolo_class_ids = (
+            self._load_handle_model(
+                handle_fallback_model_path,
+                door_model_path=str(model_path),
+                role='fallback'))
 
         self.get_logger().info(
             f'DoorDetectionNode started | YOLO={"OK" if self._model else "FALLBACK_HSV"}'
             f' | handle_yolo={"OK" if self._handle_model else "OFF"}'
+            f' | handle_yolo_fallback={"OK" if self._handle_fallback_model else "OFF"}'
             f' | imgsz={self._yolo_imgsz if self._yolo_imgsz > 0 else "auto"}'
             f' | depth={"ON" if self._use_depth else "OFF"}'
             f' | yolo_interval={self._yolo_min_interval_sec:.2f}s'
@@ -478,24 +492,25 @@ class DoorDetectionNode(Node):
             f'model_path "{model_path}" not found. Falling back to HSV-only detection.')
         return None
 
-    def _load_handle_model(self, model_path: str, door_model_path: str = ''):
+    def _load_handle_model(self, model_path: str, door_model_path: str = '',
+                           role: str = 'primary'):
         if not self._detect_handle_enabled:
-            return None
+            return None, set()
         if not _HAS_YOLO:
             self.get_logger().warn(
                 'ultralytics not installed. Handle YOLO is disabled.')
-            return None
+            return None, set()
         if not str(model_path).strip():
             self.get_logger().info(
-                'handle_model_path is empty. Using HSV/estimated handle fallback.')
-            return None
+                f'{role} handle model path is empty.')
+            return None, set()
 
         path = Path(model_path)
         if not path.exists():
             self.get_logger().warn(
                 f'handle_model_path "{model_path}" not found. '
                 'Using HSV/estimated handle fallback.')
-            return None
+            return None, set()
 
         model = YOLO(str(path))
         class_ids = self._handle_class_ids(model, path, door_model_path)
@@ -503,17 +518,16 @@ class DoorDetectionNode(Node):
             self.get_logger().error(
                 f'Handle YOLO model "{path}" does not expose a usable '
                 f'handle class. names={self._model_names_map(model)}')
-            return None
+            return None, set()
 
-        self._handle_yolo_class_ids = set(class_ids)
         class_names = [
             self._model_class_name(model, class_id)
-            for class_id in sorted(self._handle_yolo_class_ids)
+            for class_id in sorted(class_ids)
         ]
         self.get_logger().info(
-            f'Loading handle YOLO model: {path} '
+            f'Loading {role} handle YOLO model: {path} '
             f'(classes={class_names})')
-        return model
+        return model, set(class_ids)
 
     def _handle_class_ids(self, model, model_path: Path,
                           door_model_path: str = '') -> list[int]:
@@ -558,6 +572,7 @@ class DoorDetectionNode(Node):
 
     # ── 콜백 ──────────────────────────────────────────────
     def camera_info_callback(self, msg: CameraInfo, source: CameraSource):
+        first_info = not source.has_info
         source.fx    = msg.k[0]
         source.fy    = msg.k[4]
         source.cx    = msg.k[2]
@@ -565,6 +580,12 @@ class DoorDetectionNode(Node):
         source.img_w = msg.width
         source.img_h = msg.height
         source.has_info = True
+        if first_info and self._log_handle_detections:
+            self.get_logger().info(
+                f'CameraInfo ready ({source.name}): '
+                f'{source.img_w}x{source.img_h}, '
+                f'fx={source.fx:.2f}, fy={source.fy:.2f}, '
+                f'cx={source.cx:.2f}, cy={source.cy:.2f}')
 
     def radar_callback(self, msg: LaserScan):
         self._latest_scan = msg
@@ -711,11 +732,19 @@ class DoorDetectionNode(Node):
                         hx1, hy1, hx2, hy2 = handle_obs.bbox
                         cv2.rectangle(
                             debug, (hx1, hy1), (hx2, hy2), (0, 220, 255), 2)
+                    handle_label = (
+                        f'v3 YOLO handle {handle_obs.confidence:.2f}'
+                        if handle_obs.method.startswith('yolo:primary')
+                        else f'handle {handle_obs.confidence:.2f}')
+                    (label_w, _), _ = cv2.getTextSize(
+                        handle_label, cv2.FONT_HERSHEY_SIMPLEX, 0.42, 1)
+                    label_x = min(
+                        max(4, hp_x + 6),
+                        max(4, int(debug.shape[1]) - label_w - 4))
+                    label_y = max(16, hp_y - 8)
                     cv2.putText(
-                        debug,
-                        f'handle:{handle_obs.method} {handle_obs.confidence:.2f}',
-                        (hp_x + 6, max(18, hp_y - 6)),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 220, 255), 1)
+                        debug, handle_label, (label_x, label_y),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.42, (0, 220, 255), 1)
                 cv2.putText(debug, f'{source.name} {color} {det_conf:.2f} d={dist:.1f}m',
                             (x1, y1 - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.6, col, 2)
 
@@ -1140,7 +1169,16 @@ class DoorDetectionNode(Node):
             x2: int,
             y2: int,
             image_shape: tuple[int, ...]) -> HandleObservation | None:
-        if self._handle_model is None:
+        model_chain = []
+        if self._handle_model is not None:
+            model_chain.append((
+                self._handle_model, self._handle_yolo_class_ids, 'primary'))
+        if self._handle_fallback_model is not None:
+            model_chain.append((
+                self._handle_fallback_model,
+                self._handle_fallback_yolo_class_ids,
+                'fallback'))
+        if not model_chain:
             return None
 
         img_h, img_w = image_shape[:2]
@@ -1164,57 +1202,59 @@ class DoorDetectionNode(Node):
         if self._handle_yolo_imgsz > 0:
             yolo_kwargs['imgsz'] = self._handle_yolo_imgsz
 
-        with self._yolo_lock:
-            results = self._handle_model(crop, **yolo_kwargs)
-
         door_area = max(1, (x2 - x1) * (y2 - y1))
         max_area = max(self._handle_yolo_min_area_px * 4,
                        door_area * self._handle_yolo_max_area_ratio)
-        best: HandleObservation | None = None
-        best_score = -1.0
+        for handle_model, class_ids, role in model_chain:
+            with self._yolo_lock:
+                results = handle_model(crop, **yolo_kwargs)
 
-        for result in results:
-            for box in result.boxes:
-                class_id = int(box.cls)
-                if (self._handle_yolo_class_ids
-                        and class_id not in self._handle_yolo_class_ids):
-                    continue
-                lx1, ly1, lx2, ly2 = map(int, box.xyxy[0])
-                lx1 = max(0, min(crop.shape[1] - 1, lx1))
-                lx2 = max(0, min(crop.shape[1], lx2))
-                ly1 = max(0, min(crop.shape[0] - 1, ly1))
-                ly2 = max(0, min(crop.shape[0], ly2))
-                if lx2 <= lx1 or ly2 <= ly1:
-                    continue
+            best: HandleObservation | None = None
+            best_score = -1.0
+            for result in results:
+                for box in result.boxes:
+                    class_id = int(box.cls)
+                    if class_ids and class_id not in class_ids:
+                        continue
+                    lx1, ly1, lx2, ly2 = map(int, box.xyxy[0])
+                    lx1 = max(0, min(crop.shape[1] - 1, lx1))
+                    lx2 = max(0, min(crop.shape[1], lx2))
+                    ly1 = max(0, min(crop.shape[0] - 1, ly1))
+                    ly2 = max(0, min(crop.shape[0], ly2))
+                    if lx2 <= lx1 or ly2 <= ly1:
+                        continue
 
-                area = (lx2 - lx1) * (ly2 - ly1)
-                if area < self._handle_yolo_min_area_px or area > max_area:
-                    continue
-                conf = float(box.conf[0])
-                cx = sx1 + (lx1 + lx2) / 2.0
-                cy = sy1 + (ly1 + ly2) / 2.0
-                if not (x1 - ex <= cx <= x2 + ex
-                        and y1 - ey <= cy <= y2 + ey):
-                    continue
+                    area = (lx2 - lx1) * (ly2 - ly1)
+                    if area < self._handle_yolo_min_area_px or area > max_area:
+                        continue
+                    conf = float(box.conf[0])
+                    cx = sx1 + (lx1 + lx2) / 2.0
+                    cy = sy1 + (ly1 + ly2) / 2.0
+                    if not (x1 - ex <= cx <= x2 + ex
+                            and y1 - ey <= cy <= y2 + ey):
+                        continue
 
-                label = self._model_class_name(self._handle_model, class_id)
-                score = conf * (1.0 + min(1.0, area / max(1.0, max_area)))
-                if score > best_score:
-                    best_score = score
-                    best = HandleObservation(
-                        x=int(round(cx)),
-                        y=int(round(cy)),
-                        confidence=conf,
-                        method=f'yolo:{label}',
-                        bbox=(sx1 + lx1, sy1 + ly1, sx1 + lx2, sy1 + ly2),
-                    )
+                    label = self._model_class_name(handle_model, class_id)
+                    score = conf * (1.0 + min(1.0, area / max(1.0, max_area)))
+                    if score > best_score:
+                        best_score = score
+                        best = HandleObservation(
+                            x=int(round(cx)),
+                            y=int(round(cy)),
+                            confidence=conf,
+                            method=f'yolo:{role}:{label}',
+                            bbox=(sx1 + lx1, sy1 + ly1, sx1 + lx2, sy1 + ly2),
+                        )
 
-        if best is not None and self._log_handle_detections:
-            self.get_logger().info(
-                f'YOLO handle observed: pixel=({best.x},{best.y}), '
-                f'conf={best.confidence:.2f}, bbox={best.bbox}',
-                throttle_duration_sec=1.0)
-        return best
+            if best is not None:
+                if self._log_handle_detections:
+                    self.get_logger().info(
+                        f'YOLO handle observed ({role}): '
+                        f'pixel=({best.x},{best.y}), '
+                        f'conf={best.confidence:.2f}, bbox={best.bbox}',
+                        throttle_duration_sec=1.0)
+                return best
+        return None
 
     def _detect_hsv_handle_observation(
             self,
@@ -1298,6 +1338,76 @@ class DoorDetectionNode(Node):
         if not math.isfinite(z):
             return self._handle_default_z_m
         return float(min(self._handle_max_z_m, max(self._handle_min_z_m, z)))
+
+    def _handle_z_from_camera_ray(
+            self, handle_x_pix: int, handle_y_pix: int,
+            horizontal_dist: float, source: CameraSource,
+            header=None) -> float | None:
+        """Project a YOLO handle pixel to height using camera TF and range."""
+        if header is None or source.fx <= 0.0 or source.fy <= 0.0:
+            return None
+        frame_id = str(getattr(header, 'frame_id', '') or '')
+        if not frame_id or horizontal_dist <= 0.0:
+            return None
+        try:
+            origin = PointStamped()
+            origin.header.frame_id = frame_id
+            origin.header.stamp = header.stamp
+
+            ray = PointStamped()
+            ray.header = origin.header
+            ray.point.x = (
+                float(handle_x_pix) - float(source.cx)) / float(source.fx)
+            ray.point.y = (
+                float(handle_y_pix) - float(source.cy)) / float(source.fy)
+            ray.point.z = 1.0
+
+            origin_base = self._tf_buffer.transform(
+                origin, self._frame,
+                timeout=rclpy.duration.Duration(seconds=0.03))
+            ray_base = self._tf_buffer.transform(
+                ray, self._frame,
+                timeout=rclpy.duration.Duration(seconds=0.03))
+        except Exception as stamped_error:
+            # ros_gz camera messages can arrive slightly ahead of the dynamic
+            # TF buffer. Static camera extrinsics are still valid, so retry at
+            # the latest available transform instead of falling back to a
+            # door-height heuristic.
+            try:
+                origin.header.stamp = Time().to_msg()
+                ray.header.stamp = origin.header.stamp
+                origin_base = self._tf_buffer.transform(
+                    origin, self._frame,
+                    timeout=rclpy.duration.Duration(seconds=0.10))
+                ray_base = self._tf_buffer.transform(
+                    ray, self._frame,
+                    timeout=rclpy.duration.Duration(seconds=0.10))
+            except Exception as latest_error:
+                if self._log_handle_detections:
+                    self.get_logger().warning(
+                        'Handle camera-ray TF unavailable: '
+                        f'stamped={stamped_error}; latest={latest_error}',
+                        throttle_duration_sec=2.0)
+                return None
+
+        dx = float(ray_base.point.x - origin_base.point.x)
+        dy = float(ray_base.point.y - origin_base.point.y)
+        dz = float(ray_base.point.z - origin_base.point.z)
+        horizontal_ray = math.hypot(dx, dy)
+        if horizontal_ray < 1e-6 or not all(
+                math.isfinite(value) for value in (dx, dy, dz)):
+            return None
+        scale = float(horizontal_dist) / horizontal_ray
+        z = float(origin_base.point.z) + scale * dz
+        if not math.isfinite(z):
+            return None
+        z = float(min(self._handle_max_z_m, max(self._handle_min_z_m, z)))
+        if self._log_handle_detections:
+            self.get_logger().info(
+                f'Handle camera-ray projection: pixel=({handle_x_pix},'
+                f'{handle_y_pix}), range={horizontal_dist:.3f}m, z={z:.3f}m',
+                throttle_duration_sec=1.0)
+        return z
 
     # ── 거리 추정 ─────────────────────────────────────────
     def _range_distance_at_pixel(self,
@@ -1501,7 +1611,29 @@ class DoorDetectionNode(Node):
                 window.append(r)
         if not window:
             return None
-        return float(np.median(window))
+        measured = float(np.median(window))
+
+        # LaserScan range starts at the sensor, not at base_link. Transform the
+        # measured endpoint so camera/LiDAR fusion does not inherit the sensor
+        # mount's forward offset as a systematic door-position error.
+        scan_frame = str(scan.header.frame_id or '')
+        if scan_frame and scan_frame != self._frame:
+            try:
+                endpoint = PointStamped()
+                endpoint.header = scan.header
+                endpoint.point.x = measured * math.cos(robot_angle)
+                endpoint.point.y = measured * math.sin(robot_angle)
+                endpoint_base = self._tf_buffer.transform(
+                    endpoint, self._frame,
+                    timeout=rclpy.duration.Duration(seconds=0.03))
+                base_distance = math.hypot(
+                    float(endpoint_base.point.x),
+                    float(endpoint_base.point.y))
+                if math.isfinite(base_distance) and base_distance > 0.0:
+                    return float(base_distance)
+            except Exception:
+                pass
+        return measured
 
     # ── 메시지 빌드 ───────────────────────────────────────
     def _build_door_info(self, header, source: CameraSource,
@@ -1522,7 +1654,7 @@ class DoorDetectionNode(Node):
             observed_confidence = float(handle_obs.confidence)
             trusted_handle_geometry = (
                 ('yolo' in observed_method
-                 and observed_confidence >= self._handle_conf)
+                 and observed_confidence >= self._handle_confidence_threshold)
                 or ('hsv' in observed_method and observed_confidence >= 0.45))
             if trusted_handle_geometry:
                 handle_detected = True
@@ -1552,13 +1684,21 @@ class DoorDetectionNode(Node):
                 dist = wall_projected_dist
         handle_angle = angle
         handle_z = self._handle_default_z_m
+        handle_dist = dist
         if handle_obs is not None and trusted_handle_geometry:
             hp_x, hp_y = handle_obs.x, handle_obs.y
             handle_angle = self._robot_angle_for_pixel(hp_x, source, header)
-            if bbox is not None:
+            measured_handle_dist = self._range_distance_at_pixel(
+                hp_x, hp_y, source, header)
+            if measured_handle_dist is not None:
+                handle_dist = measured_handle_dist
+            ray_z = self._handle_z_from_camera_ray(
+                hp_x, hp_y, handle_dist, source, header)
+            if ray_z is not None:
+                handle_z = ray_z
+            elif bbox is not None:
                 _, by1, _, by2 = bbox
                 handle_z = self._handle_z_from_pixel(by1, by2, hp_y)
-        handle_dist = dist
         handle_projected_dist = self._side_wall_projected_distance(
             handle_angle, color)
         if handle_projected_dist is not None:

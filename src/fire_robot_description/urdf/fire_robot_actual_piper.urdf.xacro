@@ -1,0 +1,823 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="fire_robot">
+
+  <xacro:include filename="$(find fire_robot_description)/urdf/piper_arm_actual.xacro"/>
+
+  <!-- ===================================================
+       화재 대피 모바일 매니퓰레이터
+       - 모바일 베이스 : 차동 구동(Differential Drive) 4바퀴
+       - 로봇팔        : AgileX PIPER 6DoF (제공된 실제 메쉬/관절 사양)
+       - 센서          : RGB 카메라 (Intel RealSense D435 컬러)
+                         Depth 카메라 (Intel RealSense D435 뎁스)
+                         2D LiDAR (/scan, 240° FOV)
+       =================================================== -->
+
+  <xacro:property name="base_length"  value="0.420"/>
+  <xacro:property name="base_width"   value="0.310"/>
+  <xacro:property name="base_height"  value="0.184"/>
+  <xacro:property name="wheel_radius" value="0.098"/>
+  <xacro:property name="wheel_width"  value="0.040"/>
+  <xacro:property name="wheelbase"   value="0.262"/>
+  <xacro:property name="track"       value="0.37559"/>
+  <xacro:property name="base_mass"    value="16.523"/>
+  <xacro:property name="wheel_mass"   value="0.477"/>
+  <!-- Supplied Clearpath J100 / ROAS2 reference coordinates, expressed in
+       base_link. PIPER is centered laterally because this project uses one arm. -->
+  <xacro:property name="base_footprint_offset" value="0.0655"/>
+  <xacro:property name="wheel_vertical_offset" value="0.0345"/>
+  <!-- Mount the perception camera on the forward mast face. The supplied
+       bracket mesh origin is behind the cage, where a simulated optical
+       sensor is fully occluded by the frame. -->
+  <xacro:property name="camera_x"     value="0.2500"/>
+  <xacro:property name="camera_y"     value="0.0175"/>
+  <xacro:property name="camera_z"     value="0.7890"/>
+  <xacro:property name="lidar_x"      value="0.25"/>
+  <xacro:property name="lidar_z"      value="0.248"/>
+  <xacro:property name="piper_mount_x" value="0.163"/>
+  <xacro:property name="piper_mount_y" value="0.15"/>
+  <xacro:property name="piper_mount_z" value="0.509"/>
+  <xacro:property name="top_structure_z" value="-0.065"/>
+  <xacro:property name="camera_pitch" value="0.0"/>
+  <xacro:arg name="enable_sim_depth_camera" default="false"/>
+  <xacro:arg name="use_piper_ros2_control" default="false"/>
+
+  <xacro:macro name="box_inertia" params="m x y z">
+    <inertial>
+      <mass value="${m}"/>
+      <inertia ixx="${m*(y*y+z*z)/12}" ixy="0" ixz="0"
+               iyy="${m*(x*x+z*z)/12}" iyz="0"
+               izz="${m*(x*x+y*y)/12}"/>
+    </inertial>
+  </xacro:macro>
+
+  <xacro:macro name="cylinder_inertia" params="m r h">
+    <inertial>
+      <mass value="${m}"/>
+      <inertia ixx="${m*(3*r*r+h*h)/12}" ixy="0" ixz="0"
+               iyy="${m*(3*r*r+h*h)/12}" iyz="0"
+               izz="${m*r*r/2}"/>
+    </inertial>
+  </xacro:macro>
+
+  <!-- ============ base_footprint ============ -->
+  <link name="base_footprint"/>
+
+  <joint name="base_footprint_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child  link="base_link"/>
+    <origin xyz="0 0 ${base_footprint_offset}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ============ 모바일 베이스 ============ -->
+  <link name="base_link">
+    <inertial>
+      <origin xyz="0.012 0.002 0.067" rpy="0 0 0"/>
+      <mass value="${base_mass}"/>
+      <inertia ixx="0.3136" ixy="-0.0008" ixz="0.0164"
+               iyy="0.3922" iyz="-0.0009" izz="0.4485"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 -0.0655" rpy="${pi/2} 0 ${pi/2}"/>
+      <geometry>
+        <mesh filename="package://fire_robot_description/meshes/j100/j100_base.stl"/>
+      </geometry>
+      <material name="gray"><color rgba="0.4 0.4 0.4 1.0"/></material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${base_height/2}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${base_length} ${base_width} ${base_height}"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <!-- Supplied ROAS2 frame that physically supports the camera and PIPER. -->
+  <link name="top_structure">
+    <visual>
+      <geometry>
+        <mesh filename="package://fire_robot_description/meshes/roas2/BASE_FRAME.stl"/>
+      </geometry>
+      <material name="dark_gray"><color rgba="0.2 0.2 0.2 1.0"/></material>
+    </visual>
+    <collision>
+      <geometry>
+        <mesh filename="package://fire_robot_description/meshes/roas2/BASE_FRAME.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="top_structure_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="top_structure"/>
+    <origin xyz="0 0 ${top_structure_z}" rpy="0 0 0"/>
+  </joint>
+
+  <link name="camera_bracket_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://fire_robot_description/meshes/roas2/D435_BRACKET.stl"/>
+      </geometry>
+      <material name="dark_gray"/>
+    </visual>
+    <collision>
+      <geometry>
+        <mesh filename="package://fire_robot_description/meshes/roas2/D435_BRACKET.stl"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="camera_bracket_joint" type="fixed">
+    <parent link="top_structure"/>
+    <child link="camera_bracket_link"/>
+    <origin xyz="-0.2 0 0.564" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ============ 바퀴 매크로 ============ -->
+  <xacro:macro name="wheel" params="name x_pos y_pos">
+    <link name="${name}_wheel">
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <mass value="${wheel_mass}"/>
+        <inertia ixx="0.0013" ixy="0" ixz="0"
+                 iyy="0.0024" iyz="0" izz="0.0013"/>
+      </inertial>
+      <visual>
+        <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
+        <geometry>
+          <mesh filename="package://fire_robot_description/meshes/j100/j100_wheel.stl"/>
+        </geometry>
+        <material name="black"><color rgba="0.1 0.1 0.1 1.0"/></material>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
+        <geometry>
+          <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+        </geometry>
+      </collision>
+    </link>
+
+    <joint name="${name}_wheel_joint" type="continuous">
+      <parent link="base_link"/>
+      <child  link="${name}_wheel"/>
+      <origin xyz="${x_pos} ${y_pos} ${wheel_vertical_offset}" rpy="0 0 0"/>
+      <axis xyz="0 1 0"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:wheel name="front_left"  x_pos="${wheelbase/2}" y_pos="${track/2}"/>
+  <xacro:wheel name="front_right" x_pos="${wheelbase/2}" y_pos="${-track/2}"/>
+  <xacro:wheel name="rear_left"   x_pos="${-wheelbase/2}" y_pos="${track/2}"/>
+  <xacro:wheel name="rear_right"  x_pos="${-wheelbase/2}" y_pos="${-track/2}"/>
+
+  <gazebo reference="front_left_wheel"><mu1>0.5</mu1><mu2>0.5</mu2><fdir1>1 0 0</fdir1></gazebo>
+  <gazebo reference="front_right_wheel"><mu1>0.5</mu1><mu2>0.5</mu2><fdir1>1 0 0</fdir1></gazebo>
+  <gazebo reference="rear_left_wheel"><mu1>0.5</mu1><mu2>0.5</mu2><fdir1>1 0 0</fdir1></gazebo>
+  <gazebo reference="rear_right_wheel"><mu1>0.5</mu1><mu2>0.5</mu2><fdir1>1 0 0</fdir1></gazebo>
+
+  <!-- ============ 2D LiDAR ============ -->
+  <link name="lidar_link">
+    <visual>
+      <geometry><box size="0.06 0.04 0.02"/></geometry>
+      <material name="dark_gray"><color rgba="0.2 0.2 0.2 1.0"/></material>
+    </visual>
+    <collision>
+      <geometry><box size="0.06 0.04 0.02"/></geometry>
+    </collision>
+    <inertial>
+      <mass value="0.20"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+    </inertial>
+  </link>
+
+  <joint name="lidar_joint" type="fixed">
+    <parent link="top_structure"/>
+    <child  link="lidar_link"/>
+    <origin xyz="${lidar_x} 0 ${lidar_z - top_structure_z}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ============ RGB-D 카메라 마운트 ============ -->
+  <link name="camera_link">
+    <visual>
+      <geometry><box size="0.02505 0.090 0.025"/></geometry>
+      <material name="silver"><color rgba="0.8 0.8 0.8 1.0"/></material>
+    </visual>
+    <collision>
+      <geometry><box size="0.02505 0.090 0.025"/></geometry>
+    </collision>
+    <inertial>
+      <mass value="0.564"/>
+      <inertia ixx="0.003881243" ixy="0" ixz="0"
+               iyy="0.000498940" iyz="0" izz="0.003879257"/>
+    </inertial>
+  </link>
+
+  <joint name="camera_joint" type="fixed">
+    <parent link="top_structure"/>
+    <child  link="camera_link"/>
+    <origin xyz="${camera_x} ${camera_y} ${camera_z - top_structure_z}"
+            rpy="0 ${camera_pitch} 0"/>
+  </joint>
+
+  <!-- 카메라 광학 프레임 (ROS 컨벤션: Z 앞, X 오른쪽) -->
+  <link name="camera_color_optical_frame"/>
+  <joint name="camera_optical_joint" type="fixed">
+    <parent link="camera_link"/>
+    <child  link="camera_color_optical_frame"/>
+    <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}"/>
+  </joint>
+
+  <!-- 전방 좌/우 보조 카메라: 벽면 문을 주행 중 미리 보기 위한 45도 시야 -->
+  <link name="camera_front_left_link">
+    <visual>
+      <geometry><box size="0.025 0.080 0.025"/></geometry>
+      <material name="silver"><color rgba="0.8 0.8 0.8 1.0"/></material>
+    </visual>
+    <collision>
+      <geometry><box size="0.025 0.080 0.025"/></geometry>
+    </collision>
+    <inertial>
+      <mass value="0.060"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+    </inertial>
+  </link>
+
+  <joint name="camera_front_left_joint" type="fixed">
+    <parent link="top_structure"/>
+    <child  link="camera_front_left_link"/>
+    <origin xyz="${camera_x + 0.02} 0.20 ${camera_z - top_structure_z}" rpy="0 ${camera_pitch} 1.22173"/>
+  </joint>
+
+  <link name="camera_front_left_optical_frame"/>
+  <joint name="camera_front_left_optical_joint" type="fixed">
+    <parent link="camera_front_left_link"/>
+    <child  link="camera_front_left_optical_frame"/>
+    <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}"/>
+  </joint>
+
+  <link name="camera_front_right_link">
+    <visual>
+      <geometry><box size="0.025 0.080 0.025"/></geometry>
+      <material name="silver"><color rgba="0.8 0.8 0.8 1.0"/></material>
+    </visual>
+    <collision>
+      <geometry><box size="0.025 0.080 0.025"/></geometry>
+    </collision>
+    <inertial>
+      <mass value="0.060"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+    </inertial>
+  </link>
+
+  <joint name="camera_front_right_joint" type="fixed">
+    <parent link="top_structure"/>
+    <child  link="camera_front_right_link"/>
+    <origin xyz="${camera_x + 0.02} -0.20 ${camera_z - top_structure_z}" rpy="0 ${camera_pitch} -1.22173"/>
+  </joint>
+
+  <link name="camera_front_right_optical_frame"/>
+  <joint name="camera_front_right_optical_joint" type="fixed">
+    <parent link="camera_front_right_link"/>
+    <child  link="camera_front_right_optical_frame"/>
+    <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}"/>
+  </joint>
+
+  <!-- ============ Depth Camera (RealSense D435 뎁스 모듈) ============ -->
+  <!-- D435의 뎁스 모듈은 컬러 모듈과 같은 하우징 내 약 17.5mm 오프셋 -->
+  <link name="depth_camera_link">
+    <inertial>
+      <mass value="0.001"/>
+      <inertia ixx="0.000001" ixy="0" ixz="0"
+               iyy="0.000001" iyz="0" izz="0.000001"/>
+    </inertial>
+  </link>
+  <joint name="depth_camera_joint" type="fixed">
+    <parent link="camera_link"/>
+    <child  link="depth_camera_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Depth 광학 프레임 -->
+  <link name="depth_optical_frame"/>
+  <joint name="depth_optical_joint" type="fixed">
+    <parent link="depth_camera_link"/>
+    <child  link="depth_optical_frame"/>
+    <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}"/>
+  </joint>
+
+  <!-- Legacy simplified arm is retained only as source history and is omitted
+       from generated URDF. The actual PIPER macro below is authoritative. -->
+  <xacro:if value="false">
+  <!-- ============ PIPER 로봇팔 (비활성 레거시 모델) ============ -->
+  <!-- 팔 베이스를 모바일 베이스 위 중앙에 탑재 -->
+  <link name="arm_base_link">
+    <visual>
+      <geometry><cylinder radius="0.04" length="0.06"/></geometry>
+      <material name="orange"><color rgba="0.9 0.5 0.1 1.0"/></material>
+    </visual>
+    <collision>
+      <geometry><cylinder radius="0.04" length="0.06"/></geometry>
+    </collision>
+    <inertial>
+      <mass value="0.5"/>
+      <inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/>
+    </inertial>
+  </link>
+
+  <joint name="arm_base_joint" type="fixed">
+    <parent link="base_link"/>
+    <child  link="arm_base_link"/>
+    <origin xyz="0.05 0 ${base_height/2 + 0.03}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Joint 1 - 팔 회전 (Z축) -->
+  <link name="arm_link1">
+    <visual><geometry><cylinder radius="0.03" length="0.12"/></geometry>
+      <material name="orange"><color rgba="0.9 0.5 0.1 1.0"/></material></visual>
+    <collision><geometry><cylinder radius="0.03" length="0.12"/></geometry></collision>
+    <xacro:cylinder_inertia m="0.4" r="0.03" h="0.12"/>
+  </link>
+  <joint name="joint1" type="revolute">
+    <parent link="arm_base_link"/>
+    <child  link="arm_link1"/>
+    <origin xyz="0 0 0.06" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-3.14" upper="3.14" effort="30" velocity="1.5"/>
+  </joint>
+
+  <!-- Joint 2 - 어깨 (Y축) -->
+  <link name="arm_link2">
+    <visual><geometry><box size="0.06 0.04 0.25"/></geometry>
+      <material name="orange"><color rgba="0.9 0.5 0.1 1.0"/></material></visual>
+    <collision><geometry><box size="0.06 0.04 0.25"/></geometry></collision>
+    <xacro:box_inertia m="0.5" x="0.06" y="0.04" z="0.25"/>
+  </link>
+  <joint name="joint2" type="revolute">
+    <parent link="arm_link1"/>
+    <child  link="arm_link2"/>
+    <origin xyz="0 0 0.06" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-2.09" upper="2.09" effort="30" velocity="1.5"/>
+  </joint>
+
+  <!-- Joint 3 - 팔꿈치 (Y축) -->
+  <link name="arm_link3">
+    <visual><geometry><box size="0.05 0.04 0.22"/></geometry>
+      <material name="orange"><color rgba="0.9 0.5 0.1 1.0"/></material></visual>
+    <collision><geometry><box size="0.05 0.04 0.22"/></geometry></collision>
+    <xacro:box_inertia m="0.4" x="0.05" y="0.04" z="0.22"/>
+  </link>
+  <joint name="joint3" type="revolute">
+    <parent link="arm_link2"/>
+    <child  link="arm_link3"/>
+    <origin xyz="0 0 0.25" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-2.44" upper="2.44" effort="20" velocity="1.5"/>
+  </joint>
+
+  <!-- Joint 4 - 손목 Roll (X축) -->
+  <link name="arm_link4">
+    <visual><geometry><cylinder radius="0.025" length="0.10"/></geometry>
+      <material name="orange"><color rgba="0.9 0.5 0.1 1.0"/></material></visual>
+    <collision><geometry><cylinder radius="0.025" length="0.10"/></geometry></collision>
+    <xacro:cylinder_inertia m="0.2" r="0.025" h="0.10"/>
+  </link>
+  <joint name="joint4" type="revolute">
+    <parent link="arm_link3"/>
+    <child  link="arm_link4"/>
+    <origin xyz="0 0 0.22" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-3.14" upper="3.14" effort="10" velocity="2.0"/>
+  </joint>
+
+  <!-- Joint 5 - 손목 Pitch (Y축) -->
+  <link name="arm_link5">
+    <visual><geometry><cylinder radius="0.025" length="0.09"/></geometry>
+      <material name="orange"><color rgba="0.9 0.5 0.1 1.0"/></material></visual>
+    <collision><geometry><cylinder radius="0.025" length="0.09"/></geometry></collision>
+    <xacro:cylinder_inertia m="0.2" r="0.025" h="0.09"/>
+  </link>
+  <joint name="joint5" type="revolute">
+    <parent link="arm_link4"/>
+    <child  link="arm_link5"/>
+    <origin xyz="0 0 0.10" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-1.57" upper="1.57" effort="10" velocity="2.0"/>
+  </joint>
+
+  <!-- Joint 6 - 손목 Yaw (Z축) -->
+  <link name="arm_link6">
+    <visual><geometry><cylinder radius="0.02" length="0.07"/></geometry>
+      <material name="orange"><color rgba="0.9 0.5 0.1 1.0"/></material></visual>
+    <collision><geometry><cylinder radius="0.02" length="0.07"/></geometry></collision>
+    <xacro:cylinder_inertia m="0.15" r="0.02" h="0.07"/>
+  </link>
+  <joint name="joint6" type="revolute">
+    <parent link="arm_link5"/>
+    <child  link="arm_link6"/>
+    <origin xyz="0 0 0.09" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-3.14" upper="3.14" effort="5" velocity="2.0"/>
+  </joint>
+
+  <!-- ============ 그리퍼 ============ -->
+  <link name="gripper_base_link">
+    <visual><geometry><box size="0.04 0.07 0.04"/></geometry>
+      <material name="silver"><color rgba="0.8 0.8 0.8 1.0"/></material></visual>
+    <collision><geometry><box size="0.04 0.07 0.04"/></geometry></collision>
+    <xacro:box_inertia m="0.1" x="0.04" y="0.07" z="0.04"/>
+  </link>
+  <joint name="gripper_base_joint" type="fixed">
+    <parent link="arm_link6"/>
+    <child  link="gripper_base_link"/>
+    <origin xyz="0 0 0.07" rpy="0 0 0"/>
+  </joint>
+
+  <link name="gripper_finger_left">
+    <visual><geometry><box size="0.015 0.01 0.06"/></geometry>
+      <material name="silver"><color rgba="0.8 0.8 0.8 1.0"/></material></visual>
+    <collision><geometry><box size="0.015 0.01 0.06"/></geometry></collision>
+    <xacro:box_inertia m="0.02" x="0.015" y="0.01" z="0.06"/>
+  </link>
+  <joint name="gripper_left_joint" type="prismatic">
+    <parent link="gripper_base_link"/>
+    <child  link="gripper_finger_left"/>
+    <origin xyz="0 0.025 0.03" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="0.0" upper="0.04" effort="5" velocity="0.1"/>
+  </joint>
+
+  <link name="gripper_finger_right">
+    <visual><geometry><box size="0.015 0.01 0.06"/></geometry>
+      <material name="silver"><color rgba="0.8 0.8 0.8 1.0"/></material></visual>
+    <collision><geometry><box size="0.015 0.01 0.06"/></geometry></collision>
+    <xacro:box_inertia m="0.02" x="0.015" y="0.01" z="0.06"/>
+  </link>
+  <joint name="gripper_right_joint" type="prismatic">
+    <parent link="gripper_base_link"/>
+    <child  link="gripper_finger_right"/>
+    <origin xyz="0 -0.025 0.03" rpy="0 0 0"/>
+    <axis xyz="0 -1 0"/>
+    <limit lower="0.0" upper="0.04" effort="5" velocity="0.1"/>
+  </joint>
+
+  <gazebo reference="gripper_finger_left">
+    <mu1>8.0</mu1>
+    <mu2>8.0</mu2>
+    <kp>1000000.0</kp>
+    <kd>50.0</kd>
+    <minDepth>0.001</minDepth>
+  </gazebo>
+
+  <gazebo reference="gripper_finger_right">
+    <mu1>8.0</mu1>
+    <mu2>8.0</mu2>
+    <kp>1000000.0</kp>
+    <kd>50.0</kd>
+    <minDepth>0.001</minDepth>
+  </gazebo>
+  </xacro:if>
+
+  <xacro:piper_arm_actual
+    parent="top_structure"
+    mount_xyz="${piper_mount_x} ${piper_mount_y} ${piper_mount_z - top_structure_z}"
+    mount_rpy="0 0 0"/>
+
+  <!-- ============ Gazebo Ignition 플러그인 ============ -->
+
+  <!-- 2D LiDAR range sensor (Gazebo uses gpu_lidar internally) -->
+  <gazebo reference="lidar_link">
+    <sensor name="lidar_sensor" type="gpu_lidar">
+      <always_on>true</always_on>
+      <visualize>false</visualize>
+      <update_rate>12</update_rate>
+      <topic>scan</topic>
+      <gz_frame_id>lidar_link</gz_frame_id>
+      <lidar>
+        <scan>
+          <horizontal>
+            <samples>720</samples>
+            <resolution>1</resolution>
+            <min_angle>-3.14159</min_angle>
+            <max_angle>3.14159</max_angle>
+          </horizontal>
+          <vertical>
+            <samples>1</samples>
+            <resolution>1</resolution>
+            <min_angle>0</min_angle>
+            <max_angle>0</max_angle>
+          </vertical>
+        </scan>
+        <range>
+          <min>0.15</min>
+          <max>12.0</max>
+          <resolution>0.05</resolution>
+        </range>
+        <noise type="gaussian">
+          <mean>0.0</mean>
+          <stddev>0.05</stddev>
+        </noise>
+      </lidar>
+    </sensor>
+  </gazebo>
+
+  <!-- RGB 카메라 (Ignition camera 센서) -->
+  <gazebo reference="camera_link">
+    <sensor name="rgb_camera" type="camera">
+      <always_on>true</always_on>
+      <visualize>false</visualize>
+      <update_rate>6</update_rate>
+      <topic>camera_raw</topic>
+      <gz_frame_id>camera_color_optical_frame</gz_frame_id>
+      <camera name="rgb">
+        <horizontal_fov>1.204</horizontal_fov>
+        <image>
+          <width>320</width>
+          <height>240</height>
+          <format>R8G8B8</format>
+        </image>
+        <clip>
+          <near>0.1</near>
+          <far>10.0</far>
+        </clip>
+        <noise>
+          <type>gaussian</type>
+          <mean>0.0</mean>
+          <stddev>0.007</stddev>
+        </noise>
+      </camera>
+    </sensor>
+  </gazebo>
+
+  <!-- 전방 좌측 카메라 -->
+  <gazebo reference="camera_front_left_link">
+    <sensor name="rgb_camera_front_left" type="camera">
+      <always_on>true</always_on>
+      <visualize>false</visualize>
+      <update_rate>6</update_rate>
+      <topic>camera_front_left_raw</topic>
+      <gz_frame_id>camera_front_left_optical_frame</gz_frame_id>
+      <camera name="rgb_front_left">
+        <horizontal_fov>1.204</horizontal_fov>
+        <image>
+          <width>320</width>
+          <height>240</height>
+          <format>R8G8B8</format>
+        </image>
+        <clip>
+          <near>0.1</near>
+          <far>10.0</far>
+        </clip>
+        <noise>
+          <type>gaussian</type>
+          <mean>0.0</mean>
+          <stddev>0.007</stddev>
+        </noise>
+      </camera>
+    </sensor>
+  </gazebo>
+
+  <!-- 전방 우측 카메라 -->
+  <gazebo reference="camera_front_right_link">
+    <sensor name="rgb_camera_front_right" type="camera">
+      <always_on>true</always_on>
+      <visualize>false</visualize>
+      <update_rate>6</update_rate>
+      <topic>camera_front_right_raw</topic>
+      <gz_frame_id>camera_front_right_optical_frame</gz_frame_id>
+      <camera name="rgb_front_right">
+        <horizontal_fov>1.204</horizontal_fov>
+        <image>
+          <width>320</width>
+          <height>240</height>
+          <format>R8G8B8</format>
+        </image>
+        <clip>
+          <near>0.1</near>
+          <far>10.0</far>
+        </clip>
+        <noise>
+          <type>gaussian</type>
+          <mean>0.0</mean>
+          <stddev>0.007</stddev>
+        </noise>
+      </camera>
+    </sensor>
+  </gazebo>
+
+  <!-- D435 depth imager. RGB is provided by the co-located camera above;
+       Fortress depth_camera requires an R_FLOAT32 image buffer. -->
+  <xacro:if value="$(arg enable_sim_depth_camera)">
+  <gazebo reference="depth_camera_link">
+    <sensor name="depth_camera" type="depth_camera">
+      <always_on>true</always_on>
+      <visualize>false</visualize>
+      <update_rate>5</update_rate>
+      <topic>depth_camera</topic>
+      <gz_frame_id>depth_optical_frame</gz_frame_id>
+      <camera name="depth">
+        <horizontal_fov>1.204</horizontal_fov>
+        <image>
+          <width>320</width>
+          <height>240</height>
+          <format>R_FLOAT32</format>
+        </image>
+        <clip>
+          <near>0.1</near>
+          <far>10.0</far>
+        </clip>
+        <noise>
+          <type>gaussian</type>
+          <mean>0.0</mean>
+          <stddev>0.003</stddev>
+        </noise>
+      </camera>
+    </sensor>
+  </gazebo>
+  </xacro:if>
+
+  <!-- J100 base drive is independent from the PIPER arm controller, matching
+       the separate Clearpath and AgileX hardware interfaces. -->
+  <gazebo>
+    <plugin filename="ignition-gazebo-diff-drive-system"
+            name="ignition::gazebo::systems::DiffDrive">
+        <left_joint>front_left_wheel_joint</left_joint>
+        <left_joint>rear_left_wheel_joint</left_joint>
+        <right_joint>front_right_wheel_joint</right_joint>
+        <right_joint>rear_right_wheel_joint</right_joint>
+        <!-- Clearpath j100 reference: track=0.37559 m, wheel_radius=0.098 m -->
+        <wheel_separation>0.37559</wheel_separation>
+        <wheel_radius>0.098</wheel_radius>
+        <odom_publish_frequency>20</odom_publish_frequency>
+        <topic>cmd_vel</topic>
+        <odom_topic>wheel_odom</odom_topic>
+        <tf_topic>wheel_tf</tf_topic>
+        <frame_id>odom</frame_id>
+        <child_frame_id>base_footprint</child_frame_id>
+        <max_linear_acceleration>1.0</max_linear_acceleration>
+    </plugin>
+  </gazebo>
+
+  <!-- Ground-truth body odometry keeps policy validation tied to the actual
+       Gazebo chassis pose. Wheel-integrated odometry remains on /wheel_odom
+       for dedicated localization/slip stress tests. -->
+  <gazebo>
+    <plugin filename="ignition-gazebo-odometry-publisher-system"
+            name="ignition::gazebo::systems::OdometryPublisher">
+      <odom_frame>odom</odom_frame>
+      <robot_base_frame>base_footprint</robot_base_frame>
+      <odom_topic>odom</odom_topic>
+      <tf_topic>tf</tf_topic>
+      <odom_publish_frequency>30</odom_publish_frequency>
+      <dimensions>2</dimensions>
+    </plugin>
+  </gazebo>
+
+  <!-- Native joint topics remain available for the archived navigation setup. -->
+  <xacro:unless value="$(arg use_piper_ros2_control)">
+  <gazebo>
+    <plugin filename="gz-sim-joint-state-publisher-system"
+            name="gz::sim::systems::JointStatePublisher">
+      <topic>joint_states</topic>
+    </plugin>
+  </gazebo>
+  </xacro:unless>
+
+  <!-- Fortress-native position servos provide the physical-contact test path.
+       Real hardware keeps the separate AgileX controller/MoveIt path. -->
+  <xacro:unless value="$(arg use_piper_ros2_control)">
+  <gazebo>
+    <plugin filename="ignition-gazebo-joint-position-controller-system"
+            name="gz::sim::systems::JointPositionController">
+      <joint_name>joint1</joint_name>
+      <topic>/fire_robot/sim_arm/joint1_cmd</topic>
+      <p_gain>80.0</p_gain>
+      <d_gain>1.5</d_gain>
+      <cmd_max>60</cmd_max>
+      <cmd_min>-60</cmd_min>
+    </plugin>
+    <plugin filename="ignition-gazebo-joint-position-controller-system"
+            name="gz::sim::systems::JointPositionController">
+      <joint_name>joint2</joint_name>
+      <topic>/fire_robot/sim_arm/joint2_cmd</topic>
+      <p_gain>80.0</p_gain>
+      <d_gain>1.5</d_gain>
+      <cmd_max>60</cmd_max>
+      <cmd_min>-60</cmd_min>
+    </plugin>
+    <plugin filename="ignition-gazebo-joint-position-controller-system"
+            name="gz::sim::systems::JointPositionController">
+      <joint_name>joint3</joint_name>
+      <topic>/fire_robot/sim_arm/joint3_cmd</topic>
+      <p_gain>80.0</p_gain>
+      <d_gain>1.5</d_gain>
+      <cmd_max>60</cmd_max>
+      <cmd_min>-60</cmd_min>
+    </plugin>
+    <plugin filename="ignition-gazebo-joint-position-controller-system"
+            name="gz::sim::systems::JointPositionController">
+      <joint_name>joint4</joint_name>
+      <topic>/fire_robot/sim_arm/joint4_cmd</topic>
+      <p_gain>60.0</p_gain>
+      <d_gain>1.0</d_gain>
+      <cmd_max>30</cmd_max>
+      <cmd_min>-30</cmd_min>
+    </plugin>
+    <plugin filename="ignition-gazebo-joint-position-controller-system"
+            name="gz::sim::systems::JointPositionController">
+      <joint_name>joint5</joint_name>
+      <topic>/fire_robot/sim_arm/joint5_cmd</topic>
+      <p_gain>60.0</p_gain>
+      <d_gain>1.0</d_gain>
+      <cmd_max>30</cmd_max>
+      <cmd_min>-30</cmd_min>
+    </plugin>
+    <plugin filename="ignition-gazebo-joint-position-controller-system"
+            name="gz::sim::systems::JointPositionController">
+      <joint_name>joint6</joint_name>
+      <topic>/fire_robot/sim_arm/joint6_cmd</topic>
+      <p_gain>40.0</p_gain>
+      <d_gain>0.8</d_gain>
+      <cmd_max>20</cmd_max>
+      <cmd_min>-20</cmd_min>
+    </plugin>
+    <plugin filename="ignition-gazebo-joint-position-controller-system"
+            name="gz::sim::systems::JointPositionController">
+      <joint_name>gripper_left_joint</joint_name>
+      <topic>/fire_robot/sim_arm/gripper_left_joint_cmd</topic>
+      <p_gain>80.0</p_gain>
+      <d_gain>0.8</d_gain>
+      <cmd_max>8</cmd_max>
+      <cmd_min>-8</cmd_min>
+    </plugin>
+    <plugin filename="ignition-gazebo-joint-position-controller-system"
+            name="gz::sim::systems::JointPositionController">
+      <joint_name>gripper_right_joint</joint_name>
+      <topic>/fire_robot/sim_arm/gripper_right_joint_cmd</topic>
+      <p_gain>80.0</p_gain>
+      <d_gain>0.8</d_gain>
+      <cmd_max>8</cmd_max>
+      <cmd_min>-8</cmd_min>
+    </plugin>
+  </gazebo>
+  </xacro:unless>
+
+  <xacro:if value="$(arg use_piper_ros2_control)">
+    <ros2_control name="PiperGazeboSystem" type="system">
+      <hardware>
+        <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+      </hardware>
+      <joint name="joint1">
+        <command_interface name="position"><param name="min">-2.618</param><param name="max">2.168</param></command_interface>
+        <state_interface name="position"><param name="initial_value">0.0</param></state_interface>
+        <state_interface name="velocity"/>
+        <state_interface name="effort"/>
+      </joint>
+      <joint name="joint2">
+        <command_interface name="position"><param name="min">0.0</param><param name="max">3.14</param></command_interface>
+        <state_interface name="position"><param name="initial_value">0.0</param></state_interface>
+        <state_interface name="velocity"/>
+        <state_interface name="effort"/>
+      </joint>
+      <joint name="joint3">
+        <command_interface name="position"><param name="min">-2.967</param><param name="max">0.0</param></command_interface>
+        <state_interface name="position"><param name="initial_value">0.0</param></state_interface>
+        <state_interface name="velocity"/>
+        <state_interface name="effort"/>
+      </joint>
+      <joint name="joint4">
+        <command_interface name="position"><param name="min">-1.745</param><param name="max">1.745</param></command_interface>
+        <state_interface name="position"><param name="initial_value">0.0</param></state_interface>
+        <state_interface name="velocity"/>
+        <state_interface name="effort"/>
+      </joint>
+      <joint name="joint5">
+        <command_interface name="position"><param name="min">-1.22</param><param name="max">1.22</param></command_interface>
+        <state_interface name="position"><param name="initial_value">0.0</param></state_interface>
+        <state_interface name="velocity"/>
+        <state_interface name="effort"/>
+      </joint>
+      <joint name="joint6">
+        <command_interface name="position"><param name="min">-2.0944</param><param name="max">2.0944</param></command_interface>
+        <state_interface name="position"><param name="initial_value">0.0</param></state_interface>
+        <state_interface name="velocity"/>
+        <state_interface name="effort"/>
+      </joint>
+      <joint name="gripper_left_joint">
+        <command_interface name="position"><param name="min">0.0</param><param name="max">0.035</param></command_interface>
+        <state_interface name="position"><param name="initial_value">0.035</param></state_interface>
+        <state_interface name="velocity"/>
+      </joint>
+      <joint name="gripper_right_joint">
+        <command_interface name="position"><param name="min">-0.035</param><param name="max">0.0</param></command_interface>
+        <state_interface name="position"><param name="initial_value">-0.035</param></state_interface>
+        <state_interface name="velocity"/>
+      </joint>
+    </ros2_control>
+
+    <gazebo>
+      <plugin filename="gz_ros2_control-system"
+              name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+        <parameters>$(find fire_robot_description)/config/piper_sim_controllers.yaml</parameters>
+      </plugin>
+    </gazebo>
+  </xacro:if>
+
+</robot>

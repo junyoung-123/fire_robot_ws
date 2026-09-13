@@ -1,0 +1,1253 @@
+{
+  "test": "physical_contact_door_test",
+  "door_hinge_command_topic_used": false,
+  "arm_joint_commands_used": true,
+  "mobile_base_commands_used": true,
+  "door_open_motion": "push",
+  "extra_sweep": false,
+  "attach_grasp_joint": false,
+  "min_angle_rad": 2.05,
+  "use_yolo_observation": true,
+  "handle_model_role_required": "primary",
+  "handle_frame": "base_link",
+  "handle_xyz": [
+    0.7123146888237327,
+    0.33484878534448986,
+    0.7524710415987832
+  ],
+  "pass": true,
+  "ready": true,
+  "handle_source": "door_detection_node",
+  "handle_method": "yolo:primary:item",
+  "handle_confidence": 0.42877480387687683,
+  "initial_observed_handle_frame": "base_link",
+  "initial_observed_handle_xyz": [
+    1.167735914748907,
+    0.2994194653202328,
+    0.7590580534679772
+  ],
+  "observation_approach_distance_m": 0.5877359147489071,
+  "observation_approach_actual_m": 0.5894000003698315,
+  "yolo_observation_count": 46,
+  "service_success": true,
+  "service_message": "Door opened successfully",
+  "initial_angle_rad": 0.0,
+  "final_angle_rad": -2.0591611274533883,
+  "max_delta_rad": 2.0591611274533883,
+  "initial_lever_angle_rad": 0.0,
+  "final_lever_angle_rad": -0.008748616511468375,
+  "max_lever_delta_rad": 0.287027302127433,
+  "base_displacement_m": 1.630300332171545,
+  "yolo_observations": [
+    {
+      "time_sec": 2.3218038969999952,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.7929118871688843,
+      "frame_id": "base_link",
+      "xyz": [
+        1.8767768681734875,
+        0.5293473217925221,
+        0.95
+      ],
+      "odom_xyz": [
+        -1.9077628049876258,
+        0.5293489521128013,
+        1.0154999947079606
+      ]
+    },
+    {
+      "time_sec": 2.647670267999956,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.7931936383247375,
+      "frame_id": "base_link",
+      "xyz": [
+        1.261367065244965,
+        0.3557701978896058,
+        0.7566572547373089
+      ],
+      "odom_xyz": [
+        -2.519092132720413,
+        0.3557701527447419,
+        0.8221572511529972
+      ]
+    },
+    {
+      "time_sec": 2.8399200459999747,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.7931886315345764,
+      "frame_id": "base_link",
+      "xyz": [
+        1.2414194042084201,
+        0.35014393452032394,
+        0.7571687332254255
+      ],
+      "odom_xyz": [
+        -2.5363197783331386,
+        0.35014384216760663,
+        0.8226687296902769
+      ]
+    },
+    {
+      "time_sec": 3.1962157419999357,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.7926347255706787,
+      "frame_id": "base_link",
+      "xyz": [
+        1.2296029697429072,
+        0.34681109403005106,
+        0.7574717187245412
+      ],
+      "odom_xyz": [
+        -2.544056203661772,
+        0.34681098047774994,
+        0.8229717152182606
+      ]
+    },
+    {
+      "time_sec": 3.6427929269999595,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.80312579870224,
+      "frame_id": "base_link",
+      "xyz": [
+        1.2302600346601922,
+        0.3469964200323622,
+        0.7574548709061493
+      ],
+      "odom_xyz": [
+        -2.536599139250988,
+        0.3469963269143478,
+        0.8229548673958987
+      ]
+    },
+    {
+      "time_sec": 3.9612459809999336,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.7965390086174011,
+      "frame_id": "base_link",
+      "xyz": [
+        1.2761593892440413,
+        0.31631301100920706,
+        0.7562779643783584
+      ],
+      "odom_xyz": [
+        -2.4879797005892477,
+        0.3163130511197948,
+        0.8217779607948553
+      ]
+    },
+    {
+      "time_sec": 4.151562031000026,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.7901352643966675,
+      "frame_id": "base_link",
+      "xyz": [
+        1.2426792303690866,
+        0.30801451009148323,
+        0.7571364299905367
+      ],
+      "odom_xyz": [
+        -2.5187398367217395,
+        0.3080144659121123,
+        0.8226364265009088
+      ]
+    },
+    {
+      "time_sec": 4.498625579999953,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.8056454658508301,
+      "frame_id": "base_link",
+      "xyz": [
+        1.193334613182113,
+        0.30598323414926,
+        0.7584016765850744
+      ],
+      "odom_xyz": [
+        -2.5626444483390927,
+        0.30598306966113736,
+        0.8239016732203324
+      ]
+    },
+    {
+      "time_sec": 4.679012071999978,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.7885036468505859,
+      "frame_id": "base_link",
+      "xyz": [
+        1.167735914748907,
+        0.2994194653202328,
+        0.7590580534679772
+      ],
+      "odom_xyz": [
+        -2.5868831287840726,
+        0.29941923441246004,
+        0.8245580501753872
+      ]
+    },
+    {
+      "time_sec": 4.99492821299998,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.798915684223175,
+      "frame_id": "base_link",
+      "xyz": [
+        1.1940697654500982,
+        0.3061717347307947,
+        0.7583828265269209
+      ],
+      "odom_xyz": [
+        -2.55908902784441,
+        0.30621406831493087,
+        0.8238717896731649
+      ]
+    },
+    {
+      "time_sec": 5.177875266000001,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.7927927374839783,
+      "frame_id": "base_link",
+      "xyz": [
+        1.1930384571595076,
+        0.35179339121370123,
+        0.7584092703292438
+      ],
+      "odom_xyz": [
+        -2.5601256389064817,
+        0.35183568055264364,
+        0.8239031125553634
+      ]
+    },
+    {
+      "time_sec": 5.495166593000022,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.8692115545272827,
+      "frame_id": "base_link",
+      "xyz": [
+        1.2259116241471921,
+        0.36148676096648,
+        0.7575663686116109
+      ],
+      "odom_xyz": [
+        -2.525239774691856,
+        0.36153054062063733,
+        0.8230643360861403
+      ]
+    },
+    {
+      "time_sec": 5.678133150000008,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.874038577079773,
+      "frame_id": "base_link",
+      "xyz": [
+        1.2505693160225988,
+        0.3687576188271769,
+        0.756934120101985
+      ],
+      "odom_xyz": [
+        -2.495279069581599,
+        0.36880267818102647,
+        0.8224330722202526
+      ]
+    },
+    {
+      "time_sec": 6.21646358299995,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.868937611579895,
+      "frame_id": "base_link",
+      "xyz": [
+        1.1896181763199443,
+        0.3558686852239152,
+        0.7584969698379506
+      ],
+      "odom_xyz": [
+        -2.5453501686190343,
+        0.3559116061105289,
+        0.823996713034169
+      ]
+    },
+    {
+      "time_sec": 6.765267112999936,
+      "door_id": "door_blue_e89957",
+      "method": "yolo:primary:item",
+      "confidence": 0.8046111464500427,
+      "frame_id": "base_link",
+      "xyz": [
+        1.2255282008348423,
+        0.3770856002568748,
+        0.7575761999785942
+      ],
+      "odom_xyz": [
+        -2.493121202904568,
+        0.37713075172127675,
+        0.8230761628646428
+      ]
+    },
+    {
+      "time_sec": 7.2179515499999525,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.6715496182441711,
+      "frame_id": "base_link",
+      "xyz": [
+        1.2453034273448076,
+        0.34591761870689136,
+        0.7570691428885951
+      ],
+      "odom_xyz": [
+        -2.4624646620855923,
+        0.3459640793978667,
+        0.8225691306437939
+      ]
+    },
+    {
+      "time_sec": 7.826405318999946,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.8218454718589783,
+      "frame_id": "base_link",
+      "xyz": [
+        1.206430601337693,
+        0.3815207884572194,
+        0.7580658820169827
+      ],
+      "odom_xyz": [
+        -2.482299013792082,
+        0.38156640211577936,
+        0.8235658777490815
+      ]
+    },
+    {
+      "time_sec": 8.23975928699997,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.7894203662872314,
+      "frame_id": "base_link",
+      "xyz": [
+        1.1655642113389952,
+        0.3785593165032637,
+        0.7591137381707954
+      ],
+      "odom_xyz": [
+        -2.515005277618949,
+        0.37860353336881203,
+        0.8246137345116731
+      ]
+    },
+    {
+      "time_sec": 8.79315209799995,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.8515324592590332,
+      "frame_id": "base_link",
+      "xyz": [
+        1.1254401554504565,
+        0.3703371451695949,
+        0.7601425601166554
+      ],
+      "odom_xyz": [
+        -2.5388089825024314,
+        0.37038034544216075,
+        0.8256425568018282
+      ]
+    },
+    {
+      "time_sec": 9.246103887999993,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.7366045713424683,
+      "frame_id": "base_link",
+      "xyz": [
+        1.0736390430378617,
+        0.3578796810126208,
+        0.7614707937682603
+      ],
+      "odom_xyz": [
+        -2.5797295628696784,
+        0.3579211336736114,
+        0.8269707906236243
+      ]
+    },
+    {
+      "time_sec": 9.76393283699997,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.5288798213005066,
+      "frame_id": "base_link",
+      "xyz": [
+        1.1131988174069576,
+        0.3425227130482949,
+        0.7556991806758606
+      ],
+      "odom_xyz": [
+        -2.523849132718854,
+        0.3425665521880367,
+        0.8211991774606583
+      ]
+    },
+    {
+      "time_sec": 10.324513533999948,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.5131340622901917,
+      "frame_id": "base_link",
+      "xyz": [
+        1.078075929065034,
+        0.36857296720172117,
+        0.7567498653698498
+      ],
+      "odom_xyz": [
+        -2.5453731335738135,
+        0.3686158871388154,
+        0.8222498622078773
+      ]
+    },
+    {
+      "time_sec": 10.79519308600004,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.7338595986366272,
+      "frame_id": "base_link",
+      "xyz": [
+        1.0665480434311447,
+        0.37374760496305093,
+        0.757094716649496
+      ],
+      "odom_xyz": [
+        -2.5460212402013376,
+        0.3737904972282913,
+        0.8225947135092719
+      ]
+    },
+    {
+      "time_sec": 11.346575842999982,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.7467944622039795,
+      "frame_id": "base_link",
+      "xyz": [
+        1.0865711391233304,
+        0.3854077117403268,
+        0.7564957351544307
+      ],
+      "odom_xyz": [
+        -2.5096786425155386,
+        0.38545215610952194,
+        0.8219957319491477
+      ]
+    },
+    {
+      "time_sec": 11.835508247000007,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.619549572467804,
+      "frame_id": "base_link",
+      "xyz": [
+        1.0756837174856677,
+        0.38614287294357325,
+        0.7522244882910887
+      ],
+      "odom_xyz": [
+        -2.509686095561132,
+        0.38618731699136305,
+        0.8177244851117988
+      ]
+    },
+    {
+      "time_sec": 12.380058328000018,
+      "door_id": "door_blue_e89957",
+      "method": "yolo:primary:item",
+      "confidence": 0.5425630807876587,
+      "frame_id": "base_link",
+      "xyz": [
+        1.0359594623693804,
+        0.35417417516901917,
+        0.7624369368623239
+      ],
+      "odom_xyz": [
+        -2.5330889853373053,
+        0.35421761973149796,
+        0.8279369338239787
+      ]
+    },
+    {
+      "time_sec": 12.83591542499994,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.6709981560707092,
+      "frame_id": "base_link",
+      "xyz": [
+        1.0180892225472928,
+        0.38287116061607607,
+        0.7541935308530844
+      ],
+      "odom_xyz": [
+        -2.5400804507428147,
+        0.3829143066094678,
+        0.8196935278208939
+      ]
+    },
+    {
+      "time_sec": 13.348971269000003,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.5208960175514221,
+      "frame_id": "base_link",
+      "xyz": [
+        1.0367214453361593,
+        0.35000424863913093,
+        0.7624173988375347
+      ],
+      "odom_xyz": [
+        -2.5078468243089596,
+        0.3500487712246735,
+        0.8279173958028418
+      ]
+    },
+    {
+      "time_sec": 13.782403340999963,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.47800493240356445,
+      "frame_id": "base_link",
+      "xyz": [
+        0.9946245832061511,
+        0.3485436573628395,
+        0.7549957407450892
+      ],
+      "odom_xyz": [
+        -2.5390636240516877,
+        0.3485868467558405,
+        0.8204957378166754
+      ]
+    },
+    {
+      "time_sec": 14.302675084000043,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.5710465312004089,
+      "frame_id": "base_link",
+      "xyz": [
+        0.9758043720966441,
+        0.3586289572662882,
+        0.755639166765927
+      ],
+      "odom_xyz": [
+        -2.5415642658735136,
+        0.35867203987645024,
+        0.821139163870755
+      ]
+    },
+    {
+      "time_sec": 14.76306755099995,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.6684023141860962,
+      "frame_id": "base_link",
+      "xyz": [
+        0.9209311108680792,
+        0.35420427341079996,
+        0.7575151756968181
+      ],
+      "odom_xyz": [
+        -2.585557338091907,
+        0.3542454771985151,
+        0.8230151729435331
+      ]
+    },
+    {
+      "time_sec": 15.280842559000007,
+      "door_id": "door_blue_e89957",
+      "method": "yolo:primary:item",
+      "confidence": 0.701106071472168,
+      "frame_id": "base_link",
+      "xyz": [
+        0.9807384398773246,
+        0.39397185191653233,
+        0.7554704806879551
+      ],
+      "odom_xyz": [
+        -2.5121517075189783,
+        0.39401619069172483,
+        0.8209704777335873
+      ]
+    },
+    {
+      "time_sec": 15.692118391999998,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.707669734954834,
+      "frame_id": "base_link",
+      "xyz": [
+        0.9195317041385149,
+        0.37724377605682685,
+        0.7575630186619314
+      ],
+      "odom_xyz": [
+        -2.562477728797403,
+        0.3772859655356857,
+        0.823063015881497
+      ]
+    },
+    {
+      "time_sec": 16.26114152699995,
+      "door_id": "door_blue_e89957",
+      "method": "yolo:primary:item",
+      "confidence": 0.6908906698226929,
+      "frame_id": "base_link",
+      "xyz": [
+        0.931246977865369,
+        0.38602973014077285,
+        0.7571624964832356
+      ],
+      "odom_xyz": [
+        -2.5317228303246315,
+        0.3860732330869117,
+        0.8226624936620903
+      ]
+    },
+    {
+      "time_sec": 16.704681317999984,
+      "door_id": "door_blue_e89957",
+      "method": "yolo:primary:item",
+      "confidence": 0.6672683358192444,
+      "frame_id": "base_link",
+      "xyz": [
+        0.9387169399690825,
+        0.38511464203859813,
+        0.7569071131634505
+      ],
+      "odom_xyz": [
+        -2.516092829155415,
+        0.38515881249910583,
+        0.8224071103250064
+      ]
+    },
+    {
+      "time_sec": 17.19322024300004,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.6918681263923645,
+      "frame_id": "base_link",
+      "xyz": [
+        0.9025839681276789,
+        0.37029085871904793,
+        0.7581424284400797
+      ],
+      "odom_xyz": [
+        -2.5359051678936817,
+        0.3703341830396525,
+        0.8236424257108901
+      ]
+    },
+    {
+      "time_sec": 17.667598913000006,
+      "door_id": "door_blue_e89957",
+      "method": "yolo:primary:item",
+      "confidence": 0.6855787634849548,
+      "frame_id": "base_link",
+      "xyz": [
+        0.8923434424239239,
+        0.3813433514632156,
+        0.7584925318829431
+      ],
+      "odom_xyz": [
+        -2.5352661656193773,
+        0.38138670308597666,
+        0.8239925291644483
+      ]
+    },
+    {
+      "time_sec": 18.204494720999946,
+      "door_id": "door_blue_e89957",
+      "method": "yolo:primary:item",
+      "confidence": 0.6663255095481873,
+      "frame_id": "base_link",
+      "xyz": [
+        0.8709667453967528,
+        0.37220801085331334,
+        0.7555012790232022
+      ],
+      "odom_xyz": [
+        -2.543042472502396,
+        0.3722510303610117,
+        0.8210012763698329
+      ]
+    },
+    {
+      "time_sec": 18.65140462399995,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.628355085849762,
+      "frame_id": "base_link",
+      "xyz": [
+        0.8655543374279447,
+        0.3772929163147453,
+        0.7520104984005156
+      ],
+      "odom_xyz": [
+        -2.5348550976504867,
+        0.37733628548465714,
+        0.8175104957538011
+      ]
+    },
+    {
+      "time_sec": 19.244128089000014,
+      "door_id": "door_blue_e89957",
+      "method": "yolo:primary:item",
+      "confidence": 0.7291160225868225,
+      "frame_id": "base_link",
+      "xyz": [
+        0.8506291112230172,
+        0.35988154705589204,
+        0.7453779942962558
+      ],
+      "odom_xyz": [
+        -2.5334595802822713,
+        0.35992497580209853,
+        0.8108779917096745
+      ]
+    },
+    {
+      "time_sec": 19.70897202499998,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.6831362247467041,
+      "frame_id": "base_link",
+      "xyz": [
+        0.8188879195335402,
+        0.349952102364761,
+        0.747005747716229
+      ],
+      "odom_xyz": [
+        -2.5543203478899428,
+        0.34999464019934523,
+        0.812505745221515
+      ]
+    },
+    {
+      "time_sec": 20.222026486000004,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.7034650444984436,
+      "frame_id": "base_link",
+      "xyz": [
+        0.8048915607826302,
+        0.35085016752063386,
+        0.7546029247528794
+      ],
+      "odom_xyz": [
+        -2.5547167449763264,
+        0.35089268843888777,
+        0.8201029222916645
+      ]
+    },
+    {
+      "time_sec": 20.80995471999995,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.5850065350532532,
+      "frame_id": "base_link",
+      "xyz": [
+        0.8099373586565688,
+        0.3599721594029196,
+        0.7751549169460419
+      ],
+      "odom_xyz": [
+        -2.53607133664453,
+        0.36001547665294603,
+        0.8406549144601952
+      ]
+    },
+    {
+      "time_sec": 22.757096563000005,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.31394481658935547,
+      "frame_id": "base_link",
+      "xyz": [
+        0.7936347125368526,
+        0.3629013429121507,
+        0.7415175813012143
+      ],
+      "odom_xyz": [
+        -2.503414107977653,
+        0.3629460548275319,
+        0.8070175788518826
+      ]
+    },
+    {
+      "time_sec": 23.340158417999987,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.4792427122592926,
+      "frame_id": "base_link",
+      "xyz": [
+        0.740158085532406,
+        0.34161142409187994,
+        0.7447170376177196
+      ],
+      "odom_xyz": [
+        -2.54056982570682,
+        0.3416545491747285,
+        0.8102170353292253
+      ]
+    },
+    {
+      "time_sec": 23.851319372000034,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.42877480387687683,
+      "frame_id": "base_link",
+      "xyz": [
+        0.7123146888237327,
+        0.33484878534448986,
+        0.7524710415987832
+      ],
+      "odom_xyz": [
+        -2.557532933567513,
+        0.3348911859846325,
+        0.8179710393882864
+      ]
+    },
+    {
+      "time_sec": 31.722040997000022,
+      "door_id": "door_blue_e89957",
+      "method": "yolo:primary:item",
+      "confidence": 0.48781436681747437,
+      "frame_id": "base_link",
+      "xyz": [
+        0.587021874739799,
+        0.2859850158988766,
+        0.7112321447994286
+      ],
+      "odom_xyz": [
+        -2.5819850687655252,
+        0.2974168537421912,
+        0.7767271783098574
+      ]
+    },
+    {
+      "time_sec": 33.77044886700003,
+      "door_id": "door_blue_e89957",
+      "method": "yolo:primary:item",
+      "confidence": 0.30753985047340393,
+      "frame_id": "base_link",
+      "xyz": [
+        0.607093135817827,
+        0.300952152798581,
+        0.7345172826830157
+      ],
+      "odom_xyz": [
+        -2.56226742274826,
+        0.31283923431783983,
+        0.8000168503597573
+      ]
+    },
+    {
+      "time_sec": 34.22878592500001,
+      "door_id": "door_blue_e89957",
+      "method": "yolo:primary:item",
+      "confidence": 0.307330459356308,
+      "frame_id": "base_link",
+      "xyz": [
+        0.5732261170842546,
+        0.2841633742810836,
+        0.73755663051808
+      ],
+      "odom_xyz": [
+        -2.5957418166723234,
+        0.29528067951331305,
+        0.8030562223121951
+      ]
+    },
+    {
+      "time_sec": 34.865549826000006,
+      "door_id": "door_blue_e89957",
+      "method": "yolo:primary:item",
+      "confidence": 0.3991309106349945,
+      "frame_id": "base_link",
+      "xyz": [
+        0.639317163729087,
+        0.3059979587079392,
+        0.6961077625350902
+      ],
+      "odom_xyz": [
+        -2.5494891174402463,
+        0.34385220233384806,
+        0.7609094683409273
+      ]
+    },
+    {
+      "time_sec": 35.400181653000004,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.523634135723114,
+      "frame_id": "base_link",
+      "xyz": [
+        0.6959755313043958,
+        0.30337394954294195,
+        0.7146436398179068
+      ],
+      "odom_xyz": [
+        -2.4938296825694604,
+        0.3443617264523255,
+        0.7803524359295505
+      ]
+    },
+    {
+      "time_sec": 35.90083576099994,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.4830363988876343,
+      "frame_id": "base_link",
+      "xyz": [
+        0.7250833156065265,
+        0.2788781983102027,
+        0.7518162402253066
+      ],
+      "odom_xyz": [
+        -2.4631521634489033,
+        0.3215590639891369,
+        0.8173159855517803
+      ]
+    },
+    {
+      "time_sec": 36.39987561099997,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.5170120000839233,
+      "frame_id": "base_link",
+      "xyz": [
+        0.8313395167516817,
+        0.2735604392729894,
+        0.7534726702242874
+      ],
+      "odom_xyz": [
+        -2.356764950288442,
+        0.3222434083918996,
+        0.8189725865472804
+      ]
+    },
+    {
+      "time_sec": 37.00442913699999,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.23546044528484344,
+      "frame_id": "base_link",
+      "xyz": [
+        0.9361180553986506,
+        0.26403329767654266,
+        0.748994954897494
+      ],
+      "odom_xyz": [
+        -2.251615802600786,
+        0.3186426257459061,
+        0.8144949055138992
+      ]
+    },
+    {
+      "time_sec": 37.47440402400002,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.2725706994533539,
+      "frame_id": "base_link",
+      "xyz": [
+        0.9724457767526488,
+        0.23687781741410693,
+        0.7515982393556677
+      ],
+      "odom_xyz": [
+        -2.2138139348526296,
+        0.2935798634608187,
+        0.8170982261663621
+      ]
+    },
+    {
+      "time_sec": 38.07262818000004,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.22404105961322784,
+      "frame_id": "base_link",
+      "xyz": [
+        1.0018502736589947,
+        0.20122633701697779,
+        0.7547487085928553
+      ],
+      "odom_xyz": [
+        -2.1824449547516567,
+        0.25964405187666023,
+        0.8202487386303807
+      ]
+    },
+    {
+      "time_sec": 47.24832266999999,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.25925716757774353,
+      "frame_id": "base_link",
+      "xyz": [
+        0.9983439371307076,
+        0.07252926038983797,
+        0.65
+      ],
+      "odom_xyz": [
+        -2.1493354830977953,
+        0.16905093171146718,
+        0.6630042199156935
+      ]
+    },
+    {
+      "time_sec": 49.61787033099995,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.6170322895050049,
+      "frame_id": "base_link",
+      "xyz": [
+        1.0931146021264921,
+        0.19620005679193472,
+        0.7422857007638256
+      ],
+      "odom_xyz": [
+        -2.0832046345786956,
+        0.3046525440624964,
+        0.7790573783865109
+      ]
+    },
+    {
+      "time_sec": 57.29944543299996,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.4909190535545349,
+      "frame_id": "base_link",
+      "xyz": [
+        0.975544153128682,
+        0.1250697632216261,
+        0.7681550394630626
+      ],
+      "odom_xyz": [
+        -2.0881321848805707,
+        0.23476148658399695,
+        0.8336594716986753
+      ]
+    },
+    {
+      "time_sec": 58.313305549999995,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.25934624671936035,
+      "frame_id": "base_link",
+      "xyz": [
+        0.97937882947257,
+        0.1297467680070501,
+        0.747146203868694
+      ],
+      "odom_xyz": [
+        -2.0631055965847445,
+        0.24188980788793102,
+        0.8126464904958821
+      ]
+    },
+    {
+      "time_sec": 58.697257358,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.20617732405662537,
+      "frame_id": "base_link",
+      "xyz": [
+        0.9431841558613835,
+        0.12495174714402964,
+        0.748692984792249
+      ],
+      "odom_xyz": [
+        -2.0905456884434517,
+        0.23440863598817027,
+        0.8141930823741985
+      ]
+    },
+    {
+      "time_sec": 60.22199705799994,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.24269434809684753,
+      "frame_id": "base_link",
+      "xyz": [
+        0.9054825516482481,
+        0.10834833951346579,
+        0.7386954137973198
+      ],
+      "odom_xyz": [
+        -2.0939793736790606,
+        0.2173938797311096,
+        0.804195413001193
+      ]
+    },
+    {
+      "time_sec": 60.437718450000034,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.37827569246292114,
+      "frame_id": "base_link",
+      "xyz": [
+        0.8704325622264377,
+        0.11903351278310279,
+        0.7443624327063368
+      ],
+      "odom_xyz": [
+        -2.1244831976656386,
+        0.22516826600041823,
+        0.8098624311642091
+      ]
+    },
+    {
+      "time_sec": 61.46745836499997,
+      "door_id": "door_blue_7bf281",
+      "method": "yolo:primary:item",
+      "confidence": 0.26475295424461365,
+      "frame_id": "base_link",
+      "xyz": [
+        0.9003225967662924,
+        0.1231210388740231,
+        0.7428296104222417
+      ],
+      "odom_xyz": [
+        -2.073469715696594,
+        0.23422688972096428,
+        0.8083296080805632
+      ]
+    },
+    {
+      "time_sec": 118.60444983199989,
+      "door_id": "door_blue_bc3f24",
+      "method": "yolo:primary:item",
+      "confidence": 0.20951463282108307,
+      "frame_id": "base_link",
+      "xyz": [
+        0.5600376789828988,
+        -0.1579593453541508,
+        0.7698534126843456
+      ],
+      "odom_xyz": [
+        -1.849271161475933,
+        -0.7213572171085803,
+        0.8353477753478242
+      ]
+    },
+    {
+      "time_sec": 119.0866110369999,
+      "door_id": "door_blue_bc3f24",
+      "method": "yolo:primary:item",
+      "confidence": 0.2269914448261261,
+      "frame_id": "base_link",
+      "xyz": [
+        0.5901254524974229,
+        -0.16644564044799093,
+        0.7688247708547893
+      ],
+      "odom_xyz": [
+        -1.840873091832309,
+        -0.7526412762181695,
+        0.8343287950924463
+      ]
+    },
+    {
+      "time_sec": 136.32975488599993,
+      "door_id": "door_blue_bc3f24",
+      "method": "yolo:primary:item",
+      "confidence": 0.20241467654705048,
+      "frame_id": "base_link",
+      "xyz": [
+        0.7230381161327216,
+        -0.21011364058557705,
+        0.7519211222496043
+      ],
+      "odom_xyz": [
+        -1.9482036238449847,
+        -0.6626426816023308,
+        0.8174211207387312
+      ]
+    }
+  ],
+  "sample_count": 39175,
+  "phases": [
+    [
+      29.080414167999947,
+      "LOCALIZE_HANDLE:door_blue_7bf281"
+    ],
+    [
+      29.10233967399995,
+      "PRE_GRASP:door_blue_7bf281"
+    ],
+    [
+      33.78728139999998,
+      "GRASP_HANDLE:door_blue_7bf281"
+    ],
+    [
+      40.37577529999999,
+      "PRESS_HANDLE:door_blue_7bf281"
+    ],
+    [
+      40.40479221999999,
+      "LATCH_CLEAR_PUSH:door_blue_7bf281"
+    ],
+    [
+      40.406576807999954,
+      "LATCH_RELEASED:door_blue_7bf281"
+    ],
+    [
+      40.506294955000044,
+      "RETRACT_FROM_HANDLE:door_blue_7bf281"
+    ],
+    [
+      45.178806441000006,
+      "ARM_CLEAR_FOR_BASE_PUSH:door_blue_7bf281"
+    ],
+    [
+      50.81306951499994,
+      "BASE_PUSH_OPEN:door_blue_7bf281"
+    ],
+    [
+      126.1479461529999,
+      "RELEASE_HANDLE:door_blue_7bf281"
+    ],
+    [
+      126.14902229799998,
+      "RETURN_HOME:door_blue_7bf281"
+    ],
+    [
+      126.15289318599991,
+      "POST_OPEN_BACKOFF:door_blue_7bf281"
+    ],
+    [
+      137.6352048980001,
+      "COMPLETE:door_blue_7bf281"
+    ]
+  ],
+  "artifacts": {
+    "output_dir": "artifacts/validation/github_pre_push_20260913_r5_full_open/physical_contact_door_test_20260913_170512",
+    "launch_log": "artifacts/validation/github_pre_push_20260913_r5_full_open/physical_contact_door_test_20260913_170512/launch.log",
+    "images": [
+      "artifacts/validation/github_pre_push_20260913_r5_full_open/physical_contact_door_test_20260913_170512/before_perspective.png",
+      "artifacts/validation/github_pre_push_20260913_r5_full_open/physical_contact_door_test_20260913_170512/before_overhead.png",
+      "artifacts/validation/github_pre_push_20260913_r5_full_open/physical_contact_door_test_20260913_170512/yolo_primary_detection.png",
+      "artifacts/validation/github_pre_push_20260913_r5_full_open/physical_contact_door_test_20260913_170512/after_perspective.png",
+      "artifacts/validation/github_pre_push_20260913_r5_full_open/physical_contact_door_test_20260913_170512/after_overhead.png",
+      "artifacts/validation/github_pre_push_20260913_r5_full_open/physical_contact_door_test_20260913_170512/after_detection_debug.png",
+      "artifacts/validation/github_pre_push_20260913_r5_full_open/physical_contact_door_test_20260913_170512/door_hinge_angle.png"
+    ],
+    "angle_plot": "artifacts/validation/github_pre_push_20260913_r5_full_open/physical_contact_door_test_20260913_170512/door_hinge_angle.png",
+    "video": "artifacts/validation/github_pre_push_20260913_r5_full_open/physical_contact_door_test_20260913_170512/gazebo_lever_press_base_push.mp4",
+    "phase_keyframes": "artifacts/validation/github_pre_push_20260913_r5_full_open/physical_contact_door_test_20260913_170512/phases"
+  }
+}

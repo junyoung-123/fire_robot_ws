@@ -19,8 +19,8 @@
   <xacro:property name="track"       value="0.37559"/>
   <xacro:property name="base_mass"    value="16.523"/>
   <xacro:property name="wheel_mass"   value="0.477"/>
-  <xacro:property name="camera_z"     value="${base_height/2 + 0.30}"/>
-  <xacro:property name="camera_pitch" value="0.14"/>
+  <xacro:property name="camera_z"     value="0.7890"/>
+  <xacro:property name="camera_pitch" value="0.0"/>
   <xacro:property name="enable_sim_depth_camera" value="false"/>
 
   <xacro:macro name="box_inertia" params="m x y z">
@@ -672,16 +672,14 @@
   </gazebo>
 
   <!-- Optional sim-only grasp constraint for full door-opening visualization.
-       The physical contact test can publish /fire_robot/sim_arm/handle_attach
-       after the gripper reaches the lever. This is not a pure friction proof;
-       it approximates the gripper maintaining a hold on the lever while the
-       base and arm follow the hinge arc. -->
+       It connects the finger to the articulated lever, not to the door panel,
+       so lever press remains visible while the mobile base supplies the push. -->
   <gazebo>
     <plugin filename="ignition-gazebo-detachable-joint-system"
             name="ignition::gazebo::systems::DetachableJoint">
       <parent_link>gripper_finger_left</parent_link>
       <child_model>blue_hinged_contact_door</child_model>
-      <child_link>panel</child_link>
+      <child_link>lever</child_link>
       <attach_topic>/fire_robot/sim_arm/handle_attach</attach_topic>
       <detach_topic>/fire_robot/sim_arm/handle_detach</detach_topic>
       <output_topic>/fire_robot/sim_arm/handle_attach_state</output_topic>
