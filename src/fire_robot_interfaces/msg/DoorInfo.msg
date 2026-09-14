@@ -1,6 +1,7 @@
 std_msgs/Header header
 
 geometry_msgs/PoseStamped door_pose        # 문 위치 및 방향
+geometry_msgs/PointStamped observed_door_position # Sensor door point, never a parking goal; empty frame if unavailable
 geometry_msgs/PointStamped handle_position # 손잡이 3D 위치
 bool handle_detected                       # 손잡이를 직접 관측했는지 여부
 string handle_detection_method             # "yolo", "hsv", "estimated"

@@ -1050,14 +1050,13 @@ class StateMachineNode(Node):
 
         # 2차: 탐색 회전 중 같은 문이 이미지 X 위치에 따라 다른 ID로 발급될 수 있음
         # map 프레임 기준 0.8 m 이내 + 같은 색이면 동일 문으로 판단 → 기존 항목 갱신
-        px = msg.door_pose.pose.position.x
-        py = msg.door_pose.pose.position.y
+        px, py = self._door_identity_xy(msg)
         nearby = next(
             (d for d in self.detected_doors
              if d.door_color == msg.door_color
              and not self._blue_observations_wall_side_conflict(d, msg)
-             and math.hypot(d.door_pose.pose.position.x - px,
-                            d.door_pose.pose.position.y - py) < 0.8),
+             and math.hypot(self._door_identity_xy(d)[0] - px,
+                            self._door_identity_xy(d)[1] - py) < 0.8),
             None)
         if nearby:
             self._merge_door_observation(nearby, msg)
@@ -1075,6 +1074,8 @@ class StateMachineNode(Node):
         if bias <= 0.0:
             return door
         if door.door_color not in ('blue', 'red'):
+            return door
+        if self._observed_door_xy(door) is not None:
             return door
         if not self._door_has_map_identity(door):
             return door
@@ -2125,9 +2126,9 @@ class StateMachineNode(Node):
                         and math.hypot(msg_xy[0] - origin[0],
                                        msg_xy[1] - origin[1]) > max_total):
                     return False
-            ex = existing.door_pose.pose.position
-            mp = msg.door_pose.pose.position
-            return math.hypot(mp.x - ex.x, mp.y - ex.y) <= max(
+            ex = self._door_identity_xy(existing)
+            mp = self._door_identity_xy(msg)
+            return math.hypot(mp[0] - ex[0], mp[1] - ex[1]) <= max(
                 0.8, self._observed_candidate_merge_dist())
         return True
 
@@ -2701,7 +2702,9 @@ class StateMachineNode(Node):
                 and msg.door_pose.header.frame_id == 'map'):
             ex = existing.door_pose.pose.position
             mp = msg.door_pose.pose.position
-            jump = math.hypot(mp.x - ex.x, mp.y - ex.y)
+            old_xy = self._door_identity_xy(existing)
+            new_xy = self._door_identity_xy(msg)
+            jump = math.hypot(new_xy[0] - old_xy[0], new_xy[1] - old_xy[1])
 
             # Side-camera visual range can briefly jump when a door is partly
             # occluded. Keep the stable estimate unless the new observation is
@@ -2716,26 +2719,29 @@ class StateMachineNode(Node):
             existing.door_pose.header = msg.door_pose.header
             existing.door_pose.pose.orientation = msg.door_pose.pose.orientation
 
-            eh = existing.handle_position.point
-            mh = msg.handle_position.point
-            eh.x = (1.0 - alpha) * eh.x + alpha * mh.x
-            eh.y = (1.0 - alpha) * eh.y + alpha * mh.y
-            eh.z = mh.z
-            existing.handle_position.header = msg.handle_position.header
+            if self._observed_door_xy(msg) is not None:
+                if self._observed_door_xy(existing) is not None:
+                    ep = existing.observed_door_position.point
+                    np = msg.observed_door_position.point
+                    ep.x = (1.0 - alpha) * ep.x + alpha * np.x
+                    ep.y = (1.0 - alpha) * ep.y + alpha * np.y
+                    ep.z = np.z
+                    existing.observed_door_position.header = copy.deepcopy(
+                        msg.observed_door_position.header)
+                else:
+                    existing.observed_door_position = copy.deepcopy(
+                        msg.observed_door_position)
         else:
-            existing.door_pose = msg.door_pose
-            existing.handle_position = msg.handle_position
+            existing.door_pose = copy.deepcopy(msg.door_pose)
+            existing.observed_door_position = copy.deepcopy(
+                msg.observed_door_position)
 
-        if getattr(msg, 'handle_detected', False):
-            existing.handle_detected = True
-            existing.handle_detection_method = (
-                getattr(msg, 'handle_detection_method', '') or 'unknown')
-            existing.handle_confidence = max(
-                float(getattr(existing, 'handle_confidence', 0.0)),
-                float(getattr(msg, 'handle_confidence', 0.0)))
-        elif not getattr(existing, 'handle_detection_method', ''):
-            existing.handle_detection_method = 'estimated'
-            existing.handle_confidence = 0.0
+        # Coordinates and provenance are one sample. Never blend an inferred
+        # point into a YOLO point while retaining the old YOLO label/confidence.
+        existing.handle_position = copy.deepcopy(msg.handle_position)
+        existing.handle_detected = msg.handle_detected
+        existing.handle_detection_method = msg.handle_detection_method
+        existing.handle_confidence = msg.handle_confidence
 
         existing.header = msg.header
         existing.confidence = max(existing.confidence, msg.confidence)
@@ -8279,9 +8285,25 @@ class StateMachineNode(Node):
 
     def _door_has_map_identity(self, door: DoorInfo) -> bool:
         return (
-            door.handle_position.header.frame_id == 'map'
+            self._observed_door_xy(door) is not None
+            or door.handle_position.header.frame_id == 'map'
             or door.door_pose.header.frame_id == 'map'
         )
+
+    @staticmethod
+    def _observed_door_xy(door: DoorInfo) -> tuple[float, float] | None:
+        observed = getattr(door, 'observed_door_position', None)
+        if observed is None or observed.header.frame_id != 'map':
+            return None
+        xy = (float(observed.point.x), float(observed.point.y))
+        return xy if all(math.isfinite(v) for v in xy) else None
+
+    def _door_body_xy(self, door: DoorInfo) -> tuple[float, float]:
+        observed = self._observed_door_xy(door)
+        if observed is not None:
+            return observed
+        return (float(door.door_pose.pose.position.x),
+                float(door.door_pose.pose.position.y))
 
     @staticmethod
     def _has_trusted_observed_handle(door: DoorInfo) -> bool:
@@ -8298,6 +8320,9 @@ class StateMachineNode(Node):
 
     def _door_identity_xy(self, door: DoorInfo) -> tuple[float, float]:
         """Stable map point for duplicate/opened-door identity checks."""
+        observed = self._observed_door_xy(door)
+        if observed is not None:
+            return observed
         if door.door_color == 'blue':
             pose_xy: tuple[float, float] | None = None
             handle_xy: tuple[float, float] | None = None
@@ -8369,6 +8394,9 @@ class StateMachineNode(Node):
                     self._is_xy_at_configured_wall_lateral(handle_xy)
                     and self._door_handle_consistent_with_pose(door, handle_xy)):
                 return handle_xy
+        observed = self._observed_door_xy(door)
+        if observed is not None:
+            return observed
         if door.door_pose.header.frame_id == 'map':
             return (
                 float(door.door_pose.pose.position.x),
@@ -8643,10 +8671,7 @@ class StateMachineNode(Node):
         if door.door_pose.header.frame_id != 'map':
             return True
 
-        pose_xy = (
-            float(door.door_pose.pose.position.x),
-            float(door.door_pose.pose.position.y),
-        )
+        pose_xy = self._door_body_xy(door)
         handle_progress = self._axis_progress_xy(handle_xy[0], handle_xy[1])
         pose_progress = self._axis_progress_xy(pose_xy[0], pose_xy[1])
         handle_lateral = (
@@ -8691,10 +8716,7 @@ class StateMachineNode(Node):
                 or door.handle_position.header.frame_id != 'map'):
             return True
 
-        pose_xy = (
-            float(door.door_pose.pose.position.x),
-            float(door.door_pose.pose.position.y),
-        )
+        pose_xy = self._door_body_xy(door)
         handle_xy = (
             float(door.handle_position.point.x),
             float(door.handle_position.point.y),
@@ -8728,10 +8750,7 @@ class StateMachineNode(Node):
                 door.door_pose.header.frame_id != 'map'
                 or door.handle_position.header.frame_id != 'map'):
             return False
-        pose_xy = (
-            float(door.door_pose.pose.position.x),
-            float(door.door_pose.pose.position.y),
-        )
+        pose_xy = self._door_body_xy(door)
         handle_xy = (
             float(door.handle_position.point.x),
             float(door.handle_position.point.y),
@@ -17014,6 +17033,7 @@ class StateMachineNode(Node):
                     best_memory_delta = progress_delta
             if (
                     memory_xy is not None
+                    and not self._has_trusted_observed_handle(adjusted)
                     and (
                         handle_abs_lateral < min_observed_lateral
                         or best_memory_delta > 0.20)):
@@ -17078,7 +17098,8 @@ class StateMachineNode(Node):
                 1.10,
                 self._observed_blue_min_abs_wall_y_m + 0.20)
             used_direct_wall_memory = False
-            if handle_abs_lateral < min_open_lateral:
+            if (handle_abs_lateral < min_open_lateral
+                    and not self._has_trusted_observed_handle(adjusted)):
                 memory_xy = self._stable_wall_memory_xy_for_direct_blue(adjusted)
                 if memory_xy is not None:
                     mem_x, mem_y, _mem_count, mem_confidence = memory_xy
@@ -17101,8 +17122,7 @@ class StateMachineNode(Node):
         approach_progress = handle_progress
         progress_note = ''
         if adjusted.door_pose.header.frame_id == 'map':
-            pose_x = float(adjusted.door_pose.pose.position.x)
-            pose_y = float(adjusted.door_pose.pose.position.y)
+            pose_x, pose_y = self._door_body_xy(adjusted)
             pose_progress = self._axis_progress_xy(pose_x, pose_y)
             pose_lateral = self._axis_lateral_xy(pose_x, pose_y)
             handle_side = handle_lateral - self._explore_center_y
@@ -17139,14 +17159,12 @@ class StateMachineNode(Node):
                 'observed_wall_projection',
             ))
         should_project_handle_to_wall = (
-            adjusted.door_id.startswith('observed_blue_')
-            or (
-                not trusted_handle_detection
-                and abs(handle_lateral - self._explore_center_y)
-                >= self._axis_door_min_abs_lateral_m)
-            or (
-                used_direct_wall_memory
-                and not trusted_handle_detection))
+            not trusted_handle_detection
+            and (
+                adjusted.door_id.startswith('observed_blue_')
+                or abs(handle_lateral - self._explore_center_y)
+                >= self._axis_door_min_abs_lateral_m
+                or used_direct_wall_memory))
         if should_project_handle_to_wall:
             wall_x, wall_y = self._axis_to_map_xy(
                 approach_progress, wall_lateral)

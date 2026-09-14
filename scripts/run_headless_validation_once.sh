@@ -13,6 +13,29 @@ cd "${WORKSPACE_ROOT}"
 mkdir -p "$(dirname "${LOG_FILE}")"
 rm -f "${LOG_FILE}.status"
 
+launch_pid=""
+trace_pid=""
+stop_owned_processes() {
+  if [[ -n "${launch_pid}" ]]; then
+    kill -INT -- "-${launch_pid}" 2>/dev/null || true
+    sleep 3
+    kill -TERM -- "-${launch_pid}" 2>/dev/null || true
+    sleep 2
+    kill -KILL -- "-${launch_pid}" 2>/dev/null || true
+    wait "${launch_pid}" 2>/dev/null || true
+    launch_pid=""
+  fi
+  if [[ -n "${trace_pid}" ]]; then
+    kill -INT "${trace_pid}" 2>/dev/null || true
+    sleep 3
+    kill -TERM "${trace_pid}" 2>/dev/null || true
+    wait "${trace_pid}" 2>/dev/null || true
+    trace_pid=""
+  fi
+}
+trap stop_owned_processes EXIT
+trap 'printf "interrupted\n" > "${LOG_FILE}.status"; exit 130' INT TERM
+
 cleanup_sim_processes() {
   pkill -TERM -f '[r]os2cli.daemon.daemonize' 2>/dev/null || true
   pkill -TERM -f '[r]os2 launch fire_robot_bringup simulation.launch.py' 2>/dev/null || true
@@ -68,7 +91,7 @@ if [[ " $* " != *" enable_lifecycle_recovery:="* ]]; then
   lifecycle_args=(enable_lifecycle_recovery:=true)
 fi
 
-ros2 launch fire_robot_bringup simulation.launch.py \
+setsid ros2 launch fire_robot_bringup simulation.launch.py \
   use_rviz:=false \
   headless:=true \
   world:="${WORLD_FILE}" \
@@ -115,21 +138,7 @@ while kill -0 "${launch_pid}" 2>/dev/null; do
   fi
 done
 
-if kill -0 "${launch_pid}" 2>/dev/null; then
-  kill -INT "${launch_pid}" 2>/dev/null || true
-  sleep 5
-  kill -TERM "${launch_pid}" 2>/dev/null || true
-fi
-wait "${launch_pid}" 2>/dev/null || true
-
-if [[ -n "${trace_pid}" ]] && kill -0 "${trace_pid}" 2>/dev/null; then
-  kill -INT "${trace_pid}" 2>/dev/null || true
-  sleep 2
-  kill -TERM "${trace_pid}" 2>/dev/null || true
-fi
-if [[ -n "${trace_pid}" ]]; then
-  wait "${trace_pid}" 2>/dev/null || true
-fi
+stop_owned_processes
 
 cleanup_sim_processes
 

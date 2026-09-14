@@ -117,6 +117,9 @@ class ValidationTraceLogger(Node):
         x = y = float("nan")
         if msg.door_pose.header.frame_id == "map":
             x, y, _ = self.pose_xy_yaw(msg.door_pose)
+        observed = getattr(msg, "observed_door_position", None)
+        if observed is not None and observed.header.frame_id == "map":
+            x, y = self.point_xy(observed)
         hx = hy = float("nan")
         if msg.handle_position.header.frame_id == "map":
             hx, hy = self.point_xy(msg.handle_position)
@@ -167,10 +170,7 @@ class ValidationTraceLogger(Node):
         self.latest_state = state_name
         self.latest_target_id = target_id
 
-        if (previous_state == "OPENING_DOOR"
-                and state_name != "OPENING_DOOR"
-                and previous_target_id):
-            self.record_event("DOOR_OPENED", previous_target_id, t)
+        # Leaving OPENING_DOOR can also mean failure; only log explicit success.
         if state_name in ("DOOR_OPENED", "MISSION_COMPLETE"):
             self.record_event(state_name, target_id, t)
 

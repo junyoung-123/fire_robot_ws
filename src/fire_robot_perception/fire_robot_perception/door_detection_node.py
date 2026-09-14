@@ -1717,6 +1717,12 @@ class DoorDetectionNode(Node):
         pose_base.pose.position.x = px
         pose_base.pose.position.y = py
         pose_base.pose.orientation.w = 1.0
+        # Keep the measured door point independent of the legacy approach pose.
+        observed_base = PointStamped()
+        observed_base.header = pose_base.header
+        observed_base.point.x = dist * math.cos(angle)
+        observed_base.point.y = dist * math.sin(angle)
+        msg.observed_door_position = observed_base
         handle_base = PointStamped()
         handle_base.header = pose_base.header
         handle_base.point.x = handle_x
@@ -1753,8 +1759,12 @@ class DoorDetectionNode(Node):
             handle_map = self._tf_buffer.transform(
                 handle_base, 'map',
                 timeout=rclpy.duration.Duration(seconds=0.1))
+            observed_map = self._tf_buffer.transform(
+                observed_base, 'map',
+                timeout=rclpy.duration.Duration(seconds=0.1))
             msg.door_pose = pose_map
             msg.handle_position = handle_map
+            msg.observed_door_position = observed_map
         except Exception as stamped_error:
             try:
                 # Camera images and TF can be a few frames out of phase in
@@ -1763,14 +1773,19 @@ class DoorDetectionNode(Node):
                 latest_stamp = rclpy.time.Time().to_msg()
                 pose_base.header.stamp = latest_stamp
                 handle_base.header.stamp = latest_stamp
+                observed_base.header.stamp = latest_stamp
                 pose_map = self._tf_buffer.transform(
                     pose_base, 'map',
                     timeout=rclpy.duration.Duration(seconds=0.2))
                 handle_map = self._tf_buffer.transform(
                     handle_base, 'map',
                     timeout=rclpy.duration.Duration(seconds=0.2))
+                observed_map = self._tf_buffer.transform(
+                    observed_base, 'map',
+                    timeout=rclpy.duration.Duration(seconds=0.2))
                 msg.door_pose = pose_map
                 msg.handle_position = handle_map
+                msg.observed_door_position = observed_map
             except Exception:
                 self.get_logger().debug(
                     f'Door map transform unavailable, publishing {self._frame}: '
