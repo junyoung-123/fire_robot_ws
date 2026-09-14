@@ -3446,6 +3446,8 @@ class StateMachineNode(Node):
                 if self._settle_before_opening_door():
                     self._nav_done = True
                     return
+            if self._refresh_close_handle_before_opening():
+                return
             if (self.target_door is not None
                     and self.target_door.door_color == 'blue'
                     and self._refresh_observed_blue_target_before_opening()):
@@ -4502,6 +4504,14 @@ class StateMachineNode(Node):
             self.get_logger().warn('OpenDoor 서비스 대기 중...')
             return
 
+        # Validate the exact payload, not a substitute returned by the parking
+        # helper. A valid parking point cannot authorize an unrelated handle.
+        reason = self._door_open_workspace_invalid_reason(self.target_door)
+        if reason:
+            self.cmd_vel_pub.publish(Twist())
+            self.get_logger().error(f'OpenDoor payload rejected before arm motion: {reason}')
+            self._handle_door_open_failure(f'Invalid handle observation: {reason}')
+            return
         self._door_opening_in_progress = True
         req               = OpenDoor.Request()
         req.door_id       = self._door_open_request_id(self.target_door)
@@ -16449,12 +16459,6 @@ class StateMachineNode(Node):
         if failure_kind == 'open':
             field = 'open_failures'
             limit = self._max_door_open_failures_before_abandon
-            if self._is_pre_exit_blue_failure_candidate(xy):
-                limit = min(
-                    limit,
-                    self._pre_exit_blue_approach_failures_before_abandon)
-                if not door.door_id.startswith('observed_blue_'):
-                    limit = min(limit, 1)
             label = '문 개방'
         else:
             field = 'approach_failures'
@@ -17291,11 +17295,16 @@ class StateMachineNode(Node):
     def _door_open_workspace_invalid_reason(self, door: DoorInfo) -> str:
         if door.door_color != 'blue' or not self._door_has_map_identity(door):
             return ''
+        if door.handle_position.header.frame_id != 'map':
+            return 'handle payload is not in map'
+        hp = door.handle_position.point
+        if not all(math.isfinite(float(v)) for v in (hp.x, hp.y, hp.z)):
+            return 'handle payload contains nonfinite coordinates'
         pose = self._current_map_pose()
         if pose is None:
-            return ''
+            return 'robot map pose unavailable'
         rx, ry, robot_yaw = pose
-        hx, hy = self._door_handle_xy(door)
+        hx, hy = float(hp.x), float(hp.y)
         dx = hx - rx
         dy = hy - ry
         forward = math.cos(robot_yaw) * dx + math.sin(robot_yaw) * dy
@@ -17942,6 +17951,73 @@ class StateMachineNode(Node):
             return True
         self._door_open_settle_start_time = None
         return False
+
+    def _fresh_handle_for_locked_station(self, target: DoorInfo) -> DoorInfo | None:
+        """Find a fresh measured handle at this station, never a parking goal."""
+        now_sec = self.get_clock().now().nanoseconds / 1e9
+        max_age = max(0.5, min(4.0, self._door_open_fresh_blue_max_age_sec))
+        target_xy = self._door_handle_xy(target)
+        max_dist = max(0.2, min(1.0, self._door_open_fresh_blue_max_dist_m))
+        target_side = self._axis_lateral_xy(*target_xy) - self._explore_center_y
+        candidates = []
+        for candidate in self.detected_doors:
+            if candidate.door_color != 'blue' or not self._has_trusted_observed_handle(candidate):
+                continue
+            stamp = candidate.handle_position.header.stamp
+            stamp_sec = float(stamp.sec) + float(stamp.nanosec) / 1e9
+            if stamp_sec <= 0.0 or not 0.0 <= now_sec - stamp_sec <= max_age:
+                continue
+            hp = candidate.handle_position.point
+            xy = (float(hp.x), float(hp.y))
+            if not math.isfinite(float(hp.z)):
+                continue
+            if not self._door_handle_consistent_with_pose(candidate, xy):
+                continue
+            side = self._axis_lateral_xy(*xy) - self._explore_center_y
+            distance = math.hypot(xy[0] - target_xy[0], xy[1] - target_xy[1])
+            if target_side * side <= 0.0 or distance > max_dist:
+                continue
+            if not self._is_blue_xy_recordable_wall_observation(xy):
+                continue
+            candidates.append((stamp_sec, float(candidate.handle_confidence), -distance, candidate))
+        return max(candidates, key=lambda item: item[:3])[3] if candidates else None
+
+    def _refresh_close_handle_before_opening(self) -> bool:
+        target = self.target_door
+        if target is None or target.door_color != 'blue':
+            return False
+        stamp = target.handle_position.header.stamp
+        age = self.get_clock().now().nanoseconds / 1e9 - (stamp.sec + stamp.nanosec / 1e9)
+        max_age = max(0.5, min(4.0, self._door_open_fresh_blue_max_age_sec))
+        if (self._has_trusted_observed_handle(target)
+                and 0.0 <= age <= max_age
+                and not self._door_open_workspace_invalid_reason(target)):
+            return False
+        candidate = self._fresh_handle_for_locked_station(target)
+        if candidate is None:
+            return False
+        refreshed = copy.deepcopy(target)
+        refreshed.handle_position = copy.deepcopy(candidate.handle_position)
+        refreshed.handle_detected = candidate.handle_detected
+        refreshed.handle_detection_method = candidate.handle_detection_method
+        refreshed.handle_confidence = candidate.handle_confidence
+        self.target_door = refreshed
+        hp = refreshed.handle_position.point
+        self.get_logger().info(
+            f'Final handle refreshed from current observation: {target.door_id}, '
+            f'method={refreshed.handle_detection_method}, '
+            f'point=({hp.x:.3f},{hp.y:.3f},{hp.z:.3f})')
+        if self._blue_target_open_pose_aligned_for_safe_memory(refreshed):
+            return False
+        self.target_door = self._door_with_axis_aligned_approach(refreshed)
+        self._door_open_align_start_time = None
+        self._door_open_settle_start_time = None
+        self._nav_done = False
+        self._nav_failed = False
+        self._nav_start_time = self.get_clock().now()
+        self._reset_door_nav_stuck_watch()
+        self.target_door_pub.publish(self.target_door)
+        return True
 
     def _refresh_observed_blue_target_before_opening(self) -> bool:
         """Replace a stale long-range station with recent close wall memory."""

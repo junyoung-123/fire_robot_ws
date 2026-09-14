@@ -99,6 +99,58 @@ class DoorContractTests(unittest.TestCase):
         msg = door(body=(float('nan'), 2.0))
         self.assertIsNone(self.fsm._observed_door_xy(msg))
 
+    def test_workspace_checks_payload_not_parking_fallback(self):
+        f = self.fsm
+        f._current_map_pose = lambda: (6.0, 1.0, math.pi / 2)
+        f._door_open_ready_max_dist_m = .2
+        f._door_open_ready_lateral_tolerance_m = .1
+        f._door_handle_xy = lambda msg: (6.0, 2.0)
+        self.assertIn('handle_forward=', f._door_open_workspace_invalid_reason(door(handle=(4.0, .1))))
+        self.assertEqual(f._door_open_workspace_invalid_reason(door(handle=(6.0, 2.0))), '')
+        f._current_map_pose = lambda: None
+        self.assertTrue(f._door_open_workspace_invalid_reason(door()))
+
+    def test_final_refresh_requires_fresh_same_station_measured_point(self):
+        f = self.fsm
+        f.get_clock = lambda: SimpleNamespace(now=lambda: SimpleNamespace(nanoseconds=100_000_000_000))
+        f._door_open_fresh_blue_max_age_sec = 8.0
+        f._door_open_fresh_blue_max_dist_m = 1.2
+        f._door_handle_xy = lambda msg: (6.0, 2.0)
+        f._is_blue_xy_recordable_wall_observation = lambda xy: True
+        stale = door()
+        stale.handle_position.header.stamp.sec = 80
+        other_wall = door(body=(6.0, -2.0), handle=(6.0, -2.0))
+        other_wall.handle_position.header.stamp.sec = 99
+        other_door = door(body=(8.0, 2.0), handle=(8.0, 2.0))
+        other_door.handle_position.header.stamp.sec = 99
+        projected = door()
+        projected.handle_detected = False
+        projected.handle_position.header.stamp.sec = 99
+        f.detected_doors = [stale, other_wall, other_door, projected]
+        self.assertIsNone(f._fresh_handle_for_locked_station(door()))
+        fresh = door(handle=(6.3, 2.0))
+        fresh.door_id = 'a_different_camera_track'
+        fresh.handle_position.header.stamp.sec = 99
+        f.detected_doors.append(fresh)
+        self.assertIs(f._fresh_handle_for_locked_station(door()), fresh)
+
+    def test_refresh_copies_geometry_and_provenance_without_changing_id(self):
+        f = self.fsm
+        target = door(handle=(3.0, 0.0))
+        f.target_door = target
+        f.get_clock = lambda: SimpleNamespace(now=lambda: SimpleNamespace(nanoseconds=100_000_000_000))
+        f._door_open_fresh_blue_max_age_sec = 8.0
+        fresh = door(handle=(6.3, 2.0))
+        fresh.handle_position.header.stamp.sec = 99
+        f._fresh_handle_for_locked_station = lambda target: fresh
+        f._blue_target_open_pose_aligned_for_safe_memory = lambda msg: True
+        self.assertFalse(f._refresh_close_handle_before_opening())
+        self.assertEqual(f.target_door.door_id, target.door_id)
+        self.assertEqual(f.target_door.handle_position, fresh.handle_position)
+        self.assertEqual(f.target_door.handle_detection_method, fresh.handle_detection_method)
+        self.assertEqual(f.target_door.observed_door_position, target.observed_door_position)
+        self.assertEqual(target.handle_position.point.x, 3.0)
+
 
 if __name__ == '__main__':
     unittest.main()

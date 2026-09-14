@@ -54,6 +54,26 @@ class ArmRecoveryTests(unittest.TestCase):
         fsm._door_open_result(future)
         self.assertEqual(transitions, [State.EMERGENCY_STOP])
 
+    def test_failed_sequence_still_checks_arm_recovery(self):
+        arm = object.__new__(ManipulationNode)
+        arm.get_logger = lambda: SimpleNamespace(info=lambda *a: None, error=lambda *a: None)
+        arm._require_detected_handle = False
+        arm._require_yolo_handle = False
+        arm._sim_mode = True
+        arm._sim_arm_motion_enabled = True
+        arm._sim_handle_detach_topic = ''
+        arm._execute_door_open_sequence = lambda *a: False
+        arm._publish_sim_cmd_vel = lambda *a: None
+        arm._set_manip_phase = lambda *a: None
+        arm._command_sim_gripper = lambda *a: None
+        arm._publish_ign_empty = lambda *a: None
+        arm._move_to_home = lambda: False
+        arm.manip_done_pub = SimpleNamespace(publish=lambda msg: None)
+        request = SimpleNamespace(door_id='test', handle_position=None)
+        response = arm.open_door_callback(request, SimpleNamespace())
+        self.assertFalse(response.success)
+        self.assertTrue(response.message.startswith('ARM_NOT_STOWED:'))
+
 
 if __name__ == '__main__':
     unittest.main()

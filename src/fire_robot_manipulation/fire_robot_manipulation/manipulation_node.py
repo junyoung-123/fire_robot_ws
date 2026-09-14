@@ -397,6 +397,13 @@ class ManipulationNode(Node):
 
         success = self._execute_door_open_sequence(
             request.handle_position, request.door_id)
+        if not success and self._sim_mode and self._sim_arm_motion_enabled:
+            self._publish_sim_cmd_vel(0.0, 0.0)
+            self._set_manip_phase('FAILED_SEQUENCE_RECOVERY', request.door_id)
+            self._command_sim_gripper(GRIPPER_OPEN)
+            self._publish_ign_empty(self._sim_handle_detach_topic)
+            if self._move_to_home() is False:
+                self._sim_arm_recovery_failed = True
 
         response.success = success
         if self._sim_arm_recovery_failed:
