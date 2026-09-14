@@ -17166,6 +17166,14 @@ class StateMachineNode(Node):
                 'direct_wall_projection',
                 'observed_wall_projection',
             ))
+        # The parking helper may have rejected the raw handle and selected the
+        # observed door body instead. Do not keep the rejected point's YOLO tag.
+        raw_handle = adjusted.handle_position.point
+        same_handle_point = (
+            adjusted.handle_position.header.frame_id == 'map'
+            and math.hypot(float(raw_handle.x) - handle_x,
+                           float(raw_handle.y) - handle_y) <= 1.0e-6)
+        trusted_handle_detection = trusted_handle_detection and same_handle_point
         should_project_handle_to_wall = (
             not trusted_handle_detection
             and (
@@ -17337,7 +17345,15 @@ class StateMachineNode(Node):
 
         now = self.get_clock().now()
         pose = self._current_map_pose()
-        hx, hy = self._door_handle_xy(door)
+        if pose is None or door.handle_position.header.frame_id != 'map':
+            return False
+        hx = float(door.handle_position.point.x)
+        hy = float(door.handle_position.point.y)
+        rx, ry, robot_yaw = pose
+        lateral = -math.sin(robot_yaw) * (hx - rx) + math.cos(robot_yaw) * (hy - ry)
+        if (not math.isfinite(lateral)
+                or abs(lateral) > max(.55, self._door_open_ready_lateral_tolerance_m + .45)):
+            return False
         reverse_duration = max(0.2, self._door_open_fine_exception_reverse_sec)
         if pose is not None:
             rx, ry, robot_yaw = pose

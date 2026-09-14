@@ -151,6 +151,35 @@ class DoorContractTests(unittest.TestCase):
         self.assertEqual(f.target_door.observed_door_position, target.observed_door_position)
         self.assertEqual(target.handle_position.point.x, 3.0)
 
+    def test_rejected_yolo_point_cannot_survive_as_the_parking_handle(self):
+        f = self.fsm
+        msg = door(goal=(6.0, 2.0), handle=(4.0, .0))
+        f._axis_door_approach_enabled = True
+        f._is_blue_xy_recordable_wall_observation = lambda xy: abs(xy[1]) > 1.0
+        f._is_xy_at_configured_wall_lateral = lambda xy: abs(xy[1]) > 1.0
+        f._axis_side_door_front_parking_pose = lambda p, l: (p, .8, math.pi / 2, 2.0)
+        f._axis_to_map_xy = lambda p, l: (p, l)
+        f._axis_door_min_abs_lateral_m = 1.0
+        result = f._door_with_axis_aligned_approach(msg)
+        self.assertFalse(result.handle_detected)
+        self.assertEqual(result.handle_detection_method, 'direct_wall_projection')
+        self.assertAlmostEqual(result.handle_position.point.x, 6.0)
+        self.assertAlmostEqual(result.handle_position.point.y, 2.0)
+        self.assertEqual(msg.handle_detection_method, 'yolo_primary')
+
+    def test_sideways_bad_payload_cannot_trigger_repeated_reverse(self):
+        f = self.fsm
+        f._door_open_fine_allow_reverse = True
+        f._door_open_fine_exception_reverse_sec = .8
+        f._door_open_fine_exception_reverse_linear_x = -.05
+        f._blue_target_open_pose_aligned_for_safe_memory = lambda d: True
+        f.get_clock = lambda: SimpleNamespace(now=lambda: SimpleNamespace())
+        f._current_map_pose = lambda: (6.0, 1.0, math.pi / 2)
+        f._door_open_ready_lateral_tolerance_m = .1
+        f._door_handle_xy = lambda d: (6.0, 2.0)
+        self.assertFalse(f._recover_door_open_workspace_mismatch(
+            door(handle=(4.8, .7)), 'handle_forward=-0.30m'))
+
 
 if __name__ == '__main__':
     unittest.main()
