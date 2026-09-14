@@ -12,6 +12,7 @@ def generate_launch_description():
     use_rviz = LaunchConfiguration('use_rviz')
     enable_perception = LaunchConfiguration('enable_perception')
     require_yolo_handle = LaunchConfiguration('require_yolo_handle')
+    feedback_contact = LaunchConfiguration('feedback_contact_enabled')
     door_open_motion = LaunchConfiguration('door_open_motion')
     contact_min_angle = LaunchConfiguration('contact_min_angle_rad')
     door_model_path = PathJoinSubstitution([
@@ -32,6 +33,7 @@ def generate_launch_description():
             'render_engine_gui': 'ogre',
             'use_sim_time': 'true',
             'robot_xacro_file': 'fire_robot_actual_piper.urdf.xacro',
+            'enable_depth_camera': feedback_contact,
             'spawn_x': '-3.80',
             'spawn_z': '0.0',
             # This dedicated test intentionally permits low-speed contact with
@@ -110,6 +112,13 @@ def generate_launch_description():
             'sim_release_handle_before_base_push': True,
             'require_detected_handle': require_yolo_handle,
             'require_yolo_handle': require_yolo_handle,
+            'feedback_contact_enabled': feedback_contact,
+            # Bounds, not predetermined motion endpoints. The measured tool
+            # position and lever rotation decide completion at runtime.
+            'feedback_clearance_min_m': 0.05,
+            'feedback_clearance_max_m': 0.15,
+            'feedback_press_max_travel_m': 0.11,
+            'feedback_press_sign': -1.0,
         }])])
 
     perception = TimerAction(period=4.0, actions=[Node(
@@ -131,6 +140,8 @@ def generate_launch_description():
             'torch_num_threads': 2,
             'publish_debug_image': True,
             'publish_map_frame': False,
+            'handle_require_registered_depth': feedback_contact,
+            'handle_yolo_full_frame': feedback_contact,
             'camera_sources': [
                 'front|/camera/color/image_raw|/camera/color/camera_info|0.0',
             ],
@@ -159,6 +170,7 @@ def generate_launch_description():
         DeclareLaunchArgument('use_rviz', default_value='false'),
         DeclareLaunchArgument('enable_perception', default_value='false'),
         DeclareLaunchArgument('require_yolo_handle', default_value='false'),
+        DeclareLaunchArgument('feedback_contact_enabled', default_value='false'),
         DeclareLaunchArgument('door_open_motion', default_value='push'),
         DeclareLaunchArgument('contact_min_angle_rad', default_value='2.05'),
         gazebo,

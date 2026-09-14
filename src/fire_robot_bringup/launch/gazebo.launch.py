@@ -45,7 +45,8 @@ def generate_launch_description():
     ])
 
     robot_description = ParameterValue(
-        Command([FindExecutable(name='xacro'), ' ', urdf_path]),
+        Command([FindExecutable(name='xacro'), ' ', urdf_path,
+                 ' enable_sim_depth_camera:=', enable_depth_camera]),
         value_type=str,
     )
 
@@ -217,13 +218,13 @@ def generate_launch_description():
             name='gz_depth_camera_bridge',
             arguments=[
                 '/depth_camera/image@sensor_msgs/msg/Image[gz.msgs.Image',
-                '/depth_camera/depth_image@sensor_msgs/msg/Image[gz.msgs.Image',
+                '/depth_camera@sensor_msgs/msg/Image[gz.msgs.Image',
                 '/depth_camera/points@sensor_msgs/msg/PointCloud2[gz.msgs.PointCloudPacked',
                 '/depth_camera/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo',
             ],
             remappings=[
                 ('/depth_camera/image', '/camera/depth/color/image_raw'),
-                ('/depth_camera/depth_image', '/camera/depth/image_rect_raw'),
+                ('/depth_camera', '/camera/depth/image_rect_raw'),
                 ('/depth_camera/points', '/camera/depth/points'),
                 ('/depth_camera/camera_info', '/camera/depth/camera_info'),
             ],

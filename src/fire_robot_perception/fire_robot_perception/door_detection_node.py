@@ -41,6 +41,7 @@ from sensor_msgs.msg import Image, CameraInfo, LaserScan
 from geometry_msgs.msg import PointStamped, PoseStamped
 
 from fire_robot_interfaces.msg import DoorInfo, FireInfo
+from .handle_image_tracker import HandleImageTracker
 
 for _thread_env in ('OMP_NUM_THREADS', 'MKL_NUM_THREADS', 'OPENBLAS_NUM_THREADS'):
     os.environ.setdefault(_thread_env, '1')
@@ -121,6 +122,7 @@ class DoorDetectionNode(Node):
         self.declare_parameter('frame_id', 'base_link')
         self.declare_parameter('camera_hfov_deg', 69.0)
         self.declare_parameter('use_depth_camera', False)
+        self.declare_parameter('handle_require_registered_depth', False)
         self.declare_parameter('door_height_m', 2.0)
         self.declare_parameter('max_detection_distance_m', 12.0)
         self.declare_parameter('door_approach_offset_m', 0.8)
@@ -131,6 +133,7 @@ class DoorDetectionNode(Node):
         self.declare_parameter('detect_handle_enabled', True)
         self.declare_parameter('handle_confidence_threshold', 0.30)
         self.declare_parameter('handle_yolo_imgsz', 0)
+        self.declare_parameter('handle_yolo_full_frame', False)
         self.declare_parameter('handle_yolo_class_keywords', [
             'handle', 'door_handle', 'knob', 'lever',
         ])
@@ -230,6 +233,8 @@ class DoorDetectionNode(Node):
         hfov_deg         = self.get_parameter('camera_hfov_deg').value
         self._hfov       = math.radians(hfov_deg)
         self._use_depth  = self.get_parameter('use_depth_camera').value
+        self._handle_registered_depth = bool(self.get_parameter(
+            'handle_require_registered_depth').value)
         self._door_height_m = float(self.get_parameter('door_height_m').value)
         self._max_detection_distance = float(
             self.get_parameter('max_detection_distance_m').value)
@@ -249,6 +254,8 @@ class DoorDetectionNode(Node):
             self.get_parameter('handle_confidence_threshold').value)
         self._handle_yolo_imgsz = max(
             0, int(self.get_parameter('handle_yolo_imgsz').value))
+        self._handle_yolo_full_frame = bool(self.get_parameter(
+            'handle_yolo_full_frame').value)
         self._handle_yolo_class_keywords = tuple(
             keyword.strip().lower()
             for keyword in self.get_parameter(
@@ -373,6 +380,9 @@ class DoorDetectionNode(Node):
 
         self._latest_scan:  LaserScan | None  = None
         self._latest_depth: np.ndarray | None = None   # (H, W) float32 [m]
+        self._handle_depth_sample = None
+        self._handle_depth_samples = []
+        self._feedback_handle_tracker = HandleImageTracker()
         self._door_id_map:  dict[str, str]    = {}
         self._yolo_cache: dict[str, tuple[float, list[tuple[int, int, int, int, float]]]] = {}
         self._handle_yolo_class_ids: set[int] = set()
@@ -399,7 +409,7 @@ class DoorDetectionNode(Node):
             LaserScan, '/scan', self.radar_callback, qos_profile_sensor_data,
             callback_group=cb)
 
-        if self._use_depth:
+        if self._use_depth or self._handle_registered_depth:
             self.create_subscription(
                 Image, '/camera/depth/image_rect_raw',
                 self.depth_callback, 10, callback_group=cb)
@@ -599,6 +609,9 @@ class DoorDetectionNode(Node):
                 depth_mm = self.bridge.imgmsg_to_cv2(msg, '16UC1')
                 depth = depth_mm.astype(np.float32) / 1000.0
             self._latest_depth = depth
+            self._handle_depth_sample = (depth, msg.header, time.monotonic())
+            self._handle_depth_samples.append(self._handle_depth_sample)
+            del self._handle_depth_samples[:-30]
         except Exception as e:
             self.get_logger().warn(f'depth decode error: {e}')
 
@@ -733,6 +746,8 @@ class DoorDetectionNode(Node):
                         cv2.rectangle(
                             debug, (hx1, hy1), (hx2, hy2), (0, 220, 255), 2)
                     handle_label = (
+                        f'TRACK (v3 seed) {handle_obs.confidence:.2f}'
+                        if handle_obs.method.startswith('track:primary_yolo') else
                         f'v3 YOLO handle {handle_obs.confidence:.2f}'
                         if handle_obs.method.startswith('yolo:primary')
                         else f'handle {handle_obs.confidence:.2f}')
@@ -1153,6 +1168,21 @@ class DoorDetectionNode(Node):
 
         yolo_obs = self._detect_yolo_handle_observation(
             image, x1, y1, x2, y2, image_shape)
+        if self._handle_registered_depth:
+            now = time.monotonic()
+            if (yolo_obs is not None and yolo_obs.method.startswith('yolo:primary')
+                    and yolo_obs.confidence >= .45):
+                self._feedback_handle_tracker.seed(
+                    image, yolo_obs.bbox, yolo_obs.confidence, now)
+            else:
+                tracked = self._feedback_handle_tracker.advance(image, now)
+                if tracked is not None:
+                    (tx1, ty1, tx2, ty2), quality = tracked
+                    cx, cy = (tx1+tx2)//2, (ty1+ty2)//2
+                    if x1-40 <= cx <= x2+40 and y1-28 <= cy <= y2+28:
+                        return HandleObservation(
+                            x=cx, y=cy, confidence=quality,
+                            method='track:primary_yolo:lk', bbox=(tx1, ty1, tx2, ty2))
         if yolo_obs is not None:
             return yolo_obs
         if not self._handle_yolo_fallback_hsv:
@@ -1194,6 +1224,8 @@ class DoorDetectionNode(Node):
         if sx2 <= sx1 or sy2 <= sy1:
             return None
 
+        if self._handle_yolo_full_frame:
+            sx1, sy1, sx2, sy2 = 0, 0, img_w, img_h
         crop = image[sy1:sy2, sx1:sx2]
         yolo_kwargs = {
             'conf': self._handle_confidence_threshold,
@@ -1522,6 +1554,49 @@ class DoorDetectionNode(Node):
             return float(dist)
         return None
 
+    def _registered_handle_point(self, observation, source, rgb_header):
+        """Opt-in registered RGB-D surface point; no wall/height fallback.
+
+        The physical fixture's RGB and depth imager share intrinsics and pose.
+        Real hardware must supply depth registered to the RGB optical frame.
+        """
+        def reject(reason):
+            self.get_logger().info('Registered handle depth rejected: ' + reason,
+                                   throttle_duration_sec=2.0)
+            return None
+        stamp = lambda h: h.stamp.sec + h.stamp.nanosec * 1.e-9
+        samples = list(self._handle_depth_samples)
+        sample = min(samples, key=lambda s: abs(stamp(s[1]) - stamp(rgb_header))) if samples else None
+        if sample is None or source.name != 'front' or not source.has_info:
+            return reject('missing depth or camera calibration')
+        if not (source.fx > 0.0 and source.fy > 0.0):
+            return None
+        depth, depth_header, received = sample
+        if (time.monotonic() - received > 3.0
+                or depth.shape != (source.img_h, source.img_w)):
+            return reject(f'age={time.monotonic()-received:.2f}s or image shape mismatch')
+        if abs(stamp(depth_header) - stamp(rgb_header)) > .35:
+            return reject(f'RGB-depth time gap={abs(stamp(depth_header)-stamp(rgb_header)):.3f}s')
+        x, y = observation.x, observation.y
+        if not (2 <= x < source.img_w-2 and 2 <= y < source.img_h-2):
+            return None
+        patch = depth[y-2:y+3, x-2:x+3]
+        values = patch[np.isfinite(patch) & (patch > .1) & (patch < 5.0)]
+        if len(values) < 15 or float(np.ptp(values)) > .04:
+            return reject('invalid or discontinuous depth at handle pixel')
+        z = float(np.median(values))
+        point = PointStamped()
+        point.header = rgb_header
+        point.point.x = (x - source.cx) * z / source.fx
+        point.point.y = (y - source.cy) * z / source.fy
+        point.point.z = z
+        try:
+            base = self._tf_buffer.transform(
+                point, self._frame, timeout=rclpy.duration.Duration(seconds=.1))
+        except Exception as exc:
+            return reject(f'camera TF: {exc}')
+        return (base.point.x, base.point.y, base.point.z)
+
     def _depth_distance_at_pixel(self,
                                    cx_pix: int,
                                    cy_pix: int | None) -> float | None:
@@ -1706,6 +1781,16 @@ class DoorDetectionNode(Node):
         handle_x = handle_dist * math.cos(handle_angle)
         handle_y = handle_dist * math.sin(handle_angle)
         handle_y = self._clamp_side_handle_y(handle_y, color)
+        if self._handle_registered_depth:
+            point = (self._registered_handle_point(handle_obs, source, header)
+                     if handle_obs is not None and trusted_handle_geometry else None)
+            if point is None:
+                handle_detected = False
+                handle_method = 'depth_unavailable'
+                handle_confidence = 0.0
+            else:
+                handle_x, handle_y, handle_z = point
+                handle_method += ':registered_depth'
         nav_dist = max(0.3, dist - self._door_approach_offset)
         px = nav_dist * math.cos(angle)
         py = nav_dist * math.sin(angle)
@@ -1737,7 +1822,8 @@ class DoorDetectionNode(Node):
         shaped.handle_position = handle_base
         self._shape_navigation_pose_for_door(shaped, color, handle_y)
         pose_base = shaped.door_pose
-        handle_base = shaped.handle_position
+        if not self._handle_registered_depth:
+            handle_base = shaped.handle_position
 
         if not self._publish_map_frame:
             msg.door_pose = pose_base

@@ -18,6 +18,7 @@ import time
 import math
 import re
 import subprocess
+import json
 from pathlib import Path
 
 import numpy as np
@@ -38,7 +39,9 @@ from tf2_ros import Buffer, TransformException, TransformListener
 from fire_robot_interfaces.msg import DoorInfo
 from fire_robot_interfaces.srv import OpenDoor
 from .piper_actual_kinematics import (
-    PIPER_HOME, PIPER_JOINT_NAMES, PIPER_STOW, PiperActualKinematics)
+    PIPER_HOME, PIPER_JOINT_NAMES, PIPER_JOINT_LIMITS, PIPER_STOW, PiperActualKinematics)
+from .contact_feedback import (
+    fresh_sample, observed_clearance, next_press_depth, stable_lever_motion)
 
 try:
     from moveit.planning import MoveItPy
@@ -161,6 +164,18 @@ class ManipulationNode(Node):
         self.declare_parameter('piper_home_z', 0.30)
         self.declare_parameter('require_detected_handle', False)
         self.declare_parameter('require_yolo_handle', False)
+        self.declare_parameter('feedback_contact_enabled', False)
+        self.declare_parameter('feedback_max_age_sec', 1.0)
+        self.declare_parameter('feedback_clearance_min_m', 0.05)
+        self.declare_parameter('feedback_clearance_max_m', 0.15)
+        self.declare_parameter('feedback_approach_step_m', 0.02)
+        self.declare_parameter('feedback_tool_tolerance_m', 0.015)
+        self.declare_parameter('feedback_press_step_m', 0.01)
+        self.declare_parameter('feedback_press_max_travel_m', 0.11)
+        self.declare_parameter('feedback_press_sign', -1.0)
+        self.declare_parameter('feedback_tracking_limit_m', 0.04)
+        self.declare_parameter('feedback_joint_bias_limit_rad', 0.12)
+        self.declare_parameter('feedback_handle_min_confidence', 0.45)
 
         self._planning_group = self.get_parameter('planning_group').value
         self._gripper_group  = self.get_parameter('gripper_group').value
@@ -350,6 +365,35 @@ class ManipulationNode(Node):
             self.get_parameter('require_detected_handle').value)
         self._require_yolo_handle = bool(
             self.get_parameter('require_yolo_handle').value)
+        self._feedback_contact = bool(
+            self.get_parameter('feedback_contact_enabled').value)
+        self._feedback_config = {
+            name: float(self.get_parameter('feedback_' + name).value)
+            for name in (
+                'max_age_sec', 'clearance_min_m', 'clearance_max_m',
+                'approach_step_m', 'tool_tolerance_m', 'press_step_m',
+                'press_max_travel_m', 'press_sign', 'tracking_limit_m',
+                'handle_min_confidence', 'joint_bias_limit_rad')}
+        if self._feedback_contact and not (
+                self._sim_mode and self._sim_door_contact_only
+                and self._sim_verify_door_feedback
+                and self._require_yolo_handle):
+            raise ValueError(
+                'Feedback contact currently requires the instrumented Gazebo '
+                'fixture, lever feedback and live YOLO. No real-sensor adapter '
+                'or full-world contact model has been validated yet.')
+        self._feedback_arm_stamp = None
+        self._feedback_lever_stamp = None
+        self._feedback_door_stamp = None
+        self._feedback_lever_samples = []
+        self._feedback_joint_msg_stamp = None
+        self._feedback_lever_msg_stamp = None
+        self._feedback_door_msg_stamp = None
+        self._feedback_handle_times = {}
+        self._feedback_handle_points = []
+        self._feedback_failure = ''
+        self._feedback_press_verified = False
+        self._feedback_joint_bias = np.zeros(6)
 
         if self._control_backend not in ('moveit', 'piper_sdk'):
             self.get_logger().warn(
@@ -370,6 +414,8 @@ class ManipulationNode(Node):
         self.manip_done_pub = self.create_publisher(Bool, '/manipulation_done', 10)
         self.manip_phase_pub = self.create_publisher(
             String, '/manipulation_phase', 10)
+        self._feedback_pub = self.create_publisher(
+            String, '/manipulation_feedback', 20)
         self._sim_cmd_vel_pub = self.create_publisher(
             Twist, self._sim_push_follow_cmd_vel_topic, 10)
         self._sim_arm_trajectory_pub = self.create_publisher(
@@ -501,6 +547,9 @@ class ManipulationNode(Node):
         self._last_sim_open_topic = ''
         self._last_sim_open_xy = None
         self._sim_push_hold_targets = None
+        self._feedback_failure = ''
+        self._feedback_press_verified = False
+        self._feedback_joint_bias = np.zeros(6)
 
         if self._require_detected_handle and not handle_detected:
             response.success = False
@@ -510,9 +559,12 @@ class ManipulationNode(Node):
             done_msg.data = False
             self.manip_done_pub.publish(done_msg)
             return response
-        if self._require_yolo_handle and not handle_method.startswith('yolo'):
+        if ((self._require_yolo_handle and not handle_method.startswith('yolo')
+             and not (self._feedback_contact and handle_method.startswith('track:primary_yolo')))
+                or (self._feedback_contact
+                    and not handle_method.endswith(':registered_depth'))):
             response.success = False
-            response.message = 'YOLO handle detection is required before opening'
+            response.message = 'YOLO handle with required depth source is needed before opening'
             self.get_logger().error(response.message)
             done_msg = Bool()
             done_msg.data = False
@@ -521,6 +573,8 @@ class ManipulationNode(Node):
 
         success = self._execute_door_open_sequence(
             request.handle_position, request.door_id)
+        if not success and self._feedback_contact:
+            self._feedback_stop(self._feedback_failure or 'Sequence failed')
 
         response.success = success
         if success and self._last_sim_open_was_idempotent:
@@ -533,7 +587,8 @@ class ManipulationNode(Node):
                 f'sim_xy={sx:.3f},{sy:.3f}')
         else:
             response.message = ('Door opened successfully'
-                                if success else 'Failed to open door')
+                                if success else 'Failed to open door: '
+                                + self._feedback_failure)
 
         done_msg = Bool()
         done_msg.data = success
@@ -564,6 +619,8 @@ class ManipulationNode(Node):
             self._set_manip_phase('FAILED_LOCALIZE_HANDLE', door_id)
             return False
         if self._sim_mode and self._sim_door_contact_only:
+            if self._feedback_contact and not self._feedback_fresh():
+                return self._feedback_stop('Missing initial joint/lever feedback')
             self._sim_door_initial_position = self._sim_door_position
             self._sim_lever_initial_position = self._sim_lever_position
             self._sim_handle_prepressed = False
@@ -575,7 +632,8 @@ class ManipulationNode(Node):
             self._set_manip_phase('FAILED_PRE_GRASP', door_id)
             return False
 
-        if self._sim_mode and self._sim_door_contact_only:
+        if (self._sim_mode and self._sim_door_contact_only
+                and not self._feedback_contact):
             refined = self._refine_handle_after_pre_grasp(
                 arm_handle_position)
             if refined is not None:
@@ -595,7 +653,7 @@ class ManipulationNode(Node):
         do_lever_press = (
             self._door_open_motion == 'push'
             and self._press_handle_before_push
-            and self._lever_press_distance > 0.0)
+            and (self._feedback_contact or self._lever_press_distance > 0.0))
         if do_lever_press:
             self._set_manip_phase('PRESS_HANDLE', door_id)
             self.get_logger().info('Step 3/5: Pressing lever handle')
@@ -685,7 +743,10 @@ class ManipulationNode(Node):
         self.get_logger().info(
             f"Step {'5/5' if do_lever_press else '4/4'}: "
             'Returning to home position')
-        self._move_to_home()
+        home_ok = self._move_to_home()
+        if self._feedback_contact and not home_ok:
+            self._set_manip_phase('FAILED_RETURN_HOME', door_id)
+            return False
         if self._post_open_backoff_enabled:
             self._set_manip_phase('POST_OPEN_BACKOFF', door_id)
             self.get_logger().info(
@@ -718,7 +779,7 @@ class ManipulationNode(Node):
         if not source_frame:
             msg = ('handle_position has no frame_id; cannot command the '
                    'arm safely.')
-            if self._sim_mode:
+            if self._sim_mode and not self._feedback_contact:
                 self.get_logger().warn(
                     msg + ' Using the raw sim coordinate as a fallback.')
                 return handle_position
@@ -736,7 +797,7 @@ class ManipulationNode(Node):
                 timeout=Duration(seconds=self._tf_timeout_sec))
             transformed = do_transform_point(handle_position, transform)
         except TransformException as e:
-            if self._sim_mode:
+            if self._sim_mode and not self._feedback_contact:
                 self.get_logger().warn(
                     f'Cannot transform sim handle_position from '
                     f'{source_frame} to {self._manipulation_frame}: {e}. '
@@ -747,7 +808,7 @@ class ManipulationNode(Node):
                 f'{self._manipulation_frame}: {e}')
             return None
         except Exception as e:
-            if self._sim_mode:
+            if self._sim_mode and not self._feedback_contact:
                 self.get_logger().warn(
                     f'Failed to transform sim handle_position: {e}. '
                     'Using the raw coordinate for arm visualization.')
@@ -765,6 +826,49 @@ class ManipulationNode(Node):
         return transformed
 
     def _move_to_pre_grasp(self, handle_pos: PointStamped) -> bool:
+        if self._feedback_contact:
+            refined = self._refine_handle_after_pre_grasp(handle_pos)
+            if refined is None:
+                return self._feedback_stop('No consistent live YOLO handle')
+            try:
+                tool_protrusion = max(0.0, self._piper_kinematics.tool_front_extent_m
+                                      - self._piper_kinematics.tool_contact_offset_m)
+                safety_floor = max(
+                    self._feedback_config['clearance_min_m'],
+                    tool_protrusion + self._feedback_config['tool_tolerance_m']
+                    + self._feedback_config['approach_step_m'])
+                center, clearance, spread = observed_clearance(
+                    self._feedback_handle_points,
+                    safety_floor,
+                    self._feedback_config['clearance_max_m'])
+            except ValueError as exc:
+                return self._feedback_stop(str(exc))
+            handle_pos.point = refined.point
+            try:
+                self._feedback_handle_anchor = self._tf_buffer.transform(
+                    refined, 'odom', timeout=Duration(seconds=.2))
+            except Exception:
+                return self._feedback_stop('Cannot anchor observed handle in odom')
+            goal = center.copy()
+            goal[0] -= clearance
+            self._feedback_event('approach_clearance', clearance_m=clearance,
+                                 tool_geometry_safety_floor_m=safety_floor,
+                                 observation_spread_m=spread,
+                                 handle_xyz=center.tolist())
+            self._command_sim_gripper(GRIPPER_OPEN)
+            start = self._feedback_tool()
+            if start is None:
+                return self._feedback_stop('Missing feedback on pre-grasp path')
+            count = max(1, int(math.ceil(float(np.linalg.norm(goal-start))
+                                        / self._feedback_config['approach_step_m'])))
+            deadline = time.monotonic() + 180.0
+            for index in range(1, count+1):
+                if not rclpy.ok() or time.monotonic() >= deadline:
+                    return self._feedback_stop('Pre-grasp path timeout')
+                if not self._feedback_move_tool(
+                        start + (goal-start) * index/count, 'observed_pre_grasp'):
+                    return False
+            return True
         if self._sim_mode:
             self.get_logger().info(
                 f'  [SIM] Pre-grasp at '
@@ -786,6 +890,8 @@ class ManipulationNode(Node):
         return self._plan_and_execute_cartesian(target)
 
     def _grasp_handle(self, handle_pos: PointStamped) -> bool:
+        if self._feedback_contact:
+            return self._feedback_grasp(handle_pos)
         if self._sim_mode:
             self.get_logger().info('  [SIM] Gripper closing')
             close_width = (
@@ -962,6 +1068,8 @@ class ManipulationNode(Node):
         return pressed
 
     def _press_handle(self, handle_pos: PointStamped) -> bool:
+        if self._feedback_contact:
+            return self._feedback_press(handle_pos)
         pressed = self._pressed_handle_position(handle_pos)
         if self._sim_mode:
             if self._sim_door_contact_only and self._sim_handle_prepressed:
@@ -1099,6 +1207,15 @@ class ManipulationNode(Node):
         return self._plan_and_execute_cartesian(target)
 
     def _move_to_home(self):
+        if self._feedback_contact:
+            if not self._feedback_fresh():
+                return self._feedback_stop('Lost feedback before final arm stow')
+            if not self._command_sim_arm_pose('stow', None):
+                return self._feedback_stop('Final stow command failed')
+            if not self._wait_for_sim_arm_target(tolerance_rad=0.070):
+                return self._feedback_stop('Final arm stow was not confirmed')
+            self._feedback_event('home_verified')
+            return True
         if self._sim_mode:
             self._command_sim_gripper(GRIPPER_OPEN)
             if self._sim_return_home:
@@ -1494,33 +1611,67 @@ class ManipulationNode(Node):
                 (self._sim_lever_feedback_joint_name, '_sim_lever_position')):
             try:
                 index = msg.name.index(joint_name)
-                setattr(self, attr_name, float(msg.position[index]))
+                position = float(msg.position[index])
+                if not math.isfinite(position):
+                    continue
+                setattr(self, attr_name, position)
+                stamp = (msg.header.stamp.sec, msg.header.stamp.nanosec)
+                if (attr_name == '_sim_door_position'
+                        and stamp != self._feedback_door_msg_stamp):
+                    self._feedback_door_msg_stamp = stamp
+                    self._feedback_door_stamp = time.monotonic()
+                if (attr_name == '_sim_lever_position'
+                        and stamp != self._feedback_lever_msg_stamp):
+                    self._feedback_lever_msg_stamp = stamp
+                    self._feedback_lever_stamp = time.monotonic()
+                    self._feedback_lever_samples.append(
+                        (self._feedback_lever_stamp, position))
+                    del self._feedback_lever_samples[:-1000]
             except (ValueError, IndexError):
                 continue
 
     def _detected_door_callback(self, msg: DoorInfo):
         if not msg.handle_detected or not msg.handle_position.header.frame_id:
             return
+        if self._feedback_contact and (
+                msg.door_color != 'blue'
+                or not str(msg.handle_detection_method).startswith(
+                    ('yolo:primary', 'track:primary_yolo'))
+                or not str(msg.handle_detection_method).endswith(':registered_depth')
+                or not math.isfinite(msg.handle_confidence)
+                or msg.handle_confidence
+                < self._feedback_config['handle_min_confidence']):
+            return
         point = PointStamped()
         point.header = msg.handle_position.header
         point.point.x = float(msg.handle_position.point.x)
         point.point.y = float(msg.handle_position.point.y)
         point.point.z = float(msg.handle_position.point.z)
+        if not all(math.isfinite(v) for v in (
+                point.point.x, point.point.y, point.point.z)):
+            return
         self._detected_handle_seq += 1
         self._detected_handle_samples.append((
             self._detected_handle_seq,
             point,
             float(msg.handle_confidence),
             str(msg.handle_detection_method)))
+        self._feedback_handle_times[self._detected_handle_seq] = time.monotonic()
         del self._detected_handle_samples[:-30]
+        self._feedback_handle_times = {
+            key: value for key, value in self._feedback_handle_times.items()
+            if key > self._detected_handle_seq - 30}
 
     def _refine_handle_after_pre_grasp(
             self, previous: PointStamped) -> PointStamped | None:
         """Refresh a handle moved by contact using only live observations."""
         start_seq = self._detected_handle_seq
         start_sim = self._sim_time_sec()
+        wall_deadline = time.monotonic() + max(
+            10.0, 3.0 * self._sim_handle_refine_timeout)
         while (
                 rclpy.ok()
+                and time.monotonic() < wall_deadline
                 and self._sim_time_sec() - start_sim
                 < self._sim_handle_refine_timeout):
             current = [
@@ -1534,6 +1685,10 @@ class ManipulationNode(Node):
 
         usable = []
         for sample in current[-7:]:
+            if self._feedback_contact and not fresh_sample(
+                    self._feedback_handle_times.get(sample[0]),
+                    time.monotonic(), 3.0):
+                continue
             transformed = self._transform_handle_to_manipulation_frame(
                 sample[1])
             if transformed is not None:
@@ -1545,6 +1700,8 @@ class ManipulationNode(Node):
         coordinates = np.asarray([
             (sample[1].point.x, sample[1].point.y, sample[1].point.z)
             for sample in usable], dtype=float)
+        if not np.all(np.isfinite(coordinates)):
+            return None
         median = np.median(coordinates, axis=0)
         shift = float(np.linalg.norm(median - np.asarray((
             previous.point.x, previous.point.y, previous.point.z))))
@@ -1554,6 +1711,7 @@ class ManipulationNode(Node):
                 f'{shift:.3f}m > '
                 f'{self._sim_handle_refine_max_shift:.3f}m')
             return None
+        self._feedback_handle_points = coordinates.tolist()
 
         refined = PointStamped()
         refined.header = usable[-1][1].header
@@ -1571,10 +1729,293 @@ class ManipulationNode(Node):
         return transformed
 
     def _sim_arm_state_callback(self, msg: JointState):
+        finite = {}
         for name, position in zip(msg.name, msg.position):
             if name in PIPER_JOINT_NAMES or name in (
                     'gripper_left_joint', 'gripper_right_joint'):
-                self._sim_arm_joint_positions[name] = float(position)
+                if math.isfinite(position):
+                    finite[name] = float(position)
+        self._sim_arm_joint_positions.update(finite)
+        stamp = (msg.header.stamp.sec, msg.header.stamp.nanosec)
+        if (all(name in finite for name in PIPER_JOINT_NAMES)
+                and stamp != self._feedback_joint_msg_stamp):
+            self._feedback_arm_stamp = time.monotonic()
+            self._feedback_joint_msg_stamp = stamp
+
+    def _feedback_event(self, event, **values):
+        payload = {'event': event, 'sim_time_sec': self._sim_time_sec(),
+                   'feedback_source': 'gazebo_joint_states', **values}
+        msg = String()
+        msg.data = json.dumps(payload, allow_nan=False)
+        self._feedback_pub.publish(msg)
+        self.get_logger().info('CONTACT_FEEDBACK ' + msg.data)
+
+    def _feedback_fresh(self):
+        now = time.monotonic()
+        age = self._feedback_config['max_age_sec']
+        return (fresh_sample(self._feedback_arm_stamp, now, age)
+                and fresh_sample(self._feedback_lever_stamp, now, age)
+                and fresh_sample(self._feedback_door_stamp, now, age))
+
+    def _feedback_tool(self):
+        if not self._feedback_fresh():
+            return None
+        joints = [self._sim_arm_joint_positions.get(name, float('nan'))
+                  for name in PIPER_JOINT_NAMES]
+        if not np.all(np.isfinite(joints)):
+            return None
+        point, _ = self._piper_kinematics.forward(joints)
+        return point
+
+    def _feedback_stop(self, reason):
+        self._feedback_failure = reason
+        self._publish_sim_cmd_vel(0.0, 0.0)
+        # Remove the outstanding press target. Hold only fresh measured joints;
+        # stale feedback must never generate another arm target.
+        if fresh_sample(self._feedback_arm_stamp, time.monotonic(),
+                        self._feedback_config['max_age_sec']):
+            targets = {name: self._sim_arm_joint_positions[name]
+                       for name in PIPER_JOINT_NAMES}
+            self._command_sim_arm_targets('feedback_stop_hold', targets)
+        self._feedback_event('stopped', reason=reason)
+        return False
+
+    def _feedback_command_point(self, goal, stage):
+        if self._feedback_tool() is None:
+            return self._feedback_stop('Joint or lever feedback is stale')
+        seed = [self._sim_arm_joint_positions[name] for name in PIPER_JOINT_NAMES]
+        solution = self._piper_kinematics.solve(
+            goal, seed=seed, position_tolerance_m=0.003)
+        if solution is None:
+            return self._feedback_stop('Observed target outside PIPER IK workspace')
+        self._feedback_ideal_arm_target = solution.positions.copy()
+        commanded = solution.positions + self._feedback_joint_bias
+        if (np.any(commanded < PIPER_JOINT_LIMITS[:, 0])
+                or np.any(commanded > PIPER_JOINT_LIMITS[:, 1])):
+            return self._feedback_stop('Feedback correction would exceed PIPER joint limits')
+        targets = dict(zip(PIPER_JOINT_NAMES, commanded.tolist()))
+        return self._command_sim_arm_targets(stage, targets)
+
+    def _feedback_move_tool(self, goal, stage):
+        if not self._feedback_command_point(goal, stage):
+            return False
+        deadline = time.monotonic() + 25.0
+        stable_since = None
+        next_sample = self._sim_time_sec()
+        previous_sample = None
+        while rclpy.ok() and time.monotonic() < deadline:
+            actual = self._feedback_tool()
+            if actual is None:
+                return self._feedback_stop('Lost feedback while approaching handle')
+            error = float(np.linalg.norm(actual - goal))
+            joint_error = max(abs(self._sim_arm_joint_positions[name] - target)
+                              for name, target in zip(
+                                  PIPER_JOINT_NAMES, self._sim_last_arm_target))
+            _, rotation = self._piper_kinematics.forward([
+                self._sim_arm_joint_positions[name] for name in PIPER_JOINT_NAMES])
+            orientation_error = float(np.linalg.norm(self._piper_kinematics._rotation_error(
+                rotation, self._piper_kinematics.approach_rotation)))
+            if self._sim_time_sec() >= next_sample:
+                self._feedback_event('approach_sample', stage=stage,
+                                     actual_tool_xyz=actual.tolist(),
+                                     requested_xyz=np.asarray(goal).tolist(),
+                                     error_m=error, orientation_error_rad=orientation_error,
+                                     joint_tracking_error_rad=float(joint_error))
+                # Bounded integral action cancels measured static servo bias
+                # in both position and orientation, without changing the IK goal.
+                if (previous_sample is not None
+                        and np.linalg.norm(actual-previous_sample) < .002
+                        and (error > self._feedback_config['tool_tolerance_m']
+                             or orientation_error > .10)):
+                    measured = np.asarray([self._sim_arm_joint_positions[name]
+                                           for name in PIPER_JOINT_NAMES])
+                    candidate = self._feedback_joint_bias + .5 * (
+                        self._feedback_ideal_arm_target-measured)
+                    if np.max(np.abs(candidate)) > self._feedback_config['joint_bias_limit_rad']:
+                        return self._feedback_stop('Joint bias correction limit exceeded')
+                    self._feedback_joint_bias = candidate
+                    if not self._feedback_command_point(goal, stage):
+                        return False
+                    self._feedback_event('servo_correction',
+                                         joint_bias_rad=candidate.tolist(),
+                                         measured_error_m=error,
+                                         orientation_error_rad=orientation_error)
+                previous_sample = actual.copy()
+                next_sample = self._sim_time_sec() + .5
+            if (stage == 'observed_pre_grasp'
+                    and abs(self._sim_lever_position - self._sim_lever_initial_position) > .03):
+                return self._feedback_stop('Unexpected lever contact during pre-grasp')
+            if (error <= self._feedback_config['tool_tolerance_m']
+                    and orientation_error <= .10):
+                stable_since = stable_since or self._sim_time_sec()
+                if self._sim_time_sec() - stable_since >= 0.35:
+                    self._feedback_event('approach_reached', stage=stage,
+                                         actual_tool_xyz=actual.tolist(),
+                                         requested_xyz=np.asarray(goal).tolist(),
+                                         error_m=error)
+                    return True
+            else:
+                stable_since = None
+            time.sleep(0.025)
+        return self._feedback_stop('Approach failed to converge; no blind advance')
+
+    def _feedback_grasp(self, handle_pos):
+        # The gripper occludes a forward camera at close range. Freeze the
+        # measured, stationary-handle anchor in odom (not an old base frame),
+        # then use fresh encoders and lever feedback for contact acquisition.
+        self._feedback_event('encoder_contact_handoff',
+                             reason='close-range gripper occlusion',
+                             anchor_source='repeated YOLO/RGB-D or image tracking')
+        deadline = time.monotonic() + 25.0
+        while rclpy.ok() and time.monotonic() < deadline:
+            anchor = PointStamped()
+            anchor.header.frame_id = 'odom'
+            anchor.point = self._feedback_handle_anchor.point
+            refined = self._transform_handle_to_manipulation_frame(anchor)
+            if refined is None:
+                return self._feedback_stop('Lost TF for observed stationary handle')
+            handle_pos.point = refined.point
+            goal = np.asarray((refined.point.x, refined.point.y, refined.point.z))
+            actual = self._feedback_tool()
+            if actual is None:
+                return self._feedback_stop('No fresh tool feedback during grasp')
+            delta = goal - actual
+            distance = float(np.linalg.norm(delta))
+            if distance <= self._feedback_config['tool_tolerance_m']:
+                self._command_sim_gripper(self._sim_gripper_lever_width)
+                if not self._wait_for_sim_duration(0.6):
+                    return self._feedback_stop('Clock stalled during gripper closure')
+                self._feedback_event('grasp_candidate', distance_m=distance,
+                                     actual_tool_xyz=actual.tolist(),
+                                     handle_xyz=goal.tolist())
+                # Finger closure alone is not proof of grasp. PRESS_HANDLE
+                # must cause measured lever motion before base push is allowed.
+                return self._feedback_fresh()
+            step = min(distance, self._feedback_config['approach_step_m'])
+            if not self._feedback_move_tool(
+                    actual + delta * step / distance, 'feedback_approach'):
+                return False
+        return self._feedback_stop('Approach travel timed out')
+
+    def _feedback_press(self, handle_pos):
+        actual = self._feedback_tool()
+        initial = self._sim_lever_initial_position
+        if actual is None or initial is None or not math.isfinite(initial):
+            return self._feedback_stop('Missing lever baseline or fresh arm feedback')
+        start = actual.copy()
+        goal = start.copy()
+        depth = 0.0
+        began = time.monotonic()
+        deadline = began + 30.0
+        sim_start = self._sim_time_sec()
+        cfg = self._feedback_config
+        while (rclpy.ok() and time.monotonic() < deadline
+               and self._sim_time_sec() - sim_start < self._sim_lever_press_timeout):
+            actual = self._feedback_tool()
+            if actual is None:
+                return self._feedback_stop('Lost arm/lever feedback while pressing')
+            lever = self._sim_lever_position
+            recent = [(t, v) for t, v in self._feedback_lever_samples if t >= began]
+            stable = stable_lever_motion(
+                recent, began, initial, cfg['press_sign'],
+                self._sim_lever_press_min_angle)
+            if stable:
+                self._feedback_press_verified = True
+                self._feedback_press_origin = start.copy()
+                self._feedback_press_depth = depth
+                self._sim_push_hold_targets = dict(zip(
+                    PIPER_JOINT_NAMES, self._sim_last_arm_target.tolist()))
+                self._feedback_event(
+                    'press_verified', commanded_depth_m=depth,
+                    measured_tool_down_m=float(start[2] - actual[2]),
+                    lever_delta_rad=cfg['press_sign'] * (lever - initial),
+                    actual_tool_xyz=actual.tolist())
+                return True
+            try:
+                next_depth, pending = next_press_depth(
+                    depth, cfg['press_step_m'], cfg['press_max_travel_m'],
+                    initial, lever, cfg['press_sign'], self._sim_lever_press_min_angle)
+            except ValueError as exc:
+                return self._feedback_stop(str(exc))
+            if pending:
+                time.sleep(0.025)
+                continue
+            if float(np.linalg.norm(goal - actual)) > cfg['tracking_limit_m']:
+                return self._feedback_stop('Press tracking error: possible jam/contact loss')
+            depth = next_depth
+            goal = start.copy()
+            goal[2] -= depth
+            if not self._feedback_command_point(goal, 'feedback_press'):
+                return False
+            self._feedback_event('press_step', commanded_depth_m=depth,
+                                 lever_delta_rad=cfg['press_sign'] * (lever - initial),
+                                 actual_tool_xyz=actual.tolist())
+            if not self._wait_for_sim_duration(0.35, wall_stall_timeout_sec=2.0):
+                return self._feedback_stop('Clock stalled during press')
+        return self._feedback_stop('Lever feedback did not confirm press before timeout')
+
+    def _feedback_latch_clear_push(self):
+        # Lever motion proves contact, not latch release. Briefly probe door
+        # motion, stopping the chassis before any additional press correction.
+        initial = self._sim_door_initial_position
+        if initial is None or not self._feedback_fresh():
+            return self._feedback_stop('Missing feedback before latch-clear push')
+        cfg = self._feedback_config
+        deadline = time.monotonic() + 90.0
+        previous = abs(self._sim_door_position - initial)
+        try:
+            while rclpy.ok() and time.monotonic() < deadline:
+                actual = self._feedback_tool()
+                if actual is None:
+                    return self._feedback_stop('Lost feedback during latch-clear push')
+                lever_delta = cfg['press_sign'] * (
+                    self._sim_lever_position - self._sim_lever_initial_position)
+                current = abs(self._sim_door_position - initial)
+                if (current > .03
+                        and lever_delta < self._sim_lever_press_min_angle):
+                    return self._feedback_stop(
+                        'Lever contact lost as door rotated; reobservation required')
+                if lever_delta >= self._sim_lever_press_min_angle:
+                    start = self._sim_time_sec()
+                    probe_deadline = time.monotonic() + 5.0
+                    while self._sim_time_sec() - start < .35:
+                        if (not self._feedback_fresh()
+                                or time.monotonic() >= probe_deadline):
+                            return self._feedback_stop('Latch probe lost feedback or clock')
+                        self._publish_sim_cmd_vel(.02, 0.0)
+                        time.sleep(.025)
+                    self._publish_sim_cmd_vel(0.0, 0.0)
+                current = abs(self._sim_door_position - initial)
+                self._feedback_event('latch_probe', door_delta_rad=current,
+                                     lever_delta_rad=lever_delta,
+                                     commanded_depth_m=self._feedback_press_depth)
+                if current >= self._sim_latch_clear_min_angle:
+                    self._feedback_event('latch_released', door_delta_rad=current)
+                    return True
+                if current - previous >= .003:
+                    previous = current
+                    continue
+                # A stationary door is never permission to keep driving.
+                self._publish_sim_cmd_vel(0.0, 0.0)
+                goal = self._feedback_press_origin.copy()
+                goal[2] -= self._feedback_press_depth
+                actual = self._feedback_tool()
+                if actual is None or np.linalg.norm(goal-actual) > cfg['tracking_limit_m']:
+                    return self._feedback_stop('Latch press tracking error: possible jam')
+                depth = self._feedback_press_depth + min(.005, cfg['press_step_m'])
+                if depth > cfg['press_max_travel_m']:
+                    return self._feedback_stop('Latch not released within press travel limit')
+                goal[2] = self._feedback_press_origin[2] - depth
+                if not self._feedback_command_point(goal, 'feedback_latch_press'):
+                    return False
+                self._feedback_press_depth = depth
+                self._feedback_event('latch_press_correction', commanded_depth_m=depth)
+                if not self._wait_for_sim_duration(.35, wall_stall_timeout_sec=2.0):
+                    return self._feedback_stop('Clock stalled during latch correction')
+                previous = current
+        finally:
+            self._publish_sim_cmd_vel(0.0, 0.0)
+        return self._feedback_stop('Latch release feedback timed out')
 
     def _sim_time_sec(self) -> float:
         return self.get_clock().now().nanoseconds * 1.0e-9
@@ -1791,6 +2232,8 @@ class ManipulationNode(Node):
         control_mode = ''
         try:
             while self._sim_time_sec() < deadline_sim:
+                if self._feedback_contact and not self._feedback_fresh():
+                    return self._feedback_stop('Lost joint/door feedback during base push')
                 if hold_targets is not None:
                     self._publish_sim_arm_targets(hold_targets)
                 position = self._sim_door_position
@@ -1959,6 +2402,8 @@ class ManipulationNode(Node):
 
     def _run_sim_latch_clear_push(self) -> bool:
         """Crack the door open while the PIPER still depresses the lever."""
+        if self._feedback_contact:
+            return self._feedback_latch_clear_push()
         initial = self._sim_door_initial_position
         if initial is None:
             initial = self._sim_door_position

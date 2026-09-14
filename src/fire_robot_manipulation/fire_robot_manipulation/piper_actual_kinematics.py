@@ -91,6 +91,9 @@ class PiperActualKinematics:
             horizontal_lever_grasp_roll_rad: float = np.pi / 2.0):
         self.mount_xyz = np.asarray(mount_xyz, dtype=float)
         self.tool_contact_offset_m = float(tool_contact_offset_m)
+        # Furthest axial finger extent in piper_arm_actual.xacro: the official
+        # gripper joint origin is z=0.1358; its collision box ends at that plane.
+        self.tool_front_extent_m = 0.1358
         _, zero_rotation = self.forward(np.zeros(6, dtype=float))
         # The lever axis is lateral. Rolling the parallel gripper 90 degrees
         # makes its jaws close vertically around that lever while the tool axis
