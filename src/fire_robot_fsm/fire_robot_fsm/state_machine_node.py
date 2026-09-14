@@ -4555,6 +4555,10 @@ class StateMachineNode(Node):
             return
 
         result_message = str(getattr(result, 'message', '') or '')
+        if not result.success and result_message.startswith('ARM_NOT_STOWED:'):
+            self.get_logger().error(result_message)
+            self._transition(State.EMERGENCY_STOP)
+            return
         idempotent_all_open = (
             result.success
             and 'already open' in result_message.lower()

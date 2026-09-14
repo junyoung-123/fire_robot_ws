@@ -610,19 +610,20 @@
             name="gz::sim::systems::JointPositionController">
       <joint_name>joint2</joint_name>
       <topic>/fire_robot/sim_arm/joint2_cmd</topic>
-      <p_gain>5.0</p_gain>
-      <d_gain>0.2</d_gain>
-      <cmd_max>80</cmd_max>
-      <cmd_min>-80</cmd_min>
+      <!-- Hold the upright home pose against gravity without sustained sway. -->
+      <p_gain>35.0</p_gain>
+      <d_gain>3.0</d_gain>
+      <cmd_max>30</cmd_max>
+      <cmd_min>-30</cmd_min>
     </plugin>
     <plugin filename="ignition-gazebo-joint-position-controller-system"
             name="gz::sim::systems::JointPositionController">
       <joint_name>joint3</joint_name>
       <topic>/fire_robot/sim_arm/joint3_cmd</topic>
-      <p_gain>5.0</p_gain>
-      <d_gain>0.2</d_gain>
-      <cmd_max>80</cmd_max>
-      <cmd_min>-80</cmd_min>
+      <p_gain>20.0</p_gain>
+      <d_gain>1.5</d_gain>
+      <cmd_max>20</cmd_max>
+      <cmd_min>-20</cmd_min>
     </plugin>
     <plugin filename="ignition-gazebo-joint-position-controller-system"
             name="gz::sim::systems::JointPositionController">

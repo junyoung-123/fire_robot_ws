@@ -73,6 +73,8 @@ class ManipulationNode(Node):
         self.declare_parameter('sim_command_transport', 'ign')
         self.declare_parameter('sim_step_sec', 1.0)
         self.declare_parameter('sim_return_home', True)
+        self.declare_parameter('sim_arm_home_timeout_sec', 8.0)
+        self.declare_parameter('sim_arm_home_tolerance_rad', 0.10)
         self.declare_parameter('door_open_motion', 'push')
         self.declare_parameter('press_handle_before_push', True)
         self.declare_parameter(
@@ -148,6 +150,10 @@ class ManipulationNode(Node):
             0.0, float(self.get_parameter('sim_step_sec').value))
         self._sim_return_home = bool(
             self.get_parameter('sim_return_home').value)
+        self._sim_arm_home_timeout = max(
+            0.1, float(self.get_parameter('sim_arm_home_timeout_sec').value))
+        self._sim_arm_home_tolerance = max(
+            0.001, float(self.get_parameter('sim_arm_home_tolerance_rad').value))
         self._door_open_motion = str(
             self.get_parameter('door_open_motion').value).strip().lower()
         if self._door_open_motion not in ('pull', 'push'):
@@ -279,6 +285,13 @@ class ManipulationNode(Node):
         self._sim_door_position: float | None = None
         self._sim_door_initial_position: float | None = None
         self._sim_push_hold_targets: dict[str, float] | None = None
+        self._sim_arm_positions = {}
+        self._sim_arm_feedback_time = 0.0
+        self._sim_arm_recovery_failed = False
+        if self._sim_mode and self._sim_arm_motion_enabled:
+            self.create_subscription(
+                JointState, '/joint_states', self._sim_arm_state_callback, 10,
+                callback_group=cb_group)
         if self._sim_mode and self._sim_verify_door_feedback:
             self.create_subscription(
                 JointState,
@@ -363,6 +376,7 @@ class ManipulationNode(Node):
         self._last_sim_open_topic = ''
         self._last_sim_open_xy = None
         self._sim_push_hold_targets = None
+        self._sim_arm_recovery_failed = False
 
         if self._require_detected_handle and not handle_detected:
             response.success = False
@@ -385,7 +399,9 @@ class ManipulationNode(Node):
             request.handle_position, request.door_id)
 
         response.success = success
-        if success and self._last_sim_open_was_idempotent:
+        if self._sim_arm_recovery_failed:
+            response.message = 'ARM_NOT_STOWED: joint feedback did not confirm home'
+        elif success and self._last_sim_open_was_idempotent:
             response.message = 'All hinged blue doors already open'
         elif success and self._last_sim_open_topic and self._last_sim_open_xy is not None:
             sx, sy = self._last_sim_open_xy
@@ -513,7 +529,11 @@ class ManipulationNode(Node):
         self.get_logger().info(
             f"Step {'5/5' if do_lever_press else '4/4'}: "
             'Returning to home position')
-        self._move_to_home()
+        if self._move_to_home() is False:
+            self._sim_arm_recovery_failed = True
+            self._set_manip_phase('FAILED_RETURN_HOME', door_id)
+            self._publish_sim_cmd_vel(0.0, 0.0)
+            return False
         if self._post_open_backoff_enabled:
             self._set_manip_phase('POST_OPEN_BACKOFF', door_id)
             self.get_logger().info(
@@ -754,8 +774,10 @@ class ManipulationNode(Node):
             self._command_sim_gripper(GRIPPER_OPEN)
             if self._sim_return_home:
                 self._command_sim_arm_pose('home', None)
+                if self._sim_arm_motion_enabled:
+                    return self._wait_for_sim_arm_home()
             time.sleep(self._sim_step_sec)
-            return
+            return True
 
         if self._using_piper_sdk():
             if not self._piper_return_home:
@@ -1355,6 +1377,49 @@ class ManipulationNode(Node):
                 f'{self._sim_arm_topic_prefix}/{joint_name}_cmd',
                 target,
                 wait=False)
+
+    def _sim_arm_state_callback(self, msg: JointState):
+        self._sim_arm_positions = dict(zip(msg.name, msg.position))
+        self._sim_arm_feedback_time = time.monotonic()
+
+    @staticmethod
+    def _sim_arm_target_error(targets, positions) -> float:
+        errors = []
+        for name, target in targets.items():
+            value = positions.get(name)
+            if value is None or not math.isfinite(value):
+                return float('inf')
+            errors.append(abs(value - target))
+        return max(errors, default=float('inf'))
+
+    def _wait_for_sim_arm_home(self) -> bool:
+        targets = self._sim_arm_targets_for_stage('home', None)
+        deadline = time.monotonic() + self._sim_arm_home_timeout
+        settled_since = None
+        next_command = time.monotonic() + 1.0
+        error = float('inf')
+        while time.monotonic() < deadline:
+            now = time.monotonic()
+            error = self._sim_arm_target_error(targets, self._sim_arm_positions)
+            fresh = now - self._sim_arm_feedback_time < 0.75
+            if fresh and error <= self._sim_arm_home_tolerance:
+                if settled_since is None:
+                    settled_since = now
+                elif now - settled_since >= 0.5:
+                    self.get_logger().info(
+                        f'  [SIM] Arm home verified by joint feedback: '
+                        f'max_error={error:.3f}rad')
+                    return True
+            else:
+                settled_since = None
+            if now >= next_command:
+                self._publish_sim_arm_targets(targets)
+                next_command = now + 1.0
+            time.sleep(0.05)
+        self.get_logger().error(
+            f'  [SIM] Arm home verification failed: max_error={error:.3f}rad; '
+            'refusing to resume navigation')
+        return False
 
     def _publish_sim_cmd_vel(self, linear_x: float, angular_z: float):
         msg = Twist()
