@@ -397,7 +397,8 @@ class ManipulationNode(Node):
 
         success = self._execute_door_open_sequence(
             request.handle_position, request.door_id)
-        if not success and self._sim_mode and self._sim_arm_motion_enabled:
+        if (not success and self._sim_mode and self._sim_arm_motion_enabled
+                and not self._sim_arm_recovery_failed):
             self._publish_sim_cmd_vel(0.0, 0.0)
             self._set_manip_phase('FAILED_SEQUENCE_RECOVERY', request.door_id)
             self._command_sim_gripper(GRIPPER_OPEN)
@@ -780,9 +781,19 @@ class ManipulationNode(Node):
             self.get_logger().info('  [SIM] Returning to home position')
             self._command_sim_gripper(GRIPPER_OPEN)
             if self._sim_return_home:
-                self._command_sim_arm_pose('home', None)
                 if self._sim_arm_motion_enabled:
-                    return self._wait_for_sim_arm_home()
+                    # A slow simulation may need another bounded settling
+                    # interval. Neither attempt can pass without joint feedback.
+                    for attempt in range(2):
+                        self._command_sim_arm_pose('home', None)
+                        if self._wait_for_sim_arm_home():
+                            return True
+                        if attempt == 0:
+                            self._publish_sim_cmd_vel(0.0, 0.0)
+                            self.get_logger().warn(
+                                'Arm home not settled; retrying once with the base stopped')
+                    return False
+                self._command_sim_arm_pose('home', None)
             time.sleep(self._sim_step_sec)
             return True
 

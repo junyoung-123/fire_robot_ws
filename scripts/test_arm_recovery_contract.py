@@ -74,6 +74,24 @@ class ArmRecoveryTests(unittest.TestCase):
         self.assertFalse(response.success)
         self.assertTrue(response.message.startswith('ARM_NOT_STOWED:'))
 
+    def test_home_retry_is_bounded_and_only_fresh_feedback_can_pass(self):
+        arm = object.__new__(ManipulationNode)
+        arm.get_logger = lambda: SimpleNamespace(info=lambda *a: None, warn=lambda *a: None)
+        arm._sim_mode = True
+        arm._sim_return_home = True
+        arm._sim_arm_motion_enabled = True
+        arm._command_sim_gripper = lambda *a: None
+        arm._publish_sim_cmd_vel = lambda *a: None
+        commands = []
+        arm._command_sim_arm_pose = lambda *a: commands.append(a)
+        with patch.object(arm, '_wait_for_sim_arm_home', side_effect=[False, True]) as wait:
+            self.assertTrue(arm._move_to_home())
+            self.assertEqual(wait.call_count, 2)
+        self.assertEqual(len(commands), 2)
+        with patch.object(arm, '_wait_for_sim_arm_home', return_value=False) as wait:
+            self.assertFalse(arm._move_to_home())
+            self.assertEqual(wait.call_count, 2)
+
 
 if __name__ == '__main__':
     unittest.main()
