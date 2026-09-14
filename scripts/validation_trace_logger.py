@@ -158,8 +158,6 @@ class ValidationTraceLogger(Node):
         description = (msg.state_description or "").strip()
         state_name = STATE_NAMES.get(int(msg.state), description or str(int(msg.state)))
         target_id = msg.target_door_id or self.latest_target_id
-        previous_state = self.latest_state
-        previous_target_id = self.latest_target_id
         if (self.latest_state, self.latest_target_id) != (state_name, target_id):
             self.states.append({
                 "t": t,

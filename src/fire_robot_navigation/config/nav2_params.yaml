@@ -154,11 +154,14 @@ controller_server:
         - "RotateToGoal"
         - "Oscillation"
         - "BaseObstacle"
+        - "ObstacleFootprint"
         - "GoalAlign"
         - "PathAlign"
         - "PathDist"
         - "GoalDist"
       BaseObstacle.scale: 0.70
+      # Check the rectangular chassis at each sampled trajectory pose.
+      ObstacleFootprint.scale: 1.0
       PathAlign.scale: 9.0
       PathAlign.forward_point_distance: 0.25
       GoalAlign.scale: 12.0

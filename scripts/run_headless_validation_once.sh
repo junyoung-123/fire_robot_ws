@@ -17,8 +17,9 @@ launch_pid=""
 trace_pid=""
 stop_owned_processes() {
   if [[ -n "${launch_pid}" ]]; then
-    kill -INT -- "-${launch_pid}" 2>/dev/null || true
-    sleep 3
+    # Let launch coordinate SIGINT once; then reap any surviving descendants.
+    kill -INT "${launch_pid}" 2>/dev/null || true
+    sleep 8
     kill -TERM -- "-${launch_pid}" 2>/dev/null || true
     sleep 2
     kill -KILL -- "-${launch_pid}" 2>/dev/null || true
