@@ -8,13 +8,14 @@ if [[ $# -ge 1 ]]; then shift; fi
 if [[ $# -ge 1 ]]; then shift; fi
 if [[ $# -ge 1 ]]; then shift; fi
 
-WORKSPACE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+WORKSPACE_ROOT="${VALIDATION_WORKSPACE_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 cd "${WORKSPACE_ROOT}"
 mkdir -p "$(dirname "${LOG_FILE}")"
 rm -f "${LOG_FILE}.status"
 
 launch_pid=""
 trace_pid=""
+capture_pid=""
 stop_owned_processes() {
   if [[ -n "${launch_pid}" ]]; then
     # Let launch coordinate SIGINT once; then reap any surviving descendants.
@@ -32,6 +33,13 @@ stop_owned_processes() {
     kill -TERM "${trace_pid}" 2>/dev/null || true
     wait "${trace_pid}" 2>/dev/null || true
     trace_pid=""
+  fi
+  if [[ -n "${capture_pid}" ]]; then
+    kill -INT "${capture_pid}" 2>/dev/null || true
+    sleep 1
+    kill -TERM "${capture_pid}" 2>/dev/null || true
+    wait "${capture_pid}" 2>/dev/null || true
+    capture_pid=""
   fi
 }
 trap stop_owned_processes EXIT
@@ -105,10 +113,16 @@ launch_pid=$!
 trace_pid=""
 if [[ -n "${TRACE_DIR:-}" ]]; then
   mkdir -p "${TRACE_DIR}"
-  python3 scripts/validation_trace_logger.py \
+  python3 "${VALIDATION_HELPERS_ROOT:-scripts}/validation_trace_logger.py" \
     --output-dir "${TRACE_DIR}" \
     > "${TRACE_DIR}/trace_logger.log" 2>&1 &
   trace_pid=$!
+  if [[ "${PASSIVE_MISSION_IMAGES:-1}" == "1" ]]; then
+    python3 "${VALIDATION_HELPERS_ROOT:-scripts}/capture_passive_mission_images.py" \
+      --output "${TRACE_DIR}/camera_stages" --timeout "${MAX_SEC}" \
+      > "${TRACE_DIR}/camera_capture.log" 2>&1 &
+    capture_pid=$!
+  fi
 fi
 
 status="timeout"

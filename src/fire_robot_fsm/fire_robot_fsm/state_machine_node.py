@@ -13,11 +13,13 @@ from enum import IntEnum
 from std_msgs.msg import Bool
 from geometry_msgs.msg import PoseStamped, Twist
 from sensor_msgs.msg import LaserScan
+from nav_msgs.msg import OccupancyGrid
 from tf2_ros import Buffer, TransformException, TransformListener
 
 from fire_robot_interfaces.msg import DoorInfo, FireInfo, RobotState
 from fire_robot_interfaces.srv import OpenDoor
 from fire_robot_fsm.fsm_subsystems import DoorApproachSubFsm, DoorTargetSubFsm
+from fire_robot_fsm.alignment_safety import grid_segment_is_clear
 
 
 class State(IntEnum):
@@ -183,7 +185,7 @@ class StateMachineNode(Node):
         self.declare_parameter('post_open_side_retreat_target_abs_y_m', 0.85)
         self.declare_parameter('post_open_side_retreat_linear_vel', 0.16)
         self.declare_parameter('post_open_side_retreat_timeout_sec', 12.0)
-        self.declare_parameter('post_open_side_retreat_yaw_tolerance_deg', 35.0)
+        self.declare_parameter('post_open_side_retreat_yaw_tolerance_deg', 10.0)
         self.declare_parameter('pre_nav_scan_sec', 0.0)
         self.declare_parameter('pre_nav_scan_angular_vel', 0.0)
         self.declare_parameter('explore_observation_wait_sec', 0.0)
@@ -842,6 +844,10 @@ class StateMachineNode(Node):
             self.get_parameter('front_wall_exit_min_after_opened_blue_m').value)
 
         cb_group = ReentrantCallbackGroup()
+        self.declare_parameter('fine_alignment_costmap_max_age_sec', 3.0)
+        self._fine_alignment_costmap_max_age = max(.1, float(
+            self.get_parameter('fine_alignment_costmap_max_age_sec').value))
+        self._alignment_costmap = None
 
         self.door_sub = self.create_subscription(
             DoorInfo, '/detected_door', self.door_callback, 10,
@@ -858,6 +864,9 @@ class StateMachineNode(Node):
         axis_qos = QoSProfile(depth=1)
         axis_qos.reliability = ReliabilityPolicy.RELIABLE
         axis_qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
+        self.alignment_costmap_sub = self.create_subscription(
+            OccupancyGrid, '/global_costmap/costmap',
+            self._alignment_costmap_callback, axis_qos, callback_group=cb_group)
         self.axis_sub = self.create_subscription(
             PoseStamped, '/mission_axis', self.mission_axis_callback, axis_qos,
             callback_group=cb_group)
@@ -1166,6 +1175,12 @@ class StateMachineNode(Node):
         if not self._locked_target_refine_enabled:
             return
         if self.state != State.NAVIGATING:
+            return
+        # Observation memory is updated by door_callback before this method.
+        # Do not restart Nav2 while an exclusive manual recovery owns motion.
+        if (self._local_obstacle_escape_start_time is not None
+                or self._nav_start_pose_recovery_active
+                or self._door_retarget_backoff_until is not None):
             return
         # Keep visual-servo refinement active through the aligned settle
         # interval. A side-camera projection selected from several metres away
@@ -3400,6 +3415,17 @@ class StateMachineNode(Node):
             else:
                 self._republish_active_navigation_target()
 
+        if ((self._nav_done or self._nav_failed)
+                and self.target_door is not None
+                and self.target_door.door_color == 'blue'
+                and not self._alignment_costmap_ready(self.target_door)):
+            self.cmd_vel_pub.publish(Twist())
+            self.get_logger().warn(
+                'Waiting for a current full costmap before door alignment; '
+                'not consuming a door retry for missing map data.',
+                throttle_duration_sec=3.0)
+            return
+
         if self._nav_done:
             self._nav_done = False
             settling_after_ready_alignment = (
@@ -3422,7 +3448,7 @@ class StateMachineNode(Node):
                     error = self._door_open_pose_error(self.target_door)
                     lateral = error[3] if error is not None else float('nan')
                     self.get_logger().warn(
-                        f'Nav2 success ignored because robot is not near the door: '
+                        f'Nav2 success did not meet safe fine-alignment handoff checks: '
                         f'{self.target_door.door_id}, '
                         f'dist={dist if dist is not None else -1.0:.2f}m, '
                         f'lateral={lateral:.2f}m. Treating it as a navigation retry.')
@@ -3433,6 +3459,9 @@ class StateMachineNode(Node):
                     prep = self._prepare_door_opening_pose(self.target_door)
                     if prep == 'waiting':
                         self._nav_done = True
+                        return
+                    if prep == 'blocked':
+                        self._handle_nav_failure(reason='alignment_path_blocked')
                         return
                     if prep == 'retry':
                         if self._retry_precise_door_approach():
@@ -3741,8 +3770,39 @@ class StateMachineNode(Node):
             max(self._door_open_ready_lateral_tolerance_m + 0.08, 0.22))
         return handoff_dist, handoff_lateral
 
+    def _alignment_costmap_callback(self, msg):
+        self._alignment_costmap = (
+            msg, self.get_clock().now().nanoseconds * 1.e-9)
+
+    def _alignment_costmap_ready(self, door):
+        snapshot = self._alignment_costmap
+        if snapshot is None:
+            return False
+        grid, received = snapshot
+        age = self.get_clock().now().nanoseconds * 1.e-9 - received
+        return (0.0 <= age <= self._fine_alignment_costmap_max_age
+                and grid.header.frame_id == 'map'
+                and door.door_pose.header.frame_id == 'map')
+
+    def _fine_alignment_path_clear(self, door):
+        snapshot = self._alignment_costmap
+        pose = self._current_map_pose()
+        if not self._alignment_costmap_ready(door) or pose is None:
+            return False
+        grid, _ = snapshot
+        target = door.door_pose.pose.position
+        clear = grid_segment_is_clear(grid, pose[:2], (target.x, target.y))
+        if not clear:
+            self.get_logger().warn(
+                'Fine alignment blocked by costmap: occupied, inscribed, '
+                'unknown or out-of-map approach segment; retaining Nav2/reobservation.',
+                throttle_duration_sec=2.0)
+        return clear
+
     def _door_nav_goal_close_enough_for_fine_alignment(self) -> bool:
         if self.target_door is None or self.target_door.door_color != 'blue':
+            return False
+        if not self._fine_alignment_path_clear(self.target_door):
             return False
         error = self._door_open_pose_error(self.target_door)
         if error is None:
@@ -3775,6 +3835,8 @@ class StateMachineNode(Node):
 
     def _door_nav_goal_within_fine_alignment_window(self) -> bool:
         if self.target_door is None or self.target_door.door_color != 'blue':
+            return False
+        if not self._fine_alignment_path_clear(self.target_door):
             return False
         error = self._door_open_pose_error(self.target_door)
         if error is None:
@@ -4448,7 +4510,8 @@ class StateMachineNode(Node):
 
         if self.target_door is not None and self.target_door.door_color == 'blue':
             if (
-                    self._door_has_map_identity(self.target_door)
+                    reason != 'alignment_path_blocked'
+                    and self._door_has_map_identity(self.target_door)
                     and self._is_pre_exit_blue_failure_candidate(
                         self._door_identity_xy(self.target_door))):
                 failed_door = self.target_door
@@ -4708,7 +4771,7 @@ class StateMachineNode(Node):
                 abs(self._post_open_reorient_angular_vel), yaw_error)
             twist.angular.z = angular
         else:
-            # Reverse is blocked by cmd_vel_safety; turn inward and drive forward.
+            # This clearance maneuver turns inward before translating.
             twist.linear.x = abs(self._post_open_side_retreat_linear_vel)
             angular_limit = abs(self._post_open_clearance_angular_vel_limit)
             twist.angular.z = max(
@@ -17420,9 +17483,14 @@ class StateMachineNode(Node):
         )
 
     def _prepare_door_opening_pose(self, door: DoorInfo) -> str:
+        if not self._fine_alignment_path_clear(door):
+            self.cmd_vel_pub.publish(Twist())
+            self._door_open_align_start_time = None
+            self._door_open_fine_backoff_until = None
+            return 'blocked'
         error = self._door_open_pose_error(door)
         if error is None:
-            return 'ready'
+            return 'failed'
         dist, yaw_error, forward_error, lateral_error = error
         yaw_abs = abs(yaw_error)
         lateral_abs = abs(lateral_error)
@@ -18843,6 +18911,10 @@ class StateMachineNode(Node):
             self._clear_door_nav_stuck_watch()
             self._nav_start_time = None
             self._door_open_fine_backoff_until = None
+
+        # Publish short-lived transitions before the next timer can leave them.
+        # Observers must receive DOOR_OPENED even when the next tick explores.
+        self._publish_state()
 
     def _publish_state(self):
         msg                   = RobotState()

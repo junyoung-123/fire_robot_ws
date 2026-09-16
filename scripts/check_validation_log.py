@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import math
 import re
 import sys
 from pathlib import Path
@@ -15,6 +16,18 @@ MATCH_RE = re.compile(
     r'Matched observed door .* to (?P<topic>/fire_robot/door/blue/[^\s]+)')
 REJECT_RE = re.compile(r'Rejected Gazebo door match')
 EMERGENCY_RE = re.compile(r'EMERGENCY_STOP|Traceback|IndexError|process has died')
+FEEDBACK_RE = re.compile(
+    r'Door model feedback verified: topic=(\S+), model=\S+, angle=([-\d.]+), target=([-\d.]+)')
+
+
+def verified_door_topics(text, minimum_angle=2.05):
+    verified = set()
+    for topic, angle, target in FEEDBACK_RE.findall(text):
+        angle, target = float(angle), float(target)
+        if (all(math.isfinite(v) for v in (angle, target))
+                and abs(angle) >= minimum_angle and abs(angle-target) <= .0401):
+            verified.add(topic)
+    return verified
 
 
 def main() -> int:
@@ -23,6 +36,7 @@ def main() -> int:
     parser.add_argument('--expected-open-count', type=int, required=True)
     parser.add_argument('--max-rejected', type=int, default=0)
     parser.add_argument('--allow-extra-open', action='store_true')
+    parser.add_argument('--require-door-feedback', action='store_true')
     args = parser.parse_args()
 
     if not args.log_file.exists():
@@ -39,6 +53,9 @@ def main() -> int:
     matched_count = len(unique_topics)
 
     failures: list[str] = []
+    verified = verified_door_topics(text)
+    if args.require_door_feedback and verified != set(unique_topics):
+        failures.append(f'actual_door_feedback={len(verified)} does not cover matched doors={matched_count}')
     if not mission_complete:
         failures.append('mission_complete_missing')
     if emergency:
@@ -65,6 +82,8 @@ def main() -> int:
         f'{status} mission_complete={mission_complete} '
         f'open_success_count={open_count} matched_blue_doors={matched_count} '
         f'rejected_gazebo_matches={rejected_count}')
+    if args.require_door_feedback:
+        print(f'actual_door_feedback_verified={len(verified)} minimum_angle_rad=2.05')
     if unique_topics:
         print('matched_topics=' + ','.join(unique_topics))
     if failures:

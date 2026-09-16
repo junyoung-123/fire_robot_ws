@@ -51,3 +51,27 @@ def stable_lever_motion(samples, since, initial, sign, required, hold_sec=.08):
     return (len(window) >= 3 and window[-1][0] - window[0][0] >= hold_sec
             and all(math.isfinite(t) and math.isfinite(v)
                     and sign * (v - initial) >= required for t, v in window))
+
+
+def bounded_contact_target(observed, reference, tool_reference, actual,
+                           max_shift, max_step):
+    """Follow measured handle displacement, retaining the measured grip offset.
+
+    All inputs must share a stationary frame. Never interpret a distant new
+    detection as permission to jump the arm or extend its reach.
+    """
+    points = np.asarray((observed, reference, tool_reference, actual), dtype=float)
+    if points.shape != (4, 3) or not np.all(np.isfinite(points)):
+        raise ValueError('Invalid observed contact coordinates')
+    if not (math.isfinite(max_shift) and math.isfinite(max_step)
+            and 0.0 < max_step <= max_shift):
+        raise ValueError('Invalid contact tracking limits')
+    displacement = points[0] - points[1]
+    if np.linalg.norm(displacement) > max_shift:
+        raise ValueError('Moving handle observation is inconsistent with locked contact')
+    target = points[2] + displacement
+    delta = target - points[3]
+    distance = float(np.linalg.norm(delta))
+    if distance > max_step:
+        target = points[3] + delta * max_step / distance
+    return target

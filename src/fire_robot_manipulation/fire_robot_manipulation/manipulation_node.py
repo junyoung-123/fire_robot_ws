@@ -35,6 +35,7 @@ from tf2_ros import Buffer, TransformException, TransformListener
 
 from fire_robot_interfaces.msg import DoorInfo
 from fire_robot_interfaces.srv import OpenDoor
+from fire_robot_manipulation.sim_door_feedback import model_metadata, read_rotation
 
 try:
     from moveit.planning import MoveItPy
@@ -308,6 +309,9 @@ class ManipulationNode(Node):
         self._piper_pos_pub = None
         self._piper_enable_pub = None
         self._sim_hinged_doors = self._load_sim_hinged_doors()
+        self._sim_model_feedback = (
+            model_metadata(self._sim_door_world_file)
+            if self._sim_mode and self._sim_door_world_file else {})
         self._sim_opened_door_topics: set[str] = set()
         self._last_sim_open_was_idempotent = False
         self._last_sim_open_topic = ''
@@ -905,12 +909,60 @@ class ManipulationNode(Node):
                 return True
             time.sleep(0.12)
 
-        success = True
-        if self._sim_verify_door_feedback:
+        success = False
+        if topic in self._sim_model_feedback:
+            success = self._wait_for_sim_model_door_target(topic, angle)
+        elif self._sim_verify_door_feedback:
             success = self._wait_for_sim_door_target(angle)
+        else:
+            self.get_logger().error(
+                'Door command sent without a feedback source; refusing open success.')
         if success:
             self._sim_opened_door_topics.add(topic)
         return success
+
+    def _wait_for_sim_model_door_target(self, topic, target):
+        metadata = self._sim_model_feedback[topic]
+        deadline = time.monotonic() + self._sim_feedback_timeout
+        issued = self.get_clock().now().nanoseconds / 1.e9
+        stable_since = None
+        last_stamp = -math.inf
+        last_angle = None
+        next_republish = time.monotonic() + 1.
+        while rclpy.ok() and time.monotonic() < deadline:
+            try:
+                stamp, angle = read_rotation(metadata)
+            except (ValueError, KeyError, subprocess.SubprocessError) as exc:
+                self.get_logger().warn(f'Gazebo door pose feedback unavailable: {exc}')
+                time.sleep(.1)
+                continue
+            now = self.get_clock().now().nanoseconds / 1.e9
+            if stamp <= last_stamp or stamp < issued or not -.1 <= now-stamp <= 2.:
+                continue
+            last_stamp, last_angle = stamp, angle
+            error = abs(math.atan2(math.sin(angle-target), math.cos(angle-target)))
+            if error <= self._sim_door_tolerance:
+                stable_since = stamp if stable_since is None else stable_since
+                if stamp - stable_since >= .2:
+                    self.get_logger().info(
+                        f'  [SIM] Door model feedback verified: topic={topic}, '
+                        f'model={metadata["model"]}, angle={angle:.4f}, target={target:.4f}')
+                    return True
+            else:
+                stable_since = None
+                if time.monotonic() >= next_republish:
+                    # One-shot transport delivery is not guaranteed. Reassert
+                    # the same target only while fresh feedback is available.
+                    if not self._publish_sim_command(topic, target):
+                        break
+                    next_republish = time.monotonic() + 1.
+            time.sleep(.1)
+        if last_angle is not None:
+            self._publish_sim_command(topic, last_angle)
+        self.get_logger().error(
+            f'Gazebo door actual rotation unverified: topic={topic}, '
+            f'last={last_angle}, target={target:.4f}. Command delivery is not opening.')
+        return False
 
     def _select_sim_door_topic(self, handle_pos: PointStamped,
                                door_id: str = ''):

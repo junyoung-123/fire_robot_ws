@@ -1,0 +1,58 @@
+{
+  "scope": "Offline SDF comparison; not a simulation execution or sensor input.",
+  "pass": true,
+  "worlds": [
+    {
+      "world": "obstacle_all_blue_world5_v1.world",
+      "pass": true,
+      "changed_models": [
+        "wall_north",
+        "wall_south"
+      ],
+      "unchanged_model_count": 24,
+      "before_sha256": "b3d5b3a4f3bb03505dc308e0c653ef722becd686f0df7de8fc9a5be6666a6540",
+      "after_sha256": "547f1f5c08f4abd5fd4fec50dee4583df11c94d54d5d75c5271fed694307a95d"
+    },
+    {
+      "world": "obstacle_door_layout_alt_v1.world",
+      "pass": true,
+      "changed_models": [
+        "wall_north",
+        "wall_south"
+      ],
+      "unchanged_model_count": 27,
+      "before_sha256": "ad21f545617ea6de5a3ce80f6a916846047412633176fa9abd7cf900f5d75cb0",
+      "after_sha256": "9484b64022f7dd0ccfe9f78d35b55d458cf5589a993eb208c568e62c2a9d3f9c"
+    },
+    {
+      "world": "obstacle_door_layout_world3_v1.world",
+      "pass": true,
+      "changed_models": [
+        "wall_north",
+        "wall_south"
+      ],
+      "unchanged_model_count": 21,
+      "before_sha256": "88da151d4e1324307591f6893c97f462a611a2bc4172a0d6507ed1b4a88b52ed",
+      "after_sha256": "08f9928227254bbaf26b637424bc71aeed0bab58f7971ee8d101d51cc3e354c1"
+    },
+    {
+      "world": "obstacle_no_blue_world4_v1.world",
+      "pass": true,
+      "changed_models": [],
+      "unchanged_model_count": 26,
+      "before_sha256": "893dbb5d2fff9eafad29cdb90009c89b785e671222059be6ac3d94691da0040b",
+      "after_sha256": "893dbb5d2fff9eafad29cdb90009c89b785e671222059be6ac3d94691da0040b"
+    },
+    {
+      "world": "obstacle_wall_doors_v5.world",
+      "pass": true,
+      "changed_models": [
+        "wall_north",
+        "wall_south"
+      ],
+      "unchanged_model_count": 27,
+      "before_sha256": "ea0991e5f5c0c800f415daa083593bd404116e851d03a177b2aa50e5bd7180ca",
+      "after_sha256": "eac7667f9439595d471220d5443be8e30fbe4ce3ba7c927a69c0b8cb5697691e"
+    }
+  ]
+}

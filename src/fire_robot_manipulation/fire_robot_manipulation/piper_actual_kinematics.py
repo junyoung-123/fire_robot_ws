@@ -168,9 +168,13 @@ class PiperActualKinematics:
             target_xyz,
             seed=None,
             position_tolerance_m: float = 0.012,
-            max_iterations: int = 240) -> IkResult | None:
+            max_iterations: int = 240,
+            orientation_tolerance_rad: float = 0.10) -> IkResult | None:
         target = np.asarray(target_xyz, dtype=float)
         if target.shape != (3,) or not np.all(np.isfinite(target)):
+            return None
+        if (not np.isfinite(orientation_tolerance_rad)
+                or orientation_tolerance_rad <= 0.0):
             return None
 
         seeds = []
@@ -206,7 +210,8 @@ class PiperActualKinematics:
                 error = self._error(
                     positions, target, orientation_weight)
                 if (np.linalg.norm(error[:3]) <= position_tolerance_m
-                        and np.linalg.norm(error[3:]) <= 0.06):
+                        and np.linalg.norm(error[3:])
+                        <= orientation_weight * orientation_tolerance_rad):
                     break
 
                 jacobian = np.empty((6, 6), dtype=float)
@@ -248,15 +253,21 @@ class PiperActualKinematics:
                 if best is not None:
                     best_continuity_cost = 0.003 * float(np.linalg.norm(
                         best.positions - seed_reference))
-            if best is None or (
+            valid = (candidate.position_error_m <= position_tolerance_m
+                     and candidate.orientation_error_rad <= orientation_tolerance_rad)
+            best_valid = (best is not None
+                          and best.position_error_m <= position_tolerance_m
+                          and best.orientation_error_rad <= orientation_tolerance_rad)
+            if best is None or (valid and not best_valid) or (valid == best_valid and (
                     candidate.position_error_m
                     + 0.02 * candidate.orientation_error_rad
                     + continuity_cost
                     < best.position_error_m
                     + 0.02 * best.orientation_error_rad
-                    + best_continuity_cost):
+                    + best_continuity_cost)):
                 best = candidate
 
-        if best is None or best.position_error_m > position_tolerance_m:
+        if (best is None or best.position_error_m > position_tolerance_m
+                or best.orientation_error_rad > orientation_tolerance_rad):
             return None
         return best

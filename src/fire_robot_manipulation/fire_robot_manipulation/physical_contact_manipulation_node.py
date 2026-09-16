@@ -41,7 +41,8 @@ from fire_robot_interfaces.srv import OpenDoor
 from .piper_actual_kinematics import (
     PIPER_HOME, PIPER_JOINT_NAMES, PIPER_JOINT_LIMITS, PIPER_STOW, PiperActualKinematics)
 from .contact_feedback import (
-    fresh_sample, observed_clearance, next_press_depth, stable_lever_motion)
+    fresh_sample, observed_clearance, next_press_depth, stable_lever_motion,
+    bounded_contact_target)
 
 try:
     from moveit.planning import MoveItPy
@@ -176,6 +177,10 @@ class ManipulationNode(Node):
         self.declare_parameter('feedback_tracking_limit_m', 0.04)
         self.declare_parameter('feedback_joint_bias_limit_rad', 0.12)
         self.declare_parameter('feedback_handle_min_confidence', 0.45)
+        self.declare_parameter('feedback_follow_max_age_sec', 1.0)
+        self.declare_parameter('feedback_follow_max_shift_m', 0.15)
+        self.declare_parameter('feedback_follow_step_m', 0.008)
+        self.declare_parameter('feedback_encoder_contact_follow', False)
 
         self._planning_group = self.get_parameter('planning_group').value
         self._gripper_group  = self.get_parameter('gripper_group').value
@@ -367,13 +372,16 @@ class ManipulationNode(Node):
             self.get_parameter('require_yolo_handle').value)
         self._feedback_contact = bool(
             self.get_parameter('feedback_contact_enabled').value)
+        self._feedback_encoder_contact_follow = bool(
+            self.get_parameter('feedback_encoder_contact_follow').value)
         self._feedback_config = {
             name: float(self.get_parameter('feedback_' + name).value)
             for name in (
                 'max_age_sec', 'clearance_min_m', 'clearance_max_m',
                 'approach_step_m', 'tool_tolerance_m', 'press_step_m',
                 'press_max_travel_m', 'press_sign', 'tracking_limit_m',
-                'handle_min_confidence', 'joint_bias_limit_rad')}
+                'handle_min_confidence', 'joint_bias_limit_rad',
+                'follow_max_age_sec', 'follow_max_shift_m', 'follow_step_m')}
         if self._feedback_contact and not (
                 self._sim_mode and self._sim_door_contact_only
                 and self._sim_verify_door_feedback
@@ -391,6 +399,10 @@ class ManipulationNode(Node):
         self._feedback_door_msg_stamp = None
         self._feedback_handle_times = {}
         self._feedback_handle_points = []
+        self._feedback_contact_observation = None
+        self._feedback_contact_image_stamp = None
+        self._feedback_follow_reference = None
+        self._feedback_follow_mode = 'vision'
         self._feedback_failure = ''
         self._feedback_press_verified = False
         self._feedback_joint_bias = np.zeros(6)
@@ -1650,6 +1662,22 @@ class ManipulationNode(Node):
         if not all(math.isfinite(v) for v in (
                 point.point.x, point.point.y, point.point.z)):
             return
+        if self._feedback_contact:
+            stamp = (point.header.stamp.sec, point.header.stamp.nanosec)
+            image_time = stamp[0] + stamp[1] * 1.e-9
+            if (stamp != (0, 0) and stamp != self._feedback_contact_image_stamp
+                    and fresh_sample(image_time, self._sim_time_sec(),
+                                     self._feedback_config['follow_max_age_sec'])):
+                try:
+                    # Transform at exposure time, not at the later callback time.
+                    anchored = self._tf_buffer.transform(
+                        point, 'odom', timeout=Duration(seconds=.1))
+                except TransformException:
+                    anchored = None
+                if anchored is not None:
+                    self._feedback_contact_image_stamp = stamp
+                    self._feedback_contact_observation = (
+                        time.monotonic(), anchored, str(msg.handle_detection_method))
         self._detected_handle_seq += 1
         self._detected_handle_samples.append((
             self._detected_handle_seq,
@@ -1921,8 +1949,13 @@ class ManipulationNode(Node):
                 self._sim_lever_press_min_angle)
             if stable:
                 self._feedback_press_verified = True
-                self._feedback_press_origin = start.copy()
+                # Cancel the pending deeper target once measured press is enough.
+                # Keep consumed travel in the budget, but hold the measured end.
+                self._feedback_press_origin = actual.copy()
+                self._feedback_press_origin[2] += depth
                 self._feedback_press_depth = depth
+                if not self._feedback_command_point(actual, 'feedback_press_hold'):
+                    return False
                 self._sim_push_hold_targets = dict(zip(
                     PIPER_JOINT_NAMES, self._sim_last_arm_target.tolist()))
                 self._feedback_event(
@@ -1954,6 +1987,176 @@ class ManipulationNode(Node):
                 return self._feedback_stop('Clock stalled during press')
         return self._feedback_stop('Lever feedback did not confirm press before timeout')
 
+    def _feedback_live_contact_observation(self):
+        sample = self._feedback_contact_observation
+        if sample is None or not fresh_sample(
+                sample[0], time.monotonic(),
+                self._feedback_config['follow_max_age_sec']):
+            return None
+        point = sample[1]
+        stamp = point.header.stamp.sec + point.header.stamp.nanosec * 1.e-9
+        if not fresh_sample(stamp, self._sim_time_sec(),
+                            self._feedback_config['follow_max_age_sec']):
+            return None
+        return sample
+
+    def _feedback_begin_contact_follow(self):
+        self._feedback_follow_mode = 'vision'
+        self._publish_sim_cmd_vel(0.0, 0.0)
+        deadline = time.monotonic() + 4.0
+        while rclpy.ok() and time.monotonic() < deadline:
+            sample = self._feedback_live_contact_observation()
+            actual = self._feedback_tool()
+            if actual is None:
+                return self._feedback_stop('Lost feedback before visual contact following')
+            if sample is not None:
+                point = PointStamped()
+                point.header.frame_id = self._manipulation_frame
+                point.point.x, point.point.y, point.point.z = map(float, actual)
+                try:
+                    tool = self._tf_buffer.transform(point, 'odom', timeout=Duration(seconds=.1))
+                except TransformException:
+                    return self._feedback_stop('Cannot anchor measured contact tool in odom')
+                observed = sample[1].point
+                reference = np.asarray((observed.x, observed.y, observed.z))
+                contact = np.asarray((tool.point.x, tool.point.y, tool.point.z))
+                if np.linalg.norm(reference-contact) > self._feedback_config['tracking_limit_m']:
+                    return self._feedback_stop('Live handle does not agree with the measured gripper contact')
+                self._feedback_follow_reference = (reference, contact)
+                self._feedback_follow_last_command = -math.inf
+                self._feedback_event('contact_follow_started',
+                                     observation_source=sample[2],
+                                     observed_handle_odom=reference.tolist(),
+                                     measured_tool_odom=contact.tolist())
+                return True
+            time.sleep(.025)
+        if self._feedback_encoder_contact_follow:
+            return self._feedback_begin_encoder_follow()
+        return self._feedback_stop('No fresh RGB-D handle for moving-door contact following')
+
+    def _feedback_begin_encoder_follow(self):
+        actual = self._feedback_tool()
+        if (not self._feedback_press_verified or actual is None
+                or self._feedback_config['press_sign'] * (
+                    self._sim_lever_position-self._sim_lever_initial_position)
+                < self._sim_lever_press_min_angle):
+            return self._feedback_stop('Occluded following requires fresh verified lever contact')
+        self._feedback_follow_mode = 'encoder_lever_contact'
+        self._feedback_encoder_follow_origin = actual.copy()
+        self._feedback_follow_last_command = -math.inf
+        self._feedback_event('contact_follow_started',
+                             observation_source='encoder_lever_contact',
+                             reason='gripper occludes RGB-D; contact is still measured',
+                             actual_tool_xyz=actual.tolist(),
+                             force_sensor_used=False)
+        return True
+
+    def _feedback_follow_encoder_contact(self):
+        actual = self._feedback_tool()
+        if (actual is None or not self._feedback_press_verified
+                or self._feedback_config['press_sign'] * (
+                    self._sim_lever_position-self._sim_lever_initial_position)
+                < self._sim_lever_press_min_angle):
+            return self._feedback_stop('Occluded following lost measured lever contact')
+        if abs(actual[1]-self._feedback_encoder_follow_origin[1]) > self._feedback_config['follow_max_shift_m']:
+            return self._feedback_stop('Occluded contact exceeded bounded lateral travel')
+        now = self._sim_time_sec()
+        if now-self._feedback_follow_last_command < .1:
+            return True
+        goal = self._feedback_press_origin.copy()
+        # Yield laterally to measured contact deflection; do not prescribe an arc.
+        goal[1] = actual[1]
+        goal[2] -= self._feedback_press_depth
+        if np.linalg.norm(goal-actual) > self._feedback_config['tracking_limit_m']:
+            return self._feedback_stop('Occluded following exceeded arm tracking limit')
+        if not self._feedback_command_point(goal, 'encoder_contact_follow'):
+            return False
+        self._feedback_press_origin[1] = goal[1]
+        self._feedback_follow_last_command = now
+        self._feedback_event('contact_follow_sample',
+                             observation_source='encoder_lever_contact',
+                             actual_tool_xyz=actual.tolist(), requested_tool_xyz=goal.tolist(),
+                             lever_delta_rad=self._feedback_config['press_sign'] * (
+                                 self._sim_lever_position-self._sim_lever_initial_position),
+                             force_sensor_used=False)
+        return True
+
+    def _feedback_follow_contact(self):
+        if self._feedback_follow_mode == 'encoder_lever_contact':
+            return self._feedback_follow_encoder_contact()
+        sample = self._feedback_live_contact_observation()
+        actual = self._feedback_tool()
+        if sample is None or actual is None:
+            return self._feedback_stop('Lost live RGB-D or encoder feedback during contact following')
+        if (abs(self._sim_door_position-self._sim_door_initial_position) > .03
+                and self._feedback_config['press_sign'] * (
+                    self._sim_lever_position-self._sim_lever_initial_position)
+                < self._sim_lever_press_min_angle):
+            return self._feedback_stop('Lever contact lost during visual following; reobservation required')
+        now = self._sim_time_sec()
+        if now - self._feedback_follow_last_command < .1:
+            return True
+        measured = PointStamped()
+        measured.header.frame_id = self._manipulation_frame
+        measured.point.x, measured.point.y, measured.point.z = map(float, actual)
+        try:
+            tool = self._tf_buffer.transform(measured, 'odom', timeout=Duration(seconds=.1))
+            observed = sample[1].point
+            reference, contact = self._feedback_follow_reference
+            # Follow x/y scene displacement; lever feedback owns vertical press.
+            observation = np.asarray((observed.x, observed.y, reference[2]))
+            tool_position = np.asarray((tool.point.x, tool.point.y, tool.point.z))
+            target = bounded_contact_target(
+                observation, reference, contact, tool_position,
+                self._feedback_config['follow_max_shift_m'],
+                self._feedback_config['follow_step_m'])
+            point = PointStamped()
+            point.header.frame_id = 'odom'
+            point.point.x, point.point.y, point.point.z = map(float, target)
+            local = self._tf_buffer.transform(point, self._manipulation_frame,
+                                              timeout=Duration(seconds=.1))
+        except (TransformException, ValueError) as exc:
+            return self._feedback_stop('Contact follow rejected: ' + str(exc))
+        goal = np.asarray((local.point.x, local.point.y,
+                           self._feedback_press_origin[2] - self._feedback_press_depth))
+        if np.linalg.norm(goal-actual) > self._feedback_config['tracking_limit_m']:
+            return self._feedback_stop('Contact following exceeded measured tracking limit')
+        if not self._feedback_command_point(goal, 'observed_contact_follow'):
+            return False
+        # Advance the measured reference, not a fixed-radius door trajectory.
+        # Preserve the unclipped target so small servo steps cannot lose motion.
+        self._feedback_follow_reference = (
+            observation, contact + observation-reference)
+        self._feedback_press_origin[:2] = goal[:2]
+        self._feedback_follow_last_command = now
+        self._feedback_event('contact_follow_sample', observation_source=sample[2],
+                             observed_handle_odom=[observed.x, observed.y, observed.z],
+                             requested_tool_xyz=goal.tolist(), actual_tool_xyz=actual.tolist())
+        return True
+
+    def _feedback_confirm_latch_press_response(self, lever_before, door_before):
+        # A lever can stay depressed against the strike after the fingers slip.
+        # A fresh angle alone is insufficient: a correction must cause motion.
+        self._publish_sim_cmd_vel(0.0, 0.0)
+        start = self._sim_time_sec()
+        deadline = time.monotonic() + 5.0
+        while rclpy.ok() and time.monotonic() < deadline:
+            if not self._feedback_fresh():
+                return self._feedback_stop('Lost feedback while confirming latch press response')
+            lever_motion = self._feedback_config['press_sign'] * (
+                self._sim_lever_position - lever_before)
+            door_motion = abs(self._sim_door_position - self._sim_door_initial_position) - door_before
+            if lever_motion >= .005 or door_motion >= .003:
+                self._feedback_event('latch_press_response',
+                                     lever_motion_rad=lever_motion,
+                                     door_motion_rad=door_motion)
+                return True
+            if self._sim_time_sec() - start >= 1.0:
+                break
+            time.sleep(.025)
+        return self._feedback_stop(
+            'No measured response to latch press correction; possible contact loss or jam, reobservation required')
+
     def _feedback_latch_clear_push(self):
         # Lever motion proves contact, not latch release. Briefly probe door
         # motion, stopping the chassis before any additional press correction.
@@ -1964,6 +2167,14 @@ class ManipulationNode(Node):
         deadline = time.monotonic() + 90.0
         previous = abs(self._sim_door_position - initial)
         try:
+            # An already lost contact must never trigger a new arm target.
+            if (previous > .03 and cfg['press_sign'] * (
+                    self._sim_lever_position-self._sim_lever_initial_position)
+                    < self._sim_lever_press_min_angle):
+                return self._feedback_stop(
+                    'Lever contact lost as door rotated; reobservation required')
+            if not self._feedback_begin_contact_follow():
+                return False
             while rclpy.ok() and time.monotonic() < deadline:
                 actual = self._feedback_tool()
                 if actual is None:
@@ -1982,6 +2193,8 @@ class ManipulationNode(Node):
                         if (not self._feedback_fresh()
                                 or time.monotonic() >= probe_deadline):
                             return self._feedback_stop('Latch probe lost feedback or clock')
+                        if not self._feedback_follow_contact():
+                            return False
                         self._publish_sim_cmd_vel(.02, 0.0)
                         time.sleep(.025)
                     self._publish_sim_cmd_vel(0.0, 0.0)
@@ -2006,12 +2219,13 @@ class ManipulationNode(Node):
                 if depth > cfg['press_max_travel_m']:
                     return self._feedback_stop('Latch not released within press travel limit')
                 goal[2] = self._feedback_press_origin[2] - depth
+                lever_before = self._sim_lever_position
                 if not self._feedback_command_point(goal, 'feedback_latch_press'):
                     return False
                 self._feedback_press_depth = depth
                 self._feedback_event('latch_press_correction', commanded_depth_m=depth)
-                if not self._wait_for_sim_duration(.35, wall_stall_timeout_sec=2.0):
-                    return self._feedback_stop('Clock stalled during latch correction')
+                if not self._feedback_confirm_latch_press_response(lever_before, current):
+                    return False
                 previous = current
         finally:
             self._publish_sim_cmd_vel(0.0, 0.0)

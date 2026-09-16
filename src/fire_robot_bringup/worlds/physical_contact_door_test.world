@@ -6,6 +6,7 @@
       <real_time_update_rate>1000</real_time_update_rate>
     </physics>
     <plugin name='gz::sim::systems::Physics' filename='gz-sim-physics-system'/>
+    <plugin name='gz::sim::systems::Contact' filename='ignition-gazebo-contact-system'/>
     <plugin name='gz::sim::systems::UserCommands' filename='gz-sim-user-commands-system'/>
     <plugin name='gz::sim::systems::SceneBroadcaster' filename='gz-sim-scene-broadcaster-system'/>
     <plugin name='gz::sim::systems::Sensors' filename='gz-sim-sensors-system'>
@@ -144,6 +145,10 @@
           <geometry><box><size>0.05 0.06 0.10</size></box></geometry>
           <material><ambient>0.8 0.65 0.05 1</ambient><diffuse>0.8 0.65 0.05 1</diffuse></material>
         </visual>
+        <sensor name='panel_contact_diagnostic' type='contact'>
+          <contact><collision>panel_collision</collision><topic>/proof/contact/panel</topic></contact>
+          <always_on>true</always_on><update_rate>20</update_rate>
+        </sensor>
       </link>
 
       <!-- The lever is an actual articulated link. It starts horizontal and
@@ -184,6 +189,15 @@
           <geometry><box><size>0.10 0.05 0.03</size></box></geometry>
           <material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material>
         </visual>
+        <!-- Passive diagnostics; these topics are not control inputs. -->
+        <sensor name='lever_contact_diagnostic' type='contact'>
+          <contact><collision>lever_collision</collision><topic>/proof/contact/lever</topic></contact>
+          <always_on>true</always_on><update_rate>20</update_rate>
+        </sensor>
+        <sensor name='latch_contact_diagnostic' type='contact'>
+          <contact><collision>latch_bolt_collision</collision><topic>/proof/contact/latch</topic></contact>
+          <always_on>true</always_on><update_rate>20</update_rate>
+        </sensor>
       </link>
 
       <joint name='lever_joint' type='revolute'>

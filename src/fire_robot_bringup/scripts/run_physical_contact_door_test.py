@@ -41,6 +41,7 @@ from PIL import Image as PilImage
 from rclpy.duration import Duration
 from rclpy.node import Node
 from rclpy.time import Time
+from ros_gz_interfaces.msg import Contacts
 from sensor_msgs.msg import Image, JointState
 from std_msgs.msg import Float64, String
 
@@ -53,6 +54,9 @@ class ContactRecord:
     base_samples: list[tuple[float, float, float]] = field(default_factory=list)
     phases: list[tuple[float, str]] = field(default_factory=list)
     feedback_events: list[dict] = field(default_factory=list)
+    contact_samples: list[dict] = field(default_factory=list)
+    contact_messages: dict[str, int] = field(default_factory=dict)
+    contact_last_stamp: dict[str, float] = field(default_factory=dict)
     latest_image: Image | None = None
     latest_front_image: Image | None = None
     latest_overhead_image: Image | None = None
@@ -79,6 +83,10 @@ class ContactProbe(Node):
             String, "/manipulation_phase", self._phase_cb, 20)
         self.create_subscription(
             String, "/manipulation_feedback", self._feedback_cb, 20)
+        for part in ('lever', 'latch', 'panel'):
+            self.create_subscription(
+                Contacts, f'/proof/contact/{part}',
+                lambda msg, part=part: self._contacts_cb(msg, part), 20)
         self.create_subscription(
             Image, "/proof/perspective/image", self._image_cb, 10)
         self.create_subscription(
@@ -136,6 +144,25 @@ class ContactProbe(Node):
             self.record.feedback_events.append(event)
         except (ValueError, TypeError):
             pass
+
+    def _contacts_cb(self, msg: Contacts, part: str):
+        record = self.record
+        record.contact_messages[part] = record.contact_messages.get(part, 0) + 1
+        stamp = msg.header.stamp.sec + msg.header.stamp.nanosec * 1.0e-9
+        previous = record.contact_last_stamp.get(part)
+        if previous is not None and 0 <= stamp-previous < .1:
+            return
+        record.contact_last_stamp[part] = stamp
+        pairs = []
+        for contact in msg.contacts:
+            pairs.append(dict(
+                collision1=contact.collision1.name, collision2=contact.collision2.name,
+                positions=[[p.x, p.y, p.z] for p in contact.positions],
+                max_depth_m=max(contact.depths, default=0.0),
+                wrench_samples=len(contact.wrenches)))
+        record.contact_samples.append(dict(
+            wall_elapsed_sec=self._stamp(), sim_time_sec=stamp,
+            part=part, phase=record.latest_phase, contacts=pairs))
 
     def _image_cb(self, msg: Image):
         self.record.latest_image = msg
@@ -707,12 +734,7 @@ def run(args: argparse.Namespace) -> int:
     launch_log = output_dir / "launch.log"
 
     proc: subprocess.Popen | None = None
-    if not args.attach:
-        proc = _start_launch(
-            launch_log, args.headless, args.door_open_motion,
-            args.min_angle_rad, args.use_yolo_observation, args.feedback_contact)
-        time.sleep(args.launch_settle_sec)
-
+    # Check ROS initialization before spawning any Gazebo children.
     rclpy.init()
     record = ContactRecord()
     node = ContactProbe(record)
@@ -739,6 +761,11 @@ def run(args: argparse.Namespace) -> int:
     }
 
     try:
+        if not args.attach:
+            proc = _start_launch(
+                launch_log, args.headless, args.door_open_motion,
+                args.min_angle_rad, args.use_yolo_observation, args.feedback_contact)
+            time.sleep(args.launch_settle_sec)
         ready = _wait_for_ready(node, args.ready_timeout_sec)
         result["ready"] = ready
         node.start_recording(video_path, args.video_fps, keyframe_dir)
@@ -963,19 +990,31 @@ def run(args: argparse.Namespace) -> int:
             "phase_keyframes": str(keyframe_dir),
         }
         result['feedback_events'] = record.feedback_events
+        contacts_path = output_dir / 'contact_diagnostics.json'
+        contacts_path.write_text(json.dumps(dict(
+            scope='Passive simulated collision contacts; not force feedback used by the controller.',
+            message_counts=record.contact_messages, samples=record.contact_samples), indent=2))
+        result['contact_diagnostics'] = dict(
+            path=str(contacts_path), message_counts=record.contact_messages,
+            available=all(record.contact_messages.get(part, 0) > 0
+                          for part in ('lever', 'latch', 'panel')))
         if args.feedback_contact:
             names = {e.get('event') for e in record.feedback_events}
             result['feedback_contract_pass'] = (
                 {'approach_clearance', 'approach_reached', 'grasp_candidate',
-                 'press_verified', 'latch_released', 'home_verified'} <= names
+                 'press_verified', 'contact_follow_started', 'contact_follow_sample',
+                 'latch_released', 'home_verified'} <= names
                 and 'stopped' not in names)
             result['pass'] = bool(result['pass'] and result['feedback_contract_pass'])
     finally:
-        node.stop_recording()
-        node.destroy_node()
-        rclpy.shutdown()
-        if not args.attach:
-            _stop_launch(proc)
+        try:
+            node.stop_recording()
+            node.destroy_node()
+            if rclpy.ok():
+                rclpy.shutdown()
+        finally:
+            if not args.attach:
+                _stop_launch(proc)
 
     report_path = output_dir / "result.json"
     report_path.write_text(

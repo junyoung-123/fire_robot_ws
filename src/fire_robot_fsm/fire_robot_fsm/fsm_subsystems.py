@@ -479,6 +479,8 @@ class DoorApproachSubFsm:
         door = n.target_door
         if door is None or door.door_color != 'blue':
             return False
+        if not n._fine_alignment_path_clear(door):
+            return False
 
         error = n._door_open_pose_error(door)
         if error is None:

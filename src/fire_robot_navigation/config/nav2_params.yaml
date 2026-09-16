@@ -294,6 +294,7 @@ global_costmap:
       use_sim_time: true
       update_frequency: 1.0
       publish_frequency: 0.5
+      always_send_full_costmap: true
       global_frame: map
       robot_base_frame: base_link
       transform_tolerance: 0.5

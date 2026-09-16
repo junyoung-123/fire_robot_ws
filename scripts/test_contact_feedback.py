@@ -8,11 +8,131 @@ from geometry_msgs.msg import PointStamped
 from fire_robot_manipulation.piper_actual_kinematics import PiperActualKinematics
 
 from fire_robot_manipulation.contact_feedback import (
-    fresh_sample, observed_clearance, next_press_depth, stable_lever_motion)
+    fresh_sample, observed_clearance, next_press_depth, stable_lever_motion,
+    bounded_contact_target)
 from fire_robot_manipulation.physical_contact_manipulation_node import ManipulationNode
 
 
 class FeedbackGuardTests(unittest.TestCase):
+    def test_ik_position_match_with_wrong_wrist_orientation_is_rejected(self):
+        kinematics = PiperActualKinematics()
+        point = np.array([.6, .15, .77])
+        wrong = kinematics.approach_rotation @ np.diag([-1., -1., 1.])
+        with patch.object(kinematics, 'forward', return_value=(point, wrong)):
+            self.assertIsNone(kinematics.solve(point, max_iterations=2))
+
+    def test_recorded_contact_goal_remains_reachable_with_orientation_guard(self):
+        kinematics = PiperActualKinematics()
+        solution = kinematics.solve([.847076, .220325, .663161], position_tolerance_m=.003)
+        self.assertIsNotNone(solution)
+        self.assertLessEqual(solution.orientation_error_rad, .10)
+        self.assertLessEqual(solution.position_error_m, .003)
+
+    def test_contact_target_tracks_observation_not_predefined_hinge_geometry(self):
+        reference = np.array([2., 1., .8])
+        contact = reference + [.01, -.01, -.02]
+        observed = reference + [.02, .015, 0.]
+        target = bounded_contact_target(observed, reference, contact, contact, .15, .03)
+        np.testing.assert_allclose(target, contact + observed-reference)
+
+    def test_contact_follow_step_is_bounded(self):
+        target = bounded_contact_target([.1, 0., 0.], [0., 0., 0.],
+                                        [0., 0., 0.], [0., 0., 0.], .15, .008)
+        np.testing.assert_allclose(target, [.008, 0., 0.])
+
+    def test_far_or_nonfinite_contact_candidate_is_rejected(self):
+        for observed in ([1., 0., 0.], [float('nan'), 0., 0.]):
+            with self.assertRaises(ValueError):
+                bounded_contact_target(observed, [0., 0., 0.], [0., 0., 0.],
+                                       [0., 0., 0.], .15, .008)
+
+    def test_contact_follow_is_independent_of_world_origin(self):
+        points = np.array([[.02, .01, 0.], [0., 0., 0.],
+                           [.01, 0., 0.], [.01, 0., 0.]])
+        first = bounded_contact_target(*points, .15, .008)
+        offset = np.array([12., -4., 1.])
+        second = bounded_contact_target(*(points+offset), .15, .008)
+        np.testing.assert_allclose(first+offset, second)
+
+    def test_fresh_callback_cannot_mask_old_image_time(self):
+        node = self.make_press_node()
+        point = PointStamped()
+        point.header.stamp.sec = 1
+        node._feedback_contact_observation = (9.9, point, 'yolo:primary:item:registered_depth')
+        node._sim_time_sec = lambda: 10.
+        node._feedback_config['follow_max_age_sec'] = 1.
+        with patch('fire_robot_manipulation.physical_contact_manipulation_node.time.monotonic', return_value=10.):
+            self.assertIsNone(node._feedback_live_contact_observation())
+            point.header.stamp.sec = 10
+            self.assertIsNotNone(node._feedback_live_contact_observation())
+
+    def test_visual_dropout_never_commands_arm_or_forward_motion(self):
+        node = self.make_press_node()
+        node._feedback_live_contact_observation = lambda: None
+        with patch.object(node, '_feedback_command_point') as command, \
+                patch.object(node, '_feedback_stop', return_value=False) as stop:
+            self.assertFalse(ManipulationNode._feedback_follow_contact(node))
+            command.assert_not_called()
+            self.assertIn('Lost live RGB-D', stop.call_args[0][0])
+
+    def test_contact_follow_compensates_current_base_motion(self):
+        for base_x in (.4, .5):
+            node = self.make_press_node()
+            node._feedback_config.update(follow_max_shift_m=.15, follow_step_m=.008)
+            node._feedback_follow_reference = (np.array([1., 0., .75]),
+                                                np.array([1., 0., .75]))
+            node._feedback_follow_last_command = -float('inf')
+            node._feedback_press_origin = np.array([1.-base_x, 0., .78])
+            node._feedback_press_depth = .03
+            node._manipulation_frame = 'base_link'
+            node._sim_door_initial_position = 0.
+            node._sim_door_position = -.04
+            node._sim_lever_position = -.1
+            node._feedback_tool = lambda: np.array([1.-base_x, 0., .75])
+            observation = PointStamped()
+            observation.header.frame_id = 'odom'
+            observation.point.x, observation.point.z = 1.02, .75
+            node._feedback_live_contact_observation = lambda: (10., observation, 'yolo:primary:item:registered_depth')
+            def transform(point, frame, **kw):
+                result = PointStamped()
+                result.header.frame_id = frame
+                result.point.x = point.point.x + (base_x if frame == 'odom' else -base_x)
+                result.point.y, result.point.z = point.point.y, point.point.z
+                return result
+            node._tf_buffer = NS(transform=transform)
+            with patch.object(node, '_feedback_command_point', return_value=True) as command:
+                self.assertTrue(ManipulationNode._feedback_follow_contact(node))
+                np.testing.assert_allclose(command.call_args[0][0], [1.008-base_x, 0., .75])
+
+    def test_occluded_following_requires_verified_contact(self):
+        node = self.make_press_node()
+        node._feedback_press_verified = False
+        with patch.object(node, '_feedback_command_point') as command:
+            self.assertFalse(node._feedback_begin_encoder_follow())
+            command.assert_not_called()
+
+    def test_occluded_contact_loss_does_not_make_an_arm_target(self):
+        node = self.make_press_node()
+        node._feedback_press_verified = True
+        node._sim_lever_position = -.01
+        with patch.object(node, '_feedback_command_point') as command:
+            self.assertFalse(node._feedback_follow_encoder_contact())
+            command.assert_not_called()
+
+    def test_occluded_follow_yields_only_to_measured_lateral_deflection(self):
+        node = self.make_press_node()
+        node._feedback_press_verified = True
+        node._sim_lever_position = -.1
+        node._feedback_config['follow_max_shift_m'] = .15
+        node._feedback_press_origin = np.array([.58, .2, .8])
+        node._feedback_press_depth = .03
+        node._feedback_encoder_follow_origin = np.array([.58, .2, .77])
+        node._feedback_follow_last_command = -float('inf')
+        node._feedback_tool = lambda: np.array([.58, .19, .77])
+        with patch.object(node, '_feedback_command_point', return_value=True) as command:
+            self.assertTrue(node._feedback_follow_encoder_contact())
+            np.testing.assert_allclose(command.call_args[0][0], [.58, .19, .77])
+
     def test_arm_and_lever_cannot_mask_stale_door_feedback(self):
         node = object.__new__(ManipulationNode)
         node._feedback_config = {'max_age_sec': 1.0}
@@ -87,9 +207,50 @@ class FeedbackGuardTests(unittest.TestCase):
                 patch(module+'.time.sleep', side_effect=lambda s: wait(s)), \
                 patch.object(node, '_feedback_stop', return_value=False) as stop:
             self.assertFalse(node._feedback_latch_clear_push())
-            self.assertIn('travel limit', stop.call_args[0][0])
+            self.assertIn('No measured response', stop.call_args[0][0])
         self.assertEqual(drive[0], 0.0)
-        self.assertLessEqual(node._feedback_press_depth, .11)
+        self.assertLessEqual(node._feedback_press_depth, .035 + 1.e-9)
+
+    def test_latch_correction_requires_incremental_not_absolute_lever_motion(self):
+        node = self.make_press_node()
+        node._sim_door_initial_position = 0.
+        node._sim_door_position = -.115
+        node._sim_lever_position = -.135
+        node._feedback_fresh = lambda: True
+        clock = [10.]
+        node._sim_time_sec = lambda: clock[0]
+        module = 'fire_robot_manipulation.physical_contact_manipulation_node'
+        def tick(seconds):
+            clock[0] += seconds
+        with patch(module+'.rclpy.ok', return_value=True), \
+                patch(module+'.time.monotonic', side_effect=lambda: clock[0]), \
+                patch(module+'.time.sleep', side_effect=tick), \
+                patch.object(node, '_publish_sim_cmd_vel') as drive, \
+                patch.object(node, '_feedback_stop', return_value=False) as stop:
+            self.assertFalse(node._feedback_confirm_latch_press_response(-.135, .115))
+            self.assertIn('No measured response', stop.call_args[0][0])
+            self.assertTrue(all(call.args == (0., 0.) for call in drive.call_args_list))
+
+    def test_latch_correction_accepts_measured_lever_or_door_response(self):
+        for lever, door in ((-.15, -.115), (-.135, -.12)):
+            node = self.make_press_node()
+            node._sim_door_initial_position = 0.
+            node._sim_door_position = door
+            node._sim_lever_position = lever
+            node._feedback_fresh = lambda: True
+            with patch('fire_robot_manipulation.physical_contact_manipulation_node.rclpy.ok', return_value=True), \
+                    patch.object(node, '_publish_sim_cmd_vel') as drive:
+                self.assertTrue(node._feedback_confirm_latch_press_response(-.135, .115))
+                drive.assert_called_once_with(0., 0.)
+
+    def test_latch_correction_rejects_stale_sensors(self):
+        node = self.make_press_node()
+        node._feedback_fresh = lambda: False
+        with patch('fire_robot_manipulation.physical_contact_manipulation_node.rclpy.ok', return_value=True), \
+                patch.object(node, '_publish_sim_cmd_vel'), \
+                patch.object(node, '_feedback_stop', return_value=False) as stop:
+            self.assertFalse(node._feedback_confirm_latch_press_response(-.135, .115))
+            self.assertIn('Lost feedback', stop.call_args[0][0])
 
     def test_pregrasp_waypoints_do_not_accumulate_measured_sag(self):
         node = object.__new__(ManipulationNode)
@@ -184,6 +345,9 @@ class FeedbackGuardTests(unittest.TestCase):
         node._sim_time_sec = lambda: 1.0
         node._feedback_stop = lambda reason: False
         node._feedback_event = lambda *a, **k: None
+        node._feedback_begin_contact_follow = lambda: True
+        node._feedback_follow_contact = lambda: True
+        node._feedback_follow_mode = 'vision'
         return node
 
     def test_stale_arm_aborts_without_a_press_command(self):

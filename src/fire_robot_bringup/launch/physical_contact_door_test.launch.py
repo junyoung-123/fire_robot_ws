@@ -51,6 +51,9 @@ def generate_launch_description():
         '/proof/overhead/image@sensor_msgs/msg/Image[gz.msgs.Image',
         '/proof/perspective/image@sensor_msgs/msg/Image[gz.msgs.Image',
     ]
+    command_topics += [
+        f'/proof/contact/{part}@ros_gz_interfaces/msg/Contacts[gz.msgs.Contacts'
+        for part in ('lever', 'latch', 'panel')]
     bridge = Node(
         package='ros_gz_bridge',
         executable='parameter_bridge',
@@ -113,6 +116,7 @@ def generate_launch_description():
             'require_detected_handle': require_yolo_handle,
             'require_yolo_handle': require_yolo_handle,
             'feedback_contact_enabled': feedback_contact,
+            'feedback_encoder_contact_follow': feedback_contact,
             # Bounds, not predetermined motion endpoints. The measured tool
             # position and lever rotation decide completion at runtime.
             'feedback_clearance_min_m': 0.05,

@@ -2,6 +2,7 @@
 import argparse
 import csv
 import math
+import os
 import signal
 import time
 from pathlib import Path
@@ -66,6 +67,7 @@ class ValidationTraceLogger(Node):
         self.latest_state = None
         self.latest_target_id = ""
         self.start_wall = time.monotonic()
+        self._persisted_rows = {}
 
         self.create_subscription(DoorInfo, "/target_door", self.target_cb, 10)
         self.create_subscription(DoorInfo, "/detected_door", self.detected_cb, 10)
@@ -75,6 +77,7 @@ class ValidationTraceLogger(Node):
                                  lambda msg: self.path_cb(msg, "local_plan"), 10)
         self.create_subscription(RobotState, "/robot_state", self.state_cb, 10)
         self.create_timer(self.sample_period, self.sample_pose)
+        self.create_timer(5.0, self.checkpoint)
 
     def stamp_seconds(self):
         now = self.get_clock().now().nanoseconds / 1.0e9
@@ -213,7 +216,8 @@ class ValidationTraceLogger(Node):
         self.latest_pose = row
         self.poses.append(row)
 
-    def save(self):
+    def checkpoint(self):
+        # Keep completed observations on disk even if WSL stops abruptly.
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.write_csv("poses.csv", self.poses,
                        ["t", "x", "y", "yaw", "roll", "pitch",
@@ -230,6 +234,9 @@ class ValidationTraceLogger(Node):
                        ["t", "state", "target_id", "description"])
         self.write_csv("events.csv", self.open_events,
                        ["t", "event", "target_id", "x", "y", "yaw"])
+
+    def save(self):
+        self.checkpoint()
         self.plot_trajectory()
         self.plot_alignment()
         summary = self.output_dir / "summary.txt"
@@ -254,11 +261,18 @@ class ValidationTraceLogger(Node):
 
     def write_csv(self, name, rows, fields):
         path = self.output_dir / name
-        with path.open("w", newline="") as f:
+        saved = self._persisted_rows.get(name, 0)
+        if saved == len(rows) and path.exists():
+            return
+        with path.open("a", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=fields)
-            writer.writeheader()
-            for row in rows:
+            if f.tell() == 0:
+                writer.writeheader()
+            for row in rows[saved:]:
                 writer.writerow({field: row.get(field, "") for field in fields})
+            f.flush()
+            os.fsync(f.fileno())
+        self._persisted_rows[name] = len(rows)
 
     def plot_trajectory(self):
         fig, ax = plt.subplots(figsize=(13, 5.5), dpi=160)

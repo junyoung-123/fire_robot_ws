@@ -1,0 +1,126 @@
+{
+  "scope": "Offline reference: closed SDF panel plane and recorded pre-opening base footprint. Not observed input or 3D arm reachability.",
+  "worlds": {
+    "1": [
+      {
+        "target_id": "observed_blue_5p8_m1p8",
+        "model": "door_blue1",
+        "base_to_closed_panel_plane_m": 1.026367667188578,
+        "footprint_to_closed_panel_plane_m": 0.7338710068030345,
+        "heading_to_closed_panel_normal_deg": 8.913393427326438
+      },
+      {
+        "target_id": "door_blue_1503d1",
+        "model": "door_blue2",
+        "base_to_closed_panel_plane_m": 1.0514803318080783,
+        "footprint_to_closed_panel_plane_m": 0.7641259210198004,
+        "heading_to_closed_panel_normal_deg": 7.369662188074123
+      },
+      {
+        "target_id": "door_blue_df7a1e",
+        "model": "door_blue3",
+        "base_to_closed_panel_plane_m": 0.9118141718322698,
+        "footprint_to_closed_panel_plane_m": 0.6080546362279349,
+        "heading_to_closed_panel_normal_deg": 12.54820337563847
+      }
+    ],
+    "2": [
+      {
+        "target_id": "observed_blue_3p6_1p4",
+        "model": "door_blue1",
+        "base_to_closed_panel_plane_m": 0.8991331113463266,
+        "footprint_to_closed_panel_plane_m": 0.6090281540754343,
+        "heading_to_closed_panel_normal_deg": 8.187519303084684
+      },
+      {
+        "target_id": "observed_blue_10p3_m1p9",
+        "model": "door_blue2",
+        "base_to_closed_panel_plane_m": 0.9765434097907848,
+        "footprint_to_closed_panel_plane_m": 0.6848818831372554,
+        "heading_to_closed_panel_normal_deg": 8.65831530780655
+      },
+      {
+        "target_id": "observed_blue_15p6_1p4",
+        "model": "door_blue3",
+        "base_to_closed_panel_plane_m": 1.09335512247905,
+        "footprint_to_closed_panel_plane_m": 0.8245789453810703,
+        "heading_to_closed_panel_normal_deg": 2.236140885045386
+      }
+    ],
+    "3": [
+      {
+        "target_id": "observed_blue_4p9_m1p9",
+        "model": "door_blue1",
+        "base_to_closed_panel_plane_m": 0.9993770502779424,
+        "footprint_to_closed_panel_plane_m": 0.7123038275230764,
+        "heading_to_closed_panel_normal_deg": 7.287023966148866
+      },
+      {
+        "target_id": "observed_blue_9p2_1p4",
+        "model": "door_blue2",
+        "base_to_closed_panel_plane_m": 1.0591441548303295,
+        "footprint_to_closed_panel_plane_m": 0.7724853043269782,
+        "heading_to_closed_panel_normal_deg": 7.165562798834585
+      },
+      {
+        "target_id": "observed_blue_13p3_m1p9",
+        "model": "door_blue3",
+        "base_to_closed_panel_plane_m": 1.0597841797462562,
+        "footprint_to_closed_panel_plane_m": 0.7652890146830722,
+        "heading_to_closed_panel_normal_deg": 9.531151182939528
+      },
+      {
+        "target_id": "observed_blue_17p3_1p6",
+        "model": "door_blue4",
+        "base_to_closed_panel_plane_m": 0.8831708879132499,
+        "footprint_to_closed_panel_plane_m": 0.5755864171689398,
+        "heading_to_closed_panel_normal_deg": 13.880671626254852
+      }
+    ],
+    "4": [],
+    "5": [
+      {
+        "target_id": "door_blue_b177f7",
+        "model": "door_blue4",
+        "base_to_closed_panel_plane_m": 1.1154668681202256,
+        "footprint_to_closed_panel_plane_m": 0.8088370225891419,
+        "heading_to_closed_panel_normal_deg": 13.542657325318983
+      },
+      {
+        "target_id": "observed_blue_6p0_m2p0",
+        "model": "door_blue1",
+        "base_to_closed_panel_plane_m": 0.9834877164450311,
+        "footprint_to_closed_panel_plane_m": 0.696279411428083,
+        "heading_to_closed_panel_normal_deg": 7.326701315797158
+      },
+      {
+        "target_id": "observed_blue_8p2_1p3",
+        "model": "door_blue5",
+        "base_to_closed_panel_plane_m": 0.991030535310723,
+        "footprint_to_closed_panel_plane_m": 0.6992571235158498,
+        "heading_to_closed_panel_normal_deg": 8.692386539736047
+      },
+      {
+        "target_id": "observed_blue_11p9_m1p8",
+        "model": "door_blue2",
+        "base_to_closed_panel_plane_m": 1.047946570875392,
+        "footprint_to_closed_panel_plane_m": 0.7598035750373457,
+        "heading_to_closed_panel_normal_deg": 7.602363495596655
+      },
+      {
+        "target_id": "observed_blue_14p5_1p4",
+        "model": "door_blue3",
+        "base_to_closed_panel_plane_m": 1.054070981796325,
+        "footprint_to_closed_panel_plane_m": 0.768483977043577,
+        "heading_to_closed_panel_normal_deg": 6.853116130955458
+      },
+      {
+        "target_id": "observed_blue_18p1_m2p0",
+        "model": "door_blue6",
+        "base_to_closed_panel_plane_m": 0.960247166386262,
+        "footprint_to_closed_panel_plane_m": 0.6523138670617967,
+        "heading_to_closed_panel_normal_deg": 14.005139315177127
+      }
+    ]
+  }
+}
