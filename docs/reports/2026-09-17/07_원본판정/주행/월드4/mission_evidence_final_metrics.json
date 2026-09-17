@@ -1,0 +1,10 @@
+{
+  "pose_samples": 1853,
+  "path_length_m": 33.130092954475145,
+  "max_pose_step_m": 0.06250276855407831,
+  "max_sample_gap_sec": 0.41599440574645996,
+  "sampled_footprint_overlap_count": 0,
+  "overlaps": [],
+  "openings": [],
+  "scope": "Saved-map + sim-odom mission; simplified arm/hinge backend. Footprint screen is sampled 2D geometry, not a physical contact test. Alignment compares the last published navigation goal, not an independently measured door plane."
+}

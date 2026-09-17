@@ -49,7 +49,8 @@ def render(folder, output_name='contact_timeline.png'):
                  [math.degrees(e['lever_delta_rad']) for e in probes], color='#278047', label='lever at probe start')
     axes[1].set_ylabel('Measured angle [deg]')
     axes[1].legend(loc='upper left')
-    corrections = [e for e in result['feedback_events'] if e['event'] == 'latch_press_correction']
+    corrections = [e for e in result['feedback_events']
+                   if e['event'] in ('latch_press_correction', 'lever_hold_correction')]
     axes[2].step([e['sim_time_sec'] for e in corrections],
                  [e['commanded_depth_m'] * 1000 for e in corrections], where='post', color='#345fad')
     axes[2].set_ylabel('Commanded press budget [mm]')

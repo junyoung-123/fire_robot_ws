@@ -1,0 +1,57 @@
+{
+  "pages": 51,
+  "asset_count": 83,
+  "source_modules": 13,
+  "code_excerpts": 14,
+  "required_coverage_pass": true,
+  "relative_assets_exist": true,
+  "sha256_assets_pass": true,
+  "pdf_sha256": "de92fbb5ae422a3aff2093ec9da89af641543ff31c536b1957edbccc589c6001",
+  "visual_qa": "all 51 rendered pages reviewed; selected dense pages inspected individually",
+  "text_page_boundary_pass": true,
+  "html_links_checked": 81,
+  "r40_source_manifest_matches": [
+    "src/fire_robot_manipulation/fire_robot_manipulation/physical_contact_manipulation_node.py",
+    "src/fire_robot_manipulation/fire_robot_manipulation/contact_feedback.py",
+    "src/fire_robot_manipulation/fire_robot_manipulation/piper_actual_kinematics.py",
+    "src/fire_robot_perception/fire_robot_perception/door_detection_node.py"
+  ],
+  "videos_full_decode": [
+    {
+      "file": "09_영상/05_목표잠금_개방기억_영상_browser_h264.mp4",
+      "h264": true,
+      "full_decode_pass": true,
+      "sha256": "3bcde00792c4b43ffb5da98f7693f5f4367a3c2b1b8a35ad3a16d6cb8abc39d6"
+    },
+    {
+      "file": "09_영상/05_최신_r40_손잡이유지개방_요약6x.mp4",
+      "h264": true,
+      "full_decode_pass": true,
+      "sha256": "40fcd381bc7d3e19492309285237fd3bea803d9ed57b14ef2458ba0c83e03990"
+    },
+    {
+      "file": "09_영상/06_최신_r40_손잡이유지개방_전체기록.mp4",
+      "h264": true,
+      "full_decode_pass": true,
+      "sha256": "e253f22c4358dc55864f0a32c389ff3218a69ec871e668ee8002f81e141467e3"
+    },
+    {
+      "file": "09_영상/07_Gazebo_RViz_맵생성과정_browser_h264.mp4",
+      "h264": true,
+      "full_decode_pass": true,
+      "sha256": "a3524842e0092049c32894e4e1dc33b96971a8dbdbeb655a9b13f290943644dd"
+    },
+    {
+      "file": "09_영상/08_인식과정_실행영상_browser_h264.mp4",
+      "h264": true,
+      "full_decode_pass": true,
+      "sha256": "98701dd9a00e4292cf868ea05120419553bb855de77b37550fdae9056dc0aea2"
+    },
+    {
+      "file": "09_영상/08_첫문_좌표수렴_영상_browser_h264.mp4",
+      "h264": true,
+      "full_decode_pass": true,
+      "sha256": "22c9aceb5188956b019fe1fdda704c8919346c0f2152f02956fc44dc6cf6bd99"
+    }
+  ]
+}

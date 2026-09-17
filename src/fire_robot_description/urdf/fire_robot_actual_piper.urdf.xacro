@@ -746,8 +746,9 @@
             name="gz::sim::systems::JointPositionController">
       <joint_name>gripper_left_joint</joint_name>
       <topic>/fire_robot/sim_arm/gripper_left_joint_cmd</topic>
-      <p_gain>80.0</p_gain>
-      <d_gain>0.8</d_gain>
+      <!-- Calibrated in free space for <1 mm gravity sag; force cap unchanged. -->
+      <p_gain>400.0</p_gain>
+      <d_gain>6.3</d_gain>
       <cmd_max>8</cmd_max>
       <cmd_min>-8</cmd_min>
     </plugin>
@@ -755,8 +756,8 @@
             name="gz::sim::systems::JointPositionController">
       <joint_name>gripper_right_joint</joint_name>
       <topic>/fire_robot/sim_arm/gripper_right_joint_cmd</topic>
-      <p_gain>80.0</p_gain>
-      <d_gain>0.8</d_gain>
+      <p_gain>400.0</p_gain>
+      <d_gain>6.3</d_gain>
       <cmd_max>8</cmd_max>
       <cmd_min>-8</cmd_min>
     </plugin>

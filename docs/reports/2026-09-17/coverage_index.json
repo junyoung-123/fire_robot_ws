@@ -1,0 +1,170 @@
+{
+  "alignment": [
+    23,
+    27
+  ],
+  "avoidance": [
+    20,
+    21
+  ],
+  "before_after": [
+    24,
+    25
+  ],
+  "code": [
+    8,
+    13,
+    17,
+    18,
+    21,
+    22,
+    25,
+    26,
+    28,
+    41
+  ],
+  "color_map": [
+    7,
+    9,
+    10,
+    11
+  ],
+  "coordinates": [
+    10,
+    11,
+    12,
+    26
+  ],
+  "door_yolo": [
+    9
+  ],
+  "evidence_index": [
+    51
+  ],
+  "exit": [
+    47
+  ],
+  "fsm": [
+    3,
+    47
+  ],
+  "glossary": [
+    50
+  ],
+  "handle_yolo": [
+    26,
+    29,
+    30
+  ],
+  "hinge": [
+    42
+  ],
+  "ideas": [
+    3,
+    48
+  ],
+  "index": [
+    2
+  ],
+  "initial_map": [
+    5,
+    6
+  ],
+  "limits": [
+    4,
+    12,
+    37,
+    45,
+    46,
+    49
+  ],
+  "map_growth": [
+    7,
+    8,
+    19
+  ],
+  "memory": [
+    11,
+    13,
+    14,
+    19
+  ],
+  "metrics": [
+    30
+  ],
+  "nav_worlds": [
+    31,
+    32,
+    33,
+    34,
+    35,
+    36
+  ],
+  "navigation": [
+    22,
+    37
+  ],
+  "next": [
+    49
+  ],
+  "observation": [
+    4,
+    27
+  ],
+  "opened_memory": [
+    15,
+    16,
+    18
+  ],
+  "overview": [
+    1
+  ],
+  "perception": [
+    5
+  ],
+  "physical_metrics": [
+    43,
+    45
+  ],
+  "physical_sequence": [
+    38,
+    39,
+    40,
+    41,
+    42
+  ],
+  "press_feedback": [
+    28,
+    39
+  ],
+  "recovery": [
+    44
+  ],
+  "reobserve": [
+    16,
+    17,
+    18
+  ],
+  "target": [
+    14
+  ],
+  "video": [
+    38,
+    44
+  ],
+  "world1": [
+    32
+  ],
+  "world2": [
+    33
+  ],
+  "world3": [
+    34
+  ],
+  "world4": [
+    35
+  ],
+  "world5": [
+    36
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "scope": "r39 versus r40: controller, perception, model and robot geometry hashes; world XML excluding read-only evidence plugin",
+  "controller_robot_perception_files_compared": 62,
+  "controller_robot_perception_equal": true,
+  "physics_world_equal_excluding_evidence_plugin": true,
+  "changed_inputs": [
+    "scripts/snapshot_validation_source.py",
+    "scripts/test_recovery_and_proof_cameras.py",
+    "src/fire_robot_bringup/launch/physical_contact_door_test.launch.py",
+    "src/fire_robot_bringup/package.xml",
+    "src/fire_robot_bringup/scripts/run_physical_contact_door_test.py",
+    "src/fire_robot_bringup/worlds/physical_contact_door_test.world",
+    "src/fire_robot_sim_evidence/CMakeLists.txt",
+    "src/fire_robot_sim_evidence/package.xml",
+    "src/fire_robot_sim_evidence/src/contact_audit.cpp"
+  ],
+  "before": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_world1_contact_20260916\\artifacts\\validation\\contact_copy_r39_handle_held\\source_snapshot",
+  "after": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_world1_contact_20260916\\artifacts\\validation\\contact_copy_r40_handle_held\\source_snapshot_with_evidence_plugin"
+}

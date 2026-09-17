@@ -1,0 +1,424 @@
+{
+  "08_코드발췌와원본/주행보존본/state_machine_node.py": {
+    "original": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_test\\src\\fire_robot_fsm\\fire_robot_fsm\\state_machine_node.py",
+    "sha256": "3ffd7a914f70e5b44fa2b887ba4d9e2cb48972410226b9bb25dff62b96878984",
+    "bytes": 910407
+  },
+  "08_코드발췌와원본/주행보존본/fsm_subsystems.py": {
+    "original": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_test\\src\\fire_robot_fsm\\fire_robot_fsm\\fsm_subsystems.py",
+    "sha256": "297a142ac08073c33065b5706357f06176102edbe5548aa4751bf56be41002fe",
+    "bytes": 22546
+  },
+  "08_코드발췌와원본/주행보존본/door_detection_node.py": {
+    "original": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_test\\src\\fire_robot_perception\\fire_robot_perception\\door_detection_node.py",
+    "sha256": "424fbd49dfe360989bba8d1dbce1cc05f545d588daa411524163b917730fc323",
+    "bytes": 94982
+  },
+  "08_코드발췌와원본/주행보존본/initial_static_map_node.py": {
+    "original": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_test\\src\\fire_robot_navigation\\fire_robot_navigation\\initial_static_map_node.py",
+    "sha256": "6516fee083c2cabbc216b2809a3fb561c388850bc261d9919803329a50c29dc3",
+    "bytes": 16845
+  },
+  "08_코드발췌와원본/주행보존본/fixed_obstacle_map_node.py": {
+    "original": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_test\\src\\fire_robot_navigation\\fire_robot_navigation\\fixed_obstacle_map_node.py",
+    "sha256": "522d48c750bb350928aaa544a3977070bdb4554769f5df15b1a792ad69340597",
+    "bytes": 12036
+  },
+  "08_코드발췌와원본/주행보존본/nav2_params.yaml": {
+    "original": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_test\\src\\fire_robot_navigation\\config\\nav2_params.yaml",
+    "sha256": "6283274143f5ec6617f276170a4e5006dfa5a5dccfd59822b657ec592f40df4a",
+    "bytes": 14911
+  },
+  "08_코드발췌와원본/주행보존본/simulation.launch.py": {
+    "original": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_test\\src\\fire_robot_bringup\\launch\\simulation.launch.py",
+    "sha256": "efd2f5cf37d834c1688586184be1fd289e30128ec564f5e0ffdf49706b2c1b31",
+    "bytes": 49252
+  },
+  "08_코드발췌와원본/주행보존본/navigation_node.py": {
+    "original": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_test\\src\\fire_robot_navigation\\fire_robot_navigation\\navigation_node.py",
+    "sha256": "fb0e3dd124d95ed7d1901764b01fd1a602af7e6ca98fde4342634dc2e90ffaa1",
+    "bytes": 52197
+  },
+  "08_코드발췌와원본/주행보존본/cmd_vel_safety_node.py": {
+    "original": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_test\\src\\fire_robot_navigation\\fire_robot_navigation\\cmd_vel_safety_node.py",
+    "sha256": "e0b9272e8e3382dd659c1bd3ca6bcfd8cd9e2f5e921a338532ba9d93b7244109",
+    "bytes": 7906
+  },
+  "08_코드발췌와원본/접촉복사본/physical_contact_manipulation_node.py": {
+    "original": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_world1_contact_20260916\\src\\fire_robot_manipulation\\fire_robot_manipulation\\physical_contact_manipulation_node.py",
+    "sha256": "ea9a63ec1d7c26fff740d62208abf9e0d9ec01cb0c83b2ee530a9c185b85ac0a",
+    "bytes": 177642
+  },
+  "08_코드발췌와원본/접촉복사본/contact_feedback.py": {
+    "original": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_world1_contact_20260916\\src\\fire_robot_manipulation\\fire_robot_manipulation\\contact_feedback.py",
+    "sha256": "dcb991056ca41ff3f1d0ebbd76caf386bfc867124163c81ca92c7714c2cc7b47",
+    "bytes": 13045
+  },
+  "08_코드발췌와원본/접촉복사본/piper_actual_kinematics.py": {
+    "original": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_world1_contact_20260916\\src\\fire_robot_manipulation\\fire_robot_manipulation\\piper_actual_kinematics.py",
+    "sha256": "5d29f4c356ab6461933c7f511493d4569f13ec2863a96d4e6d8b3284934541ec",
+    "bytes": 14088
+  },
+  "08_코드발췌와원본/접촉복사본/door_detection_node.py": {
+    "original": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_world1_contact_20260916\\src\\fire_robot_perception\\fire_robot_perception\\door_detection_node.py",
+    "sha256": "53ed85d64ed004a2f1433795c5cef42d1f5ed6b8feca17f6c4109eb48cff46f3",
+    "bytes": 95829
+  },
+  "01_인식과지도/01_World1_초기센서_종합.png": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\02_FSM별_검증증빙\\01_센서인식_Perception\\2026-09-09_성공_World1_초기센서\\01_World1_초기센서_종합.png",
+    "sha256": "70b9e99d29eac0c7374696c2dcad77d539f392c44693a4d6a3ab44c938f756a0",
+    "bytes": 211819
+  },
+  "01_인식과지도/01_초기맵.png": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\02_FSM별_검증증빙\\02_지도생성_문기억_Map_Memory\\2026-09-10_성공_라이브_좌표정밀화\\01_초기맵.png",
+    "sha256": "aef28d3f3d656f3860696f87144eadccee538e7f56351f7dd7082a0896fd9c4b",
+    "bytes": 173889
+  },
+  "01_인식과지도/02_이동중_LiDAR_맵확장.png": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\02_FSM별_검증증빙\\02_지도생성_문기억_Map_Memory\\2026-09-10_성공_라이브_좌표정밀화\\02_이동중_LiDAR_맵확장.png",
+    "sha256": "c0632916ae3ff3caa5a6063cf1f2313411f447a0583b600b3f4142bfe610e328",
+    "bytes": 261662
+  },
+  "01_인식과지도/03_파란문_의미기억.png": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\02_FSM별_검증증빙\\02_지도생성_문기억_Map_Memory\\2026-09-10_성공_라이브_좌표정밀화\\03_파란문_의미기억.png",
+    "sha256": "9372606bde4b37c80e40b2748a34dc40a3dae6b74baf536803e85f916c83aa37",
+    "bytes": 298510
+  },
+  "01_인식과지도/04_근접관측_좌표정밀화.png": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\02_FSM별_검증증빙\\02_지도생성_문기억_Map_Memory\\2026-09-10_성공_라이브_좌표정밀화\\04_근접관측_좌표정밀화.png",
+    "sha256": "96786f6898fb0935b77bda735498784cc14efa837acff9f19f0c3e4cdc2c1b30",
+    "bytes": 328017
+  },
+  "01_인식과지도/06_YOLO_문BBox_HSV색상인식.png": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\02_FSM별_검증증빙\\01_센서인식_Perception\\2026-09-10_성공_라이브_문인식좌표융합\\06_YOLO_문BBox_HSV색상인식.png",
+    "sha256": "327920ebc2b8602981a890428645775d4656cd62f3e623dcb9c82f00750ffafe",
+    "bytes": 461478
+  },
+  "01_인식과지도/07_카메라_LiDAR_좌표융합.png": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\02_FSM별_검증증빙\\01_센서인식_Perception\\2026-09-10_성공_라이브_문인식좌표융합\\07_카메라_LiDAR_좌표융합.png",
+    "sha256": "bce274c16f6e0e47062499823256a7c2c3e14e6fdf382c90d42ef6b6bb2be5a6",
+    "bytes": 225980
+  },
+  "01_인식과지도/05_새문_관측과_지도등록.png": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\02_FSM별_검증증빙\\02_지도생성_문기억_Map_Memory\\2026-09-09_성공_지도확장문기억\\05_새문_관측과_지도등록.png",
+    "sha256": "2f1800949d0ac43ce38cf961a620c48967a1f3bb43988de70af58e1552310d3e",
+    "bytes": 643810
+  },
+  "02_목표와문기억/01_가장가까운_파란문_목표잠금.png": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\02_FSM별_검증증빙\\03_목표문선정_Target_Selection\\2026-09-09_성공_목표잠금개방기억\\01_가장가까운_파란문_목표잠금.png",
+    "sha256": "7ea8fe519c4621aa9af576b69140829f6ddce009ac62e4ae181730c1531c71cb",
+    "bytes": 242138
+  },
+  "02_목표와문기억/02_개방완료_ID_기억.png": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\02_FSM별_검증증빙\\03_목표문선정_Target_Selection\\2026-09-09_성공_목표잠금개방기억\\02_개방완료_ID_기억.png",
+    "sha256": "6fa227182a541e4bf8811721d8e38ab8d0b33537202961de5b33bbf5cd30b68b",
+    "bytes": 268753
+  },
+  "02_목표와문기억/03_재관측_개방문_후보제외.png": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\02_FSM별_검증증빙\\03_목표문선정_Target_Selection\\2026-09-09_성공_목표잠금개방기억\\03_재관측_개방문_후보제외.png",
+    "sha256": "1c95335b62669a260c79f476c79a4eb7670715034d966bd44a92aec8f5db904e",
+    "bytes": 287654
+  },
+  "03_회피와정렬/03_LiDAR_장애물_costmap_반영.png": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\02_FSM별_검증증빙\\04_경로계획_장애물회피_Navigation\\2026-09-09_성공_장애물인지_설명자료\\03_LiDAR_장애물_costmap_반영.png",
+    "sha256": "f5ab190a3314b7b3f63aabfbcf005cd8982d03c4b10c126c2f3af9cffc36a0c8",
+    "bytes": 608404
+  },
+  "03_회피와정렬/world1_alignment_1.png": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\10_통합재검증_보고서개정_20260916\\figures\\world1_alignment_1.png",
+    "sha256": "b96f5d59f38f6346683698f50f1d50319b48056d652a02c21323f4652ad9b2ca",
+    "bytes": 38888
+  },
+  "04_YOLO모델/02_v2_v3_same_frame_bbox.png": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\04_보고서_추가분석_20260913\\figures\\02_v2_v3_same_frame_bbox.png",
+    "sha256": "32ef0a700813d76796bc509f98d017cd08276578e2bef3e7d425b561893679ee",
+    "bytes": 303373
+  },
+  "04_YOLO모델/01_same_images_model_comparison.png": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\04_보고서_추가분석_20260913\\figures\\01_same_images_model_comparison.png",
+    "sha256": "8718ef4c8b03774b4a86a6cb8b8aa336613889d47a170143260145d64eed1d07",
+    "bytes": 59643
+  },
+  "07_원본판정/모델/handle_v2_v3_paired_comparison.json": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\04_보고서_추가분석_20260913\\handle_v2_v3_paired_comparison.json",
+    "sha256": "9926ec8efa2d599f74000148dfe139a9b814ade53591f21118dbfca0be8db67a",
+    "bytes": 231993
+  },
+  "09_영상/08_인식과정_실행영상.mp4": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\02_FSM별_검증증빙\\01_센서인식_Perception\\2026-09-10_성공_라이브_문인식좌표융합\\08_인식과정_실행영상.mp4",
+    "sha256": "ea6dabf13e3b70bba05e475c80a8ffe2069c902216e09951153f1bc2c591f534",
+    "bytes": 12973088
+  },
+  "09_영상/07_Gazebo_RViz_맵생성과정.mp4": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\02_FSM별_검증증빙\\02_지도생성_문기억_Map_Memory\\2026-09-09_성공_지도확장문기억\\07_Gazebo_RViz_맵생성과정.mp4",
+    "sha256": "e638bffb0e4c15a1de6a2c11d7d2ad445d2b11682a428a9641463dfced72dd27",
+    "bytes": 11036421
+  },
+  "09_영상/08_첫문_좌표수렴_영상.mp4": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\02_FSM별_검증증빙\\02_지도생성_문기억_Map_Memory\\2026-09-09_성공_지도확장문기억\\08_첫문_좌표수렴_영상.mp4",
+    "sha256": "46fcd9e840c5036fb7a1a8d0443f3357ec2b12d2ff25a01bd75bf8cd89109e71",
+    "bytes": 26715941
+  },
+  "09_영상/05_목표잠금_개방기억_영상.mp4": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\02_FSM별_검증증빙\\03_목표문선정_Target_Selection\\2026-09-09_성공_목표잠금개방기억\\05_목표잠금_개방기억_영상.mp4",
+    "sha256": "8267cdc354d4a6f0bf42c3a61a554ba1afbc8ff878b0cf499a52b29d071ed168",
+    "bytes": 2484257
+  },
+  "09_영상/05_최신_r40_손잡이유지개방_요약6x.mp4": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\14_주행보존_단일문개방_20260917\\contact_copy_r40_handle_held\\physical_contact_door_test_20260917_032440\\gazebo_handle_held_overview_6x.mp4",
+    "sha256": "40fcd381bc7d3e19492309285237fd3bea803d9ed57b14ef2458ba0c83e03990",
+    "bytes": 2325892
+  },
+  "09_영상/06_최신_r40_손잡이유지개방_전체기록.mp4": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\14_주행보존_단일문개방_20260917\\contact_copy_r40_handle_held\\physical_contact_door_test_20260917_032440\\gazebo_handle_held_h264.mp4",
+    "sha256": "e253f22c4358dc55864f0a32c389ff3218a69ec871e668ee8002f81e141467e3",
+    "bytes": 4578049
+  },
+  "09_영상/08_인식과정_실행영상_browser_h264.mp4": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\15_핵심아이디어_통합보고서_20260917\\09_영상\\08_인식과정_실행영상.mp4",
+    "sha256": "98701dd9a00e4292cf868ea05120419553bb855de77b37550fdae9056dc0aea2",
+    "bytes": 6456404,
+    "type": "H.264 compatibility transcode; same frame order/rate; original retained"
+  },
+  "09_영상/07_Gazebo_RViz_맵생성과정_browser_h264.mp4": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\15_핵심아이디어_통합보고서_20260917\\09_영상\\07_Gazebo_RViz_맵생성과정.mp4",
+    "sha256": "a3524842e0092049c32894e4e1dc33b96971a8dbdbeb655a9b13f290943644dd",
+    "bytes": 2047383,
+    "type": "H.264 compatibility transcode; same frame order/rate; original retained"
+  },
+  "09_영상/08_첫문_좌표수렴_영상_browser_h264.mp4": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\15_핵심아이디어_통합보고서_20260917\\09_영상\\08_첫문_좌표수렴_영상.mp4",
+    "sha256": "22c9aceb5188956b019fe1fdda704c8919346c0f2152f02956fc44dc6cf6bd99",
+    "bytes": 13003090,
+    "type": "H.264 compatibility transcode; same frame order/rate; original retained"
+  },
+  "09_영상/05_목표잠금_개방기억_영상_browser_h264.mp4": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\15_핵심아이디어_통합보고서_20260917\\09_영상\\05_목표잠금_개방기억_영상.mp4",
+    "sha256": "3bcde00792c4b43ffb5da98f7693f5f4367a3c2b1b8a35ad3a16d6cb8abc39d6",
+    "bytes": 484508,
+    "type": "H.264 compatibility transcode; same frame order/rate; original retained"
+  },
+  "06_문개방/single_door_storyboard.png": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\14_주행보존_단일문개방_20260917\\contact_copy_r40_handle_held\\physical_contact_door_test_20260917_032440\\single_door_storyboard.png",
+    "sha256": "e11a023bc2275a079255b1dd417702d4c6af46218a5333c14ebd3329aff15b24",
+    "bytes": 300730
+  },
+  "06_문개방/yolo_primary_detection.png": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\14_주행보존_단일문개방_20260917\\contact_copy_r40_handle_held\\physical_contact_door_test_20260917_032440\\yolo_primary_detection.png",
+    "sha256": "076f3b44f7dcc178839d1ac265a3536dd7d6629e5e953facb1ccf53fdd659dc4",
+    "bytes": 8122
+  },
+  "06_문개방/before_overhead.png": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\14_주행보존_단일문개방_20260917\\contact_copy_r40_handle_held\\physical_contact_door_test_20260917_032440\\before_overhead.png",
+    "sha256": "aea58b5ebf30342ae7bcf488468cfef840a5a6741d84d53d59564ef01c6407ad",
+    "bytes": 10905
+  },
+  "06_문개방/after_overhead.png": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\14_주행보존_단일문개방_20260917\\contact_copy_r40_handle_held\\physical_contact_door_test_20260917_032440\\after_overhead.png",
+    "sha256": "33de9107be160584f1204a80b3206554eb35c99cc9c43161d277a5c27c357fac",
+    "bytes": 17084
+  },
+  "06_문개방/after_perspective.png": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\14_주행보존_단일문개방_20260917\\contact_copy_r40_handle_held\\physical_contact_door_test_20260917_032440\\after_perspective.png",
+    "sha256": "611b16738ef7a8e848245a0151264d24e14294c647949ba1b8132430085f0e67",
+    "bytes": 24796
+  },
+  "06_문개방/door_hinge_angle.png": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\14_주행보존_단일문개방_20260917\\contact_copy_r40_handle_held\\physical_contact_door_test_20260917_032440\\door_hinge_angle.png",
+    "sha256": "81b1103f9caf26b023dea7df5287accb263043221b75b0c5becf084dcee5eee3",
+    "bytes": 52715
+  },
+  "06_문개방/closeup_00064.50_press_handle.png": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\14_주행보존_단일문개방_20260917\\contact_copy_r40_handle_held\\physical_contact_door_test_20260917_032440\\phases\\closeup_00064.50_press_handle.png",
+    "sha256": "0aba6c49b1215fd7d616fe8f24ebabc4e1acb6fea2a1befe0e0cb16a64c481d5",
+    "bytes": 45455
+  },
+  "06_문개방/closeup_00131.50_handle_held_base_open.png": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\14_주행보존_단일문개방_20260917\\contact_copy_r40_handle_held\\physical_contact_door_test_20260917_032440\\phases\\closeup_00131.50_handle_held_base_open.png",
+    "sha256": "3c09572fbdce3a36d760525bc520251312be048383ab83a5835f49cf36157783",
+    "bytes": 30958
+  },
+  "06_문개방/closeup_00192.50_handle_held_base_open.png": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\14_주행보존_단일문개방_20260917\\contact_copy_r40_handle_held\\physical_contact_door_test_20260917_032440\\phases\\closeup_00192.50_handle_held_base_open.png",
+    "sha256": "c1cd9bbdce5e4d92a77c00575e9e960ebb467bec3ec41fe4e1a0ff4189c88673",
+    "bytes": 40857
+  },
+  "06_문개방/closeup_00204.50_complete.png": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\14_주행보존_단일문개방_20260917\\contact_copy_r40_handle_held\\physical_contact_door_test_20260917_032440\\phases\\closeup_00204.50_complete.png",
+    "sha256": "21c02c16f4ca8129fe01fdddb3065893d12c753bed5d593864278720513efd60",
+    "bytes": 34692
+  },
+  "07_원본판정/단일문_r40/result.json": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\14_주행보존_단일문개방_20260917\\contact_copy_r40_handle_held\\physical_contact_door_test_20260917_032440\\result.json",
+    "sha256": "1b82fce796cc19be24a5b682b6c9e878d2172a35ae276468eed24e764d5bd4f6",
+    "bytes": 1367027
+  },
+  "07_원본판정/단일문_r40/contact_safety_audit.json": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\14_주행보존_단일문개방_20260917\\contact_copy_r40_handle_held\\physical_contact_door_test_20260917_032440\\contact_safety_audit.json",
+    "sha256": "2a5eb5d1ea350b7ac8920d4ae99db348f993281d6d0e3edf3d3dd82c2cd192a8",
+    "bytes": 409
+  },
+  "07_원본판정/단일문_r40/recovery_evidence.json": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\14_주행보존_단일문개방_20260917\\contact_copy_r40_handle_held\\physical_contact_door_test_20260917_032440\\recovery_evidence.json",
+    "sha256": "7dae6b3e60e6da996bc88fc18a1b0d7912a74c2a8b53a0569ec7e2ad571bb9b3",
+    "bytes": 403
+  },
+  "07_원본판정/단일문_r40/contact_diagnostics.json": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\14_주행보존_단일문개방_20260917\\contact_copy_r40_handle_held\\physical_contact_door_test_20260917_032440\\contact_diagnostics.json",
+    "sha256": "24ec356c085d7a4a9ae60f96e760d836eab7ce16cf543926985533dccfc3e8cd",
+    "bytes": 7708839
+  },
+  "07_원본판정/단일문_r40/motion_diagnostics.json": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\14_주행보존_단일문개방_20260917\\contact_copy_r40_handle_held\\physical_contact_door_test_20260917_032440\\motion_diagnostics.json",
+    "sha256": "cc38ac56051f250976b2d54f8065b369c6424adafa647e7be7482cad7f63a70d",
+    "bytes": 10598810
+  },
+  "07_원본판정/단일문_r40/launch.log": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\14_주행보존_단일문개방_20260917\\contact_copy_r40_handle_held\\physical_contact_door_test_20260917_032440\\launch.log",
+    "sha256": "08923344efe328554bdcf931d46f8c302d5f06cb0fefdbd0ec0519637ca62eee",
+    "bytes": 1101469
+  },
+  "07_원본판정/단일문_r40/storyboard_sources.json": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\14_주행보존_단일문개방_20260917\\contact_copy_r40_handle_held\\physical_contact_door_test_20260917_032440\\storyboard_sources.json",
+    "sha256": "a9360c07401699fe185b9921e215b59554bcac67434a33c8a395187cf4be51e3",
+    "bytes": 2053
+  },
+  "07_원본판정/주행/results.tsv": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\10_통합재검증_보고서개정_20260916\\08_동일코드_월드1_5_검증집계_20260916\\results.tsv",
+    "sha256": "93ccfb6cf040f914fa9bfa25ce09aaf581c47b590aea06173d27a02117cd65a0",
+    "bytes": 242
+  },
+  "07_원본판정/주행/validation_set_manifest.json": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\10_통합재검증_보고서개정_20260916\\08_동일코드_월드1_5_검증집계_20260916\\validation_set_manifest.json",
+    "sha256": "833926905b462db3dfa6700c52251556d04d9f036cc3275646e13644df1a72fe",
+    "bytes": 4581
+  },
+  "07_원본판정/주행/closed_panel_alignment_reference.json": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\10_통합재검증_보고서개정_20260916\\figures\\closed_panel_alignment_reference.json",
+    "sha256": "86be08a57a9655dc52d0422e986b6c0ed1091be07eea31b507bc79e4465bf1e4",
+    "bytes": 4762
+  },
+  "07_원본판정/단일문_r40/r39_r40_source_comparison.json": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\14_주행보존_단일문개방_20260917\\r39_r40_source_comparison.json",
+    "sha256": "a7e81174718d5289633455289dcbbe0128ed7194ee66e9bcc883290eba659a3e",
+    "bytes": 1218
+  },
+  "07_원본판정/단일문_r40/source_manifest.json": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\14_주행보존_단일문개방_20260917\\contact_copy_r40_handle_held\\source_snapshot_with_evidence_plugin\\manifest.json",
+    "sha256": "2f8c5696a35dcb6c98e8a877262f43de8dd63a391bbd37dfd1956786e3291c6e",
+    "bytes": 23638
+  },
+  "07_원본판정/주행/월드1/mission_evidence_final_metrics.json": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\10_통합재검증_보고서개정_20260916\\08_동일코드_월드1_5_검증집계_20260916\\world1_trace\\mission_evidence_final_metrics.json",
+    "sha256": "dcc4ffe08cae20676c3c0e58db627eec07b9ba397096a3dd39f4a8e4ff752304",
+    "bytes": 3282
+  },
+  "07_원본판정/주행/월드1/world1.log": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\10_통합재검증_보고서개정_20260916\\08_동일코드_월드1_5_검증집계_20260916\\world1.log",
+    "sha256": "818ea59cd63bcfb7b72f5fd4f98ee7ffc57fbeb7d4464a7511574b669f26bac8",
+    "bytes": 301279
+  },
+  "07_원본판정/주행/월드2/mission_evidence_final_metrics.json": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\10_통합재검증_보고서개정_20260916\\08_동일코드_월드1_5_검증집계_20260916\\world2_trace\\mission_evidence_final_metrics.json",
+    "sha256": "a2983422d167fee0081f6587ff2760c6c84d966c399dd8c294ed05ec9c6bb4fd",
+    "bytes": 3270
+  },
+  "07_원본판정/주행/월드2/world2.log": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\10_통합재검증_보고서개정_20260916\\08_동일코드_월드1_5_검증집계_20260916\\world2.log",
+    "sha256": "747323257022ec4b8be96c66fc03ecfdf62518cdd2c1801b8a76d7e8093ed058",
+    "bytes": 323879
+  },
+  "07_원본판정/주행/월드3/mission_evidence_final_metrics.json": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\10_통합재검증_보고서개정_20260916\\08_동일코드_월드1_5_검증집계_20260916\\world3_trace\\mission_evidence_final_metrics.json",
+    "sha256": "a65115fa6177d233a4e03fc2738517b704327d2ed56afb2863cabeb67562c568",
+    "bytes": 4219
+  },
+  "07_원본판정/주행/월드3/world3.log": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\10_통합재검증_보고서개정_20260916\\08_동일코드_월드1_5_검증집계_20260916\\world3.log",
+    "sha256": "0cc70da71477f171028d5c1e4b5f0cbdbd422e18f383517fd531fb17223d13df",
+    "bytes": 387819
+  },
+  "07_원본판정/주행/월드4/mission_evidence_final_metrics.json": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\10_통합재검증_보고서개정_20260916\\08_동일코드_월드1_5_검증집계_20260916\\world4_trace\\mission_evidence_final_metrics.json",
+    "sha256": "fb73de4ffb96ce712b1d7ca0128aa006db93aefcc76620b3c63a6190498d9b94",
+    "bytes": 470
+  },
+  "07_원본판정/주행/월드4/world4.log": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\10_통합재검증_보고서개정_20260916\\08_동일코드_월드1_5_검증집계_20260916\\world4.log",
+    "sha256": "746dedd909a240e0541c75ba509a6d773887ff15f7245b827c9a8879b5894a0c",
+    "bytes": 166787
+  },
+  "07_원본판정/주행/월드5/mission_evidence_final_metrics.json": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\10_통합재검증_보고서개정_20260916\\08_동일코드_월드1_5_검증집계_20260916\\world5_trace\\mission_evidence_final_metrics.json",
+    "sha256": "fe75336abc8d3462f3bd530a25d0dc8543e8be9ae48dc3f2d4bb518505e809a5",
+    "bytes": 6082
+  },
+  "07_원본판정/주행/월드5/world5.log": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\10_통합재검증_보고서개정_20260916\\08_동일코드_월드1_5_검증집계_20260916\\world5.log",
+    "sha256": "dc78f27308393f502bdeae66626b8dea77f98ffe905afc53a83cffc4bc4dd97f",
+    "bytes": 450279
+  },
+  "06_문개방/feedback_sim_time.png": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\14_주행보존_단일문개방_20260917\\contact_copy_r40_handle_held\\physical_contact_door_test_20260917_032440\\result.json",
+    "sha256": "cef377bfc534271401aba7da745d49edc447426b90a0cc8f3413230a758b8d12",
+    "bytes": 111744,
+    "type": "measured-data plot; no interpolated success claims"
+  },
+  "00_전체구조/observation_memory_action.png": {
+    "original": "report explanation; not a measured experiment",
+    "sha256": "d1ad9e1ece7c881a35bfe61f1785fdbe601242955478cefe605872905e6c5856",
+    "bytes": 53173,
+    "type": "conceptual diagram"
+  },
+  "01_인식과지도/world1_observed_semantic_history.png": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\10_통합재검증_보고서개정_20260916\\08_동일코드_월드1_5_검증집계_20260916\\world1_trace\\detections.csv",
+    "sha256": "ed7ceb7023077d20519d06cd83192dbceebb961c40d2c5868d55480abf6a6e44",
+    "bytes": 236690,
+    "type": "raw observation CSV; no ground-truth door overlay"
+  },
+  "07_원본판정/주행/월드1/detections.csv": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\10_통합재검증_보고서개정_20260916\\08_동일코드_월드1_5_검증집계_20260916\\world1_trace\\detections.csv",
+    "sha256": "72e1ae3deeb95ac41b8533d86a0947b965e615ae58725d8348db36ee30b77acc",
+    "bytes": 113371
+  },
+  "07_원본판정/주행/월드1/poses.csv": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\10_통합재검증_보고서개정_20260916\\08_동일코드_월드1_5_검증집계_20260916\\world1_trace\\poses.csv",
+    "sha256": "62781b7094599a08332fc321e9219514af7d660b3ed7bf98d19a7c92801e0c2b",
+    "bytes": 335251
+  },
+  "07_원본판정/주행/월드1/targets.csv": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\10_통합재검증_보고서개정_20260916\\08_동일코드_월드1_5_검증집계_20260916\\world1_trace\\targets.csv",
+    "sha256": "9e0e02b5621d1a6c86f11333f2e2ff25e291d5bad55125af698b1b44963dc300",
+    "bytes": 3184
+  },
+  "07_원본판정/주행/월드1/events.csv": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\10_통합재검증_보고서개정_20260916\\08_동일코드_월드1_5_검증집계_20260916\\world1_trace\\events.csv",
+    "sha256": "5a929ab9d4e625c269665f14198a69ec8c821460cfe172ecdf41d99d2687050e",
+    "bytes": 984
+  },
+  "05_주행_월드1_5/world1_path.png": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\10_통합재검증_보고서개정_20260916\\figures\\world1_path.png",
+    "sha256": "41f2df6145894332f2287b55967ba8213f8f466f2602e10c604bfbdd0741a9bd",
+    "bytes": 133249
+  },
+  "05_주행_월드1_5/world2_path.png": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\10_통합재검증_보고서개정_20260916\\figures\\world2_path.png",
+    "sha256": "7ddcfc46b87e819c972b597123c32be5d2f2b19a17b398d5048da9f20511d04a",
+    "bytes": 129875
+  },
+  "05_주행_월드1_5/world3_path.png": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\10_통합재검증_보고서개정_20260916\\figures\\world3_path.png",
+    "sha256": "952481eb6aafe63b52408ac20d3aea1573c5243d24ba9d29dd0eed303a95511f",
+    "bytes": 132609
+  },
+  "05_주행_월드1_5/world4_path.png": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\10_통합재검증_보고서개정_20260916\\figures\\world4_path.png",
+    "sha256": "1e602de2e444306f36c8ab9f7785286087ed9fb1144084365a1411796080341a",
+    "bytes": 125241
+  },
+  "05_주행_월드1_5/world5_path.png": {
+    "original": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\10_통합재검증_보고서개정_20260916\\figures\\world5_path.png",
+    "sha256": "0a6b3dd770930d7a53676c5a647bdc5d13165a3cd9f469547ecfb9103212edfa",
+    "bytes": 142068
+  }
+}

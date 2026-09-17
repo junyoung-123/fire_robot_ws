@@ -1,0 +1,10 @@
+{
+  "pass": true,
+  "scope": "Post-run odometry and actual-joint measurements; backoff controller itself uses a configured speed and simulation-time duration.",
+  "backoff_samples": 29,
+  "signed_backoff_m": -0.2855999827932218,
+  "backoff_duration_sim_sec": 2.8559999999999945,
+  "final_stow_max_error_rad": 0.019323979634538246,
+  "measured_reverse_pass": true,
+  "measured_stow_pass": true
+}

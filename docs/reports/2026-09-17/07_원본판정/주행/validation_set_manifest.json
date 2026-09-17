@@ -1,0 +1,93 @@
+{
+  "scope": "Five worlds from separate sequential batches, identical runtime inputs and frozen helpers. Not one uninterrupted batch.",
+  "runtime_manifest_sha256": "f503eb532eac25ae116c006845d3557c1de3ebb508daa2b7d773cc9e23feb951",
+  "helpers": {
+    "capture_passive_mission_images.py": "0854aedd541422dac53340f33c91ed878414be8ae32571523dcd2eef3087a57c",
+    "check_manual_navigation_exclusion.py": "2178bf8302e7a3b40a8c9bdb91241e4afd1cd81cdf36e7cb84ecdc119dfcd9f2",
+    "check_trace_attitude.py": "54705d5c828a7c37eb39537b756a9efb33defbb878c62f61266be26f0b2742da",
+    "check_trace_events.py": "fbd97c395ff3b059a750198260a891ed85c5137f737222f8068df690fbf31e2f",
+    "check_validation_log.py": "169e6beae4fcd2e3c46cf2ed6cca0a80a545ac7d70f813c8a7f0787405df362d",
+    "render_obstacle_validation_evidence.py": "1b4852ff06e0b5135dbddbc013eb331b9d9fbe1ed1845974703f821376b28035",
+    "render_resumed_world_evidence.py": "26e9422b2d51b38903ddfc03e38c7695aa7512bcb23d1c9238dd67c5ea993994",
+    "run_headless_validation_once.sh": "32af2229abf9f2d0b017339a498095c3c00575d9282d832e7472b0165d1a1fa3",
+    "validation_trace_logger.py": "9bffb8b2556112f9cf1d46ef8b92f036e3fb0e7118b53695361257000d5eb5fb"
+  },
+  "worlds": {
+    "1": {
+      "source_batch": "C:\\Users\\\ud669\uc900\uc601\\Documents\\\uc878\uc5c5\uc791\ud488\\00_\ucd5c\uc885\uc790\ub8cc\\10_\ud1b5\ud569\uc7ac\uac80\uc99d_\ubcf4\uace0\uc11c\uac1c\uc815_20260916\\07_\ud1b5\ud569_r9_\uc6d4\ub4dc1_2_PASS_20260916",
+      "files": [
+        "world1.log",
+        "world1.log.domain",
+        "world1.log.status",
+        "world1_attitude.txt",
+        "world1_checker.txt",
+        "world1_events_check.txt",
+        "world1_exclusion.txt",
+        "world1_geometry.txt",
+        "world1_trace"
+      ],
+      "source_log_sha256": "818ea59cd63bcfb7b72f5fd4f98ee7ffc57fbeb7d4464a7511574b669f26bac8"
+    },
+    "2": {
+      "source_batch": "C:\\Users\\\ud669\uc900\uc601\\Documents\\\uc878\uc5c5\uc791\ud488\\00_\ucd5c\uc885\uc790\ub8cc\\10_\ud1b5\ud569\uc7ac\uac80\uc99d_\ubcf4\uace0\uc11c\uac1c\uc815_20260916\\07_\ud1b5\ud569_r9_\uc6d4\ub4dc1_2_PASS_20260916",
+      "files": [
+        "world2.log",
+        "world2.log.domain",
+        "world2.log.status",
+        "world2_attitude.txt",
+        "world2_checker.txt",
+        "world2_events_check.txt",
+        "world2_exclusion.txt",
+        "world2_geometry.txt",
+        "world2_trace"
+      ],
+      "source_log_sha256": "747323257022ec4b8be96c66fc03ecfdf62518cdd2c1801b8a76d7e8093ed058"
+    },
+    "3": {
+      "source_batch": "C:\\Users\\\ud669\uc900\uc601\\Documents\\\uc878\uc5c5\uc791\ud488\\00_\ucd5c\uc885\uc790\ub8cc\\10_\ud1b5\ud569\uc7ac\uac80\uc99d_\ubcf4\uace0\uc11c\uac1c\uc815_20260916\\06_\ud1b5\ud569_r8_\uc6d4\ub4dc3_4_5_PASS_20260916",
+      "files": [
+        "world3.log",
+        "world3.log.domain",
+        "world3.log.status",
+        "world3_alignment_audit",
+        "world3_attitude.txt",
+        "world3_checker.txt",
+        "world3_events_check.txt",
+        "world3_exclusion.txt",
+        "world3_geometry.txt",
+        "world3_trace"
+      ],
+      "source_log_sha256": "0cc70da71477f171028d5c1e4b5f0cbdbd422e18f383517fd531fb17223d13df"
+    },
+    "4": {
+      "source_batch": "C:\\Users\\\ud669\uc900\uc601\\Documents\\\uc878\uc5c5\uc791\ud488\\00_\ucd5c\uc885\uc790\ub8cc\\10_\ud1b5\ud569\uc7ac\uac80\uc99d_\ubcf4\uace0\uc11c\uac1c\uc815_20260916\\06_\ud1b5\ud569_r8_\uc6d4\ub4dc3_4_5_PASS_20260916",
+      "files": [
+        "world4.log",
+        "world4.log.domain",
+        "world4.log.status",
+        "world4_attitude.txt",
+        "world4_checker.txt",
+        "world4_events_check.txt",
+        "world4_exclusion.txt",
+        "world4_geometry.txt",
+        "world4_trace"
+      ],
+      "source_log_sha256": "746dedd909a240e0541c75ba509a6d773887ff15f7245b827c9a8879b5894a0c"
+    },
+    "5": {
+      "source_batch": "C:\\Users\\\ud669\uc900\uc601\\Documents\\\uc878\uc5c5\uc791\ud488\\00_\ucd5c\uc885\uc790\ub8cc\\10_\ud1b5\ud569\uc7ac\uac80\uc99d_\ubcf4\uace0\uc11c\uac1c\uc815_20260916\\06_\ud1b5\ud569_r8_\uc6d4\ub4dc3_4_5_PASS_20260916",
+      "files": [
+        "world5.log",
+        "world5.log.domain",
+        "world5.log.status",
+        "world5_attitude.txt",
+        "world5_checker.txt",
+        "world5_events_check.txt",
+        "world5_exclusion.txt",
+        "world5_geometry.txt",
+        "world5_trace"
+      ],
+      "source_log_sha256": "dc78f27308393f502bdeae66626b8dea77f98ffe905afc53a83cffc4bc4dd97f"
+    }
+  }
+}

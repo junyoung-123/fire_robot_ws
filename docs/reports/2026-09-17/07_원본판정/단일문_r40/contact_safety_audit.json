@@ -1,0 +1,10 @@
+{
+  "pass": true,
+  "scope": "Sampled finger/lever contact while base moves; direct robot/panel contact rejected.",
+  "finger_contact_samples": 4654,
+  "forbidden_contact_parts": [],
+  "original_result_pass": true,
+  "overall_safe_contact_pass": true,
+  "original_result_unchanged": true,
+  "source": "artifacts/validation/contact_copy_r40_handle_held/physical_contact_door_test_20260917_032440/result.json"
+}

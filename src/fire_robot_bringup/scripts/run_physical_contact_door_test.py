@@ -17,6 +17,7 @@ import shutil
 import subprocess
 import sys
 import time
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -34,7 +35,8 @@ import tf2_ros
 from fire_robot_interfaces.msg import DoorInfo
 from fire_robot_interfaces.srv import OpenDoor
 from fire_robot_manipulation.piper_actual_kinematics import (
-    PiperActualKinematics, PIPER_JOINT_LIMITS)
+    PiperActualKinematics, PIPER_JOINT_LIMITS, PIPER_JOINT_NAMES)
+from fire_robot_manipulation.contact_feedback import SimMotionDeadline
 from geometry_msgs.msg import PointStamped, Twist
 from nav_msgs.msg import Odometry
 from PIL import Image as PilImage
@@ -46,12 +48,94 @@ from sensor_msgs.msg import Image, JointState
 from std_msgs.msg import Float64, String
 
 
+def audit_handle_held_contacts(samples):
+    """Require finger/lever evidence and reject direct robot/panel load paths."""
+    finger_samples = 0
+    forbidden = set()
+    for sample in samples:
+        held_phase = sample.get('phase') == 'HANDLE_HELD_BASE_OPEN'
+        for contact in sample.get('contacts', []):
+            names = (contact.get('collision1', ''), contact.get('collision2', ''))
+            robot = next((name for name in names if name.startswith('fire_robot::')), None)
+            if robot is None:
+                continue
+            if sample.get('part') in ('panel', 'jamb', 'strike') and held_phase:
+                forbidden.add(robot)
+            if (sample.get('part') == 'lever' and held_phase
+                    and 'gripper_finger' in robot
+                    and any('::lever::lever_collision' in name for name in names)):
+                finger_samples += 1
+    return dict(**{'pass': finger_samples >= 3 and not forbidden},
+                scope='Sampled finger/lever contact while base moves; direct robot/panel contact rejected.',
+                finger_contact_samples=finger_samples, forbidden_contact_parts=sorted(forbidden))
+
+
+def audit_panel_push_contacts(samples):
+    """Judge physical load paths separately from hinge-angle/FSM completion."""
+    pairs = set()
+    safe = set()
+    forbidden = set()
+    unknown = set()
+    for sample in samples:
+        if sample.get('part') != 'panel' or sample.get('phase') != 'BASE_PUSH_OPEN':
+            continue
+        for contact in sample.get('contacts', []):
+            names = (contact.get('collision1', ''), contact.get('collision2', ''))
+            robot = next((name for name in names if name.startswith('fire_robot::')), None)
+            if robot is None or not any('::panel::panel_collision' in name for name in names):
+                continue
+            pairs.add(robot)
+            if any(token in robot for token in ('camera', 'lidar', 'radar', 'gripper', 'arm_link')):
+                forbidden.add(robot)
+            elif any(token in robot for token in ('base_link_collision', 'base_footprint_collision',
+                                                  'front_push_bumper_collision')):
+                safe.add(robot)
+            else:
+                unknown.add(robot)
+    return dict(**{'pass': bool(safe) and not forbidden and not unknown},
+                scope='Passive collision-pair audit; not a measured force or hardware certification.',
+                safe_contact_parts=sorted(safe), forbidden_contact_parts=sorted(forbidden),
+                unknown_contact_parts=sorted(unknown), all_robot_contact_parts=sorted(pairs))
+
+
+def audit_recovery_contacts(samples):
+    """Opening alone cannot pass if the released arm then strikes the door."""
+    phases = {'RELEASE_HANDLE', 'RETRACT_FROM_HANDLE', 'RETURN_HOME',
+              'POST_OPEN_BACKOFF', 'COMPLETE'}
+    forbidden = set()
+    for sample in samples:
+        if sample.get('phase') not in phases or sample.get('part') not in ('panel','jamb','strike'):
+            continue
+        for contact in sample.get('contacts',[]):
+            forbidden.update(name for name in (contact.get('collision1',''),contact.get('collision2',''))
+                             if name.startswith('fire_robot::'))
+    return {'pass': not forbidden, 'forbidden_contact_parts': sorted(forbidden),
+            'scope': 'Sampled robot/panel/frame contacts from release through backoff; not self-collision certification.'}
+
+
+def audit_contact_coverage(samples):
+    times = {part: sorted(set(s['sim_time_sec'] for s in samples if s['part']==part))
+             for part in ('lever','latch','panel','jamb','strike')}
+    if any(len(stamps)<3 for stamps in times.values()):
+        return {'pass': False, 'reason': 'Missing continuous contact heartbeat'}
+    start=min(stamps[0] for stamps in times.values())
+    end=max(stamps[-1] for stamps in times.values())
+    gaps={part:max(b-a for a,b in zip([start]+stamps,stamps+[end]))
+          for part,stamps in times.items()}
+    return {'pass': all(gap<=.5 for gap in gaps.values()), 'max_gap_sec':gaps,
+            'start_sim_sec':start,'end_sim_sec':end,'maximum_allowed_gap_sec':.5}
+
+
 @dataclass
 class ContactRecord:
     start_wall_time: float = field(default_factory=time.monotonic)
     door_samples: list[tuple[float, float]] = field(default_factory=list)
     lever_samples: list[tuple[float, float]] = field(default_factory=list)
     base_samples: list[tuple[float, float, float]] = field(default_factory=list)
+    motion_samples: list[dict] = field(default_factory=list)
+    command_samples: list[dict] = field(default_factory=list)
+    joint_samples: list[dict] = field(default_factory=list)
+    diagnostic_last_stamp: dict[str, float] = field(default_factory=dict)
     phases: list[tuple[float, str]] = field(default_factory=list)
     feedback_events: list[dict] = field(default_factory=list)
     contact_samples: list[dict] = field(default_factory=list)
@@ -60,6 +144,7 @@ class ContactRecord:
     latest_image: Image | None = None
     latest_front_image: Image | None = None
     latest_overhead_image: Image | None = None
+    latest_handle_image: Image | None = None
     latest_detection_image: Image | None = None
     yolo_detection_image: Image | None = None
     capture_next_yolo_debug: bool = False
@@ -68,7 +153,97 @@ class ContactRecord:
     latest_odom: Odometry | None = None
     yolo_observations: list[dict[str, object]] = field(default_factory=list)
     latest_phase: str = "WAITING"
+    approach_failure: str = ""
+    approach_condition_ratio: float | None = None
     saved_images: list[str] = field(default_factory=list)
+    proof_camera_updates: list[dict] = field(default_factory=list)
+
+
+def proof_camera_request(name, eye, target):
+    """Evidence cameras only: never allow a robot or door model pose command."""
+    if name not in ('proof_handle_camera', 'proof_perspective_camera'):
+        raise ValueError('Only non-collision evidence cameras may be repositioned')
+    eye, target = np.asarray(eye,float), np.asarray(target,float)
+    if eye.shape != (3,) or target.shape != (3,) or not np.all(np.isfinite((eye,target))):
+        raise ValueError('Invalid evidence camera coordinates')
+    delta=target-eye
+    if np.linalg.norm(delta)<.05:
+        raise ValueError('Evidence camera target is too close')
+    yaw=math.atan2(delta[1],delta[0])
+    pitch=-math.atan2(delta[2],math.hypot(delta[0],delta[1]))
+    sy,cy,sp,cp=math.sin(yaw/2.),math.cos(yaw/2.),math.sin(pitch/2.),math.cos(pitch/2.)
+    q=(-sy*sp,cy*sp,sy*cp,cy*cp)
+    request=(f'name: "{name}" position {{ x: {eye[0]} y: {eye[1]} z: {eye[2]} }} '
+             f'orientation {{ x: {q[0]} y: {q[1]} z: {q[2]} w: {q[3]} }}')
+    return request
+
+
+class ProofCameraFollower:
+    """Passive film crew. Its images and pose commands are not control inputs."""
+    def __init__(self,node):
+        self.node=node
+        self.kinematics=PiperActualKinematics()
+        self.stop_event=threading.Event()
+        self.thread=threading.Thread(target=self.run,daemon=True)
+        self.last_contact=None
+
+    def start(self):
+        self.thread.start()
+
+    def stop(self):
+        self.stop_event.set()
+        self.thread.join(timeout=3.)
+
+    def set_camera(self,name,eye,target):
+        request=proof_camera_request(name,eye,target)
+        result=subprocess.run(['ign','service','-s','/world/physical_contact_door_test/set_pose',
+            '--reqtype','ignition.msgs.Pose','--reptype','ignition.msgs.Boolean',
+            '--timeout','600','--req',request],capture_output=True,text=True,timeout=1.)
+        self.node.record.proof_camera_updates.append(dict(
+            wall_elapsed_sec=self.node._stamp(),phase=self.node.record.latest_phase,
+            model=name,eye_xyz=np.asarray(eye).tolist(),target_xyz=np.asarray(target).tolist(),
+            success=result.returncode==0 and 'data: true' in result.stdout))
+
+    def run(self):
+        while not self.stop_event.wait(.6):
+            record=self.node.record
+            try:
+                if not record.joint_samples or self.node._stamp()-record.joint_samples[-1]['wall_elapsed_sec']>2.:
+                    continue
+                sample=record.joint_samples[-1]
+                joints=[sample['positions'][sample['names'].index(name)] for name in PIPER_JOINT_NAMES]
+                tool,rotation=self.kinematics.forward(joints)
+                point=PointStamped()
+                point.header.frame_id='base_link'
+                point.point.x,point.point.y,point.point.z=map(float,tool)
+                transform=self.node.tf_buffer.lookup_transform('odom','base_link',Time(),timeout=Duration(seconds=.1))
+                measured=tf2_geometry_msgs.do_transform_point(point,transform).point
+                tool_world=np.array([measured.x,measured.y,measured.z])
+                q=transform.transform.rotation
+                yaw=math.atan2(2*(q.w*q.z+q.x*q.y),1-2*(q.y*q.y+q.z*q.z))
+                c,s=math.cos(yaw),math.sin(yaw)
+                normal=np.array([[c,-s],[s,c]])@rotation[:2,2]
+                normal/=max(np.linalg.norm(normal),1.e-6)
+                if record.latest_phase=='HANDLE_HELD_BASE_OPEN':
+                    self.last_contact=(tool_world.copy(),normal.copy())
+                if self.last_contact is None:
+                    observed=record.latest_yolo_handle_odom
+                    if observed is None:
+                        continue
+                    target=np.array([observed.point.x,observed.point.y,observed.point.z])
+                    normal=np.array([c,s])
+                else:
+                    target=tool_world
+                    normal=self.last_contact[1]
+                n=np.array([normal[0],normal[1],0.])
+                tangent=np.array([-normal[1],normal[0],0.])
+                # Stay on the robot side of the panel even after a large turn.
+                self.set_camera('proof_handle_camera', target-.70*n-.60*tangent+[0.,0.,.45],target)
+                center=target.copy() if self.last_contact is None else (target+self.last_contact[0])/2.
+                center[2]=1.0
+                self.set_camera('proof_perspective_camera',center-2.8*n-1.8*tangent+[0.,0.,1.7],center)
+            except (ValueError,tf2_ros.TransformException,subprocess.TimeoutExpired) as exc:
+                record.proof_camera_updates.append(dict(wall_elapsed_sec=self.node._stamp(),error=str(exc)))
 
 
 class ContactProbe(Node):
@@ -83,9 +258,9 @@ class ContactProbe(Node):
             String, "/manipulation_phase", self._phase_cb, 20)
         self.create_subscription(
             String, "/manipulation_feedback", self._feedback_cb, 20)
-        for part in ('lever', 'latch', 'panel'):
+        for part in ('lever', 'latch', 'panel', 'jamb', 'strike'):
             self.create_subscription(
-                Contacts, f'/proof/contact/{part}',
+                Contacts, f'/proof/audit/{part}',
                 lambda msg, part=part: self._contacts_cb(msg, part), 20)
         self.create_subscription(
             Image, "/proof/perspective/image", self._image_cb, 10)
@@ -95,10 +270,16 @@ class ContactProbe(Node):
         self.create_subscription(
             Image, "/proof/overhead/image", self._overhead_image_cb, 5)
         self.create_subscription(
+            Image, '/proof/handle/image', self._handle_image_cb, 2)
+        self.create_subscription(
             Image, "/door_detection/debug", self._detection_image_cb, 10)
         self.create_subscription(
             DoorInfo, "/detected_door", self._detected_door_cb, 20)
         self.create_subscription(Odometry, "/odom", self._odom_cb, 20)
+        for topic in ('/cmd_vel_manual', '/cmd_vel', '/cmd_vel_safe'):
+            self.create_subscription(Twist, topic,
+                                     lambda msg, topic=topic: self._velocity_cb(msg, topic), 20)
+        self.create_subscription(JointState, '/joint_states', self._motion_joints_cb, 20)
         self.client = self.create_client(OpenDoor, "/open_door")
         self.arm_publishers = {
             f"joint{i}": self.create_publisher(
@@ -118,6 +299,7 @@ class ContactProbe(Node):
         self._last_video_frame_at = 0.0
         self._keyframe_dir: Path | None = None
         self._last_keyframe_phase = ""
+        self._last_handle_keyframe_sim = -math.inf
 
     def _stamp(self) -> float:
         return time.monotonic() - self.record.start_wall_time
@@ -150,7 +332,7 @@ class ContactProbe(Node):
         record.contact_messages[part] = record.contact_messages.get(part, 0) + 1
         stamp = msg.header.stamp.sec + msg.header.stamp.nanosec * 1.0e-9
         previous = record.contact_last_stamp.get(part)
-        if previous is not None and 0 <= stamp-previous < .1:
+        if previous is not None and 0 <= stamp-previous < .1 and not msg.contacts:
             return
         record.contact_last_stamp[part] = stamp
         pairs = []
@@ -170,6 +352,17 @@ class ContactProbe(Node):
 
     def _overhead_image_cb(self, msg: Image):
         self.record.latest_overhead_image = msg
+
+    def _handle_image_cb(self, msg: Image):
+        self.record.latest_handle_image = msg
+        stamp = msg.header.stamp.sec + msg.header.stamp.nanosec * 1.e-9
+        if self._keyframe_dir is None or stamp - self._last_handle_keyframe_sim < 1.:
+            return
+        self._last_handle_keyframe_sim = stamp
+        phase = self.record.latest_phase.lower()
+        path = self._keyframe_dir / f'closeup_{stamp:08.2f}_{phase}.png'
+        if _save_ros_image(msg, path):
+            self.record.saved_images.append(str(path))
 
     def _detection_image_cb(self, msg: Image):
         self.record.latest_detection_image = msg
@@ -210,6 +403,29 @@ class ContactProbe(Node):
             self._stamp(),
             float(msg.pose.pose.position.x),
             float(msg.pose.pose.position.y)))
+        stamp = msg.header.stamp.sec + msg.header.stamp.nanosec * 1.e-9
+        if stamp-self.record.diagnostic_last_stamp.get('odom', -math.inf) >= .1:
+            self.record.diagnostic_last_stamp['odom'] = stamp
+            pos, q, v = msg.pose.pose.position, msg.pose.pose.orientation, msg.twist.twist
+            self.record.motion_samples.append(dict(sim_time_sec=stamp, wall_elapsed_sec=self._stamp(),
+                phase=self.record.latest_phase, xyz=[pos.x,pos.y,pos.z], quaternion=[q.x,q.y,q.z,q.w],
+                linear=[v.linear.x,v.linear.y,v.linear.z], angular=[v.angular.x,v.angular.y,v.angular.z]))
+
+    def _velocity_cb(self, msg, topic):
+        now = self._stamp()
+        # Keep stop transitions and the post-safety bridge input without thinning.
+        self.record.command_samples.append(dict(wall_elapsed_sec=now, topic=topic,
+            sim_time_sec=self.get_clock().now().nanoseconds*1.e-9,
+            phase=self.record.latest_phase, linear_x=msg.linear.x, angular_z=msg.angular.z))
+
+    def _motion_joints_cb(self, msg):
+        stamp = msg.header.stamp.sec + msg.header.stamp.nanosec * 1.e-9
+        if stamp-self.record.diagnostic_last_stamp.get('joints', -math.inf) < .1:
+            return
+        self.record.diagnostic_last_stamp['joints'] = stamp
+        self.record.joint_samples.append(dict(sim_time_sec=stamp, wall_elapsed_sec=self._stamp(),
+            phase=self.record.latest_phase, names=list(msg.name), positions=list(msg.position),
+            velocities=list(msg.velocity), efforts=list(msg.effort)))
 
     def start_recording(self, path: Path, fps: float, keyframe_dir: Path):
         self._video_path = path
@@ -259,6 +475,10 @@ class ContactProbe(Node):
         debug_msg = (
             self.record.yolo_detection_image
             or self.record.latest_detection_image)
+        closeup = (self.record.latest_handle_image is not None
+                   and self.record.latest_phase not in ('WAITING', 'LOCALIZE_HANDLE', 'PRE_GRASP'))
+        if closeup:
+            debug_msg = self.record.latest_handle_image
         debug_rgb = _ros_image_to_rgb(debug_msg)
         if debug_rgb is None:
             right = np.full_like(left, 225)
@@ -304,7 +524,8 @@ class ContactProbe(Node):
             cv2.FONT_HERSHEY_SIMPLEX, 0.62, (25, 25, 25), 2,
             cv2.LINE_AA)
         cv2.putText(
-            frame, 'YOLO DETECTION SNAPSHOT (SAME RUN)',
+            frame, ('LIVE GRIPPER CONTACT CAMERA' if closeup
+                    else 'YOLO DETECTION SNAPSHOT (SAME RUN)'),
             (panel_width + 18, 444),
             cv2.FONT_HERSHEY_SIMPLEX, 0.62, (25, 25, 25), 2,
             cv2.LINE_AA)
@@ -638,6 +859,13 @@ def _approach_visible_handle(node, args):
     started = time.monotonic()
     first_base = node.record.latest_odom.pose.pose.position
     start_xy = (first_base.x, first_base.y)
+    def odom_time():
+        stamp = node.record.latest_odom.header.stamp
+        return stamp.sec + stamp.nanosec * 1.e-9
+    deadline = SimMotionDeadline(odom_time(), started,
+                                 args.observation_approach_timeout_sec,
+                                 wall_limit=300.0)
+    traveled = 0.0
     stable = 0
     used_time = -1.0
     locked_xyz = np.asarray(node.record.yolo_observations[-1]['odom_xyz'])
@@ -648,8 +876,12 @@ def _approach_visible_handle(node, args):
     ik_future = None
     ik_target = None
     try:
-        while time.monotonic() - started < 80.0:
+        while rclpy.ok():
             rclpy.spin_once(node, timeout_sec=.05)
+            failure = deadline.failure(odom_time(), time.monotonic())
+            if failure:
+                node.record.approach_failure = failure
+                return None, traveled
             observed = node.record.latest_yolo_door
             samples = node.record.yolo_observations
             command = Twist()
@@ -667,6 +899,7 @@ def _approach_visible_handle(node, args):
             current = node.record.latest_odom.pose.pose.position
             traveled = math.hypot(current.x-start_xy[0], current.y-start_xy[1])
             if traveled > args.max_observation_approach_m:
+                node.record.approach_failure = 'Observed approach travel limit'
                 return None, traveled
             # The camera extrinsic comes from TF, not a guessed robot offset.
             camera = node.tf_buffer.lookup_transform(
@@ -677,7 +910,11 @@ def _approach_visible_handle(node, args):
             xyz = np.asarray((point.x, point.y, point.z))
             if ik_future is not None and ik_future.done():
                 solution = ik_future.result()
+                condition = (kinematics.translation_condition_ratio(solution.positions)
+                             if solution is not None else 0.)
+                node.record.approach_condition_ratio = condition
                 reachable = (solution is not None
+                             and condition >= args.minimum_ik_condition_ratio
                              and np.linalg.norm(xyz-ik_target) < .04
                              and np.all(solution.positions > PIPER_JOINT_LIMITS[:, 0]+.08)
                              and np.all(solution.positions < PIPER_JOINT_LIMITS[:, 1]-.08))
@@ -699,10 +936,11 @@ def _approach_visible_handle(node, args):
                 command.angular.z = float(np.clip(0.6 * bearing, -.16, .16))
                 if abs(bearing) < .12 and not reachable:
                     if point.x < .4:
+                        node.record.approach_failure = 'Too close without a reachable IK pose'
                         return None, traveled
                     command.linear.x = .04
                 node.manual_cmd_vel_pub.publish(command)
-        return None, 0.0
+        return None, traveled
     finally:
         node.manual_cmd_vel_pub.publish(Twist())
         ik_worker.shutdown(wait=True, cancel_futures=True)
@@ -738,6 +976,7 @@ def run(args: argparse.Namespace) -> int:
     rclpy.init()
     record = ContactRecord()
     node = ContactProbe(record)
+    proof_cameras = ProofCameraFollower(node)
     video_path = output_dir / "gazebo_lever_press_base_push.mp4"
     keyframe_dir = output_dir / "phases"
     result: dict[str, object] = {
@@ -757,7 +996,7 @@ def run(args: argparse.Namespace) -> int:
         "pass": False,
         "feedback_contact_requested": args.feedback_contact,
         "feedback_scope": "instrumented Gazebo joints, not real lever sensing",
-        "base_approach_policy": "observed handle + actual PIPER IK" if args.feedback_contact else "legacy",
+        "base_approach_policy": "observed handle + actual PIPER IK and Jacobian conditioning" if args.feedback_contact else "legacy",
     }
 
     try:
@@ -768,6 +1007,7 @@ def run(args: argparse.Namespace) -> int:
             time.sleep(args.launch_settle_sec)
         ready = _wait_for_ready(node, args.ready_timeout_sec)
         result["ready"] = ready
+        proof_cameras.start()
         node.start_recording(video_path, args.video_fps, keyframe_dir)
         _spin_for(node, 1.0)
         before_path = output_dir / "before_perspective.png"
@@ -821,7 +1061,8 @@ def run(args: argparse.Namespace) -> int:
                         observed_fresh, actual_approach = _approach_visible_handle(node, args)
                         if observed_fresh is None:
                             request_ready = False
-                            result['error'] = 'No fresh visible handle at approach completion'
+                            result['error'] = ('Observed approach failed: '
+                                               + record.approach_failure)
                         else:
                             observed_door = observed_fresh
                     elif approach_distance > 0.01:
@@ -879,6 +1120,8 @@ def run(args: argparse.Namespace) -> int:
                         "observation_approach_distance_m": (
                             None if args.feedback_contact else approach_distance),
                         "observation_approach_actual_m": actual_approach,
+                        "observed_ik_condition_ratio": record.approach_condition_ratio,
+                        "minimum_ik_condition_ratio": args.minimum_ik_condition_ratio,
                         "yolo_observation_count": len(
                             record.yolo_observations),
                     })
@@ -966,6 +1209,7 @@ def run(args: argparse.Namespace) -> int:
 
         _spin_for(node, 1.0)
         node.stop_recording()
+        proof_cameras.stop()
         after_path = output_dir / "after_perspective.png"
         if _save_ros_image(record.latest_image, after_path):
             record.saved_images.append(str(after_path))
@@ -990,14 +1234,24 @@ def run(args: argparse.Namespace) -> int:
             "phase_keyframes": str(keyframe_dir),
         }
         result['feedback_events'] = record.feedback_events
+        result['proof_camera_tracking'] = dict(
+            scope='Evidence-only camera poses; not robot/door commands or controller inputs.',
+            successful_updates=sum(x.get('success',False) for x in record.proof_camera_updates),
+            updates=record.proof_camera_updates)
+        motion_path = output_dir / 'motion_diagnostics.json'
+        motion_path.write_text(json.dumps(dict(
+            scope='Passive command/odom/joint records, not controller inputs.',
+            odom=record.motion_samples, commands=record.command_samples, joints=record.joint_samples)))
+        result['artifacts']['motion_diagnostics'] = str(motion_path)
         contacts_path = output_dir / 'contact_diagnostics.json'
         contacts_path.write_text(json.dumps(dict(
             scope='Passive simulated collision contacts; not force feedback used by the controller.',
             message_counts=record.contact_messages, samples=record.contact_samples), indent=2))
+        coverage = audit_contact_coverage(record.contact_samples)
         result['contact_diagnostics'] = dict(
             path=str(contacts_path), message_counts=record.contact_messages,
-            available=all(record.contact_messages.get(part, 0) > 0
-                          for part in ('lever', 'latch', 'panel')))
+            available=coverage['pass'], heartbeat_coverage=coverage,
+            source='Read-only Gazebo ECM, 20Hz heartbeat with interval contact-pair aggregation')
         if args.feedback_contact:
             names = {e.get('event') for e in record.feedback_events}
             result['feedback_contract_pass'] = (
@@ -1006,8 +1260,26 @@ def run(args: argparse.Namespace) -> int:
                  'latch_released', 'home_verified'} <= names
                 and 'stopped' not in names)
             result['pass'] = bool(result['pass'] and result['feedback_contract_pass'])
+            result['motion_contract_pass'] = result['pass']
+            held_mode = any(phase.startswith('HANDLE_HELD_BASE_OPEN') for _, phase in record.phases)
+            result['opening_load_path'] = 'held_handle' if held_mode else 'direct_panel_push'
+            if held_mode:
+                required = {'handle_retained_after_latch', 'handle_held_base_sample',
+                            'handle_held_open_verified', 'handle_released_after_full_open'}
+                result['feedback_contract_pass'] = bool(result['feedback_contract_pass'] and required <= names)
+                result['motion_contract_pass'] = bool(result['motion_contract_pass'] and required <= names)
+                result['pass'] = bool(result['pass'] and required <= names)
+            result['panel_contact_audit'] = (audit_handle_held_contacts(record.contact_samples)
+                                            if held_mode else audit_panel_push_contacts(record.contact_samples))
+            result['pass'] = bool(result['pass'] and result['panel_contact_audit']['pass']
+                                  and result['contact_diagnostics']['available'])
+            if held_mode:
+                result['recovery_contact_audit'] = audit_recovery_contacts(record.contact_samples)
+                result['pass'] = bool(result['pass'] and result['recovery_contact_audit']['pass'])
     finally:
         try:
+            if proof_cameras.thread.is_alive():
+                proof_cameras.stop()
             node.stop_recording()
             node.destroy_node()
             if rclpy.ok():
@@ -1020,7 +1292,14 @@ def run(args: argparse.Namespace) -> int:
     report_path.write_text(
         json.dumps(result, ensure_ascii=False, indent=2),
         encoding="utf-8")
-    print(json.dumps(result, ensure_ascii=False, indent=2))
+    if args.summary_only:
+        summary = {key: result.get(key) for key in (
+            'pass', 'error', 'service_success', 'service_message', 'handle_method',
+            'yolo_observation_count', 'max_delta_rad', 'feedback_contract_pass')}
+        summary['result_path'] = str(report_path)
+        print(json.dumps(summary, ensure_ascii=False, indent=2))
+    else:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0 if result.get("pass") else 2
 
 
@@ -1031,6 +1310,7 @@ def main() -> int:
         default="artifacts/validation/physical_contact",
     )
     parser.add_argument("--attach", action="store_true")
+    parser.add_argument("--summary-only", action="store_true")
     parser.add_argument("--headless", action="store_true", default=True)
     parser.add_argument("--launch-settle-sec", type=float, default=8.0)
     parser.add_argument("--ready-timeout-sec", type=float, default=25.0)
@@ -1041,6 +1321,7 @@ def main() -> int:
     parser.add_argument("--video-fps", type=float, default=10.0)
     parser.add_argument("--use-yolo-observation", action="store_true")
     parser.add_argument("--feedback-contact", action="store_true")
+    parser.add_argument("--minimum-ik-condition-ratio", type=float, default=.15)
     parser.add_argument("--yolo-timeout-sec", type=float, default=40.0)
     parser.add_argument("--minimum-yolo-observations", type=int, default=2)
     parser.add_argument("--minimum-yolo-confidence", type=float, default=0.45)

@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>fire_robot_sim_evidence</name>
+  <version>0.1.0</version>
+  <description>Read-only Gazebo contact evidence, including non-contact heartbeat.</description>
+  <maintainer email="hjy6881629@gmail.com">fire_robot_team</maintainer>
+  <license>Apache-2.0</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend>ignition-gazebo6</depend>
+  <export><build_type>ament_cmake</build_type></export>
+</package>

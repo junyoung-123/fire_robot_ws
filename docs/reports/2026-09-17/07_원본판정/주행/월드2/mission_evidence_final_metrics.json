@@ -1,0 +1,89 @@
+{
+  "pose_samples": 1735,
+  "path_length_m": 28.885240829966033,
+  "max_pose_step_m": 0.060320384259196815,
+  "max_sample_gap_sec": 0.3594346046447754,
+  "sampled_footprint_overlap_count": 0,
+  "overlaps": [],
+  "openings": [
+    {
+      "target_id": "observed_blue_3p6_1p4",
+      "t": 1789540812.303909,
+      "x": 2.687233626233806,
+      "y": 0.9329559747519117,
+      "yaw": 1.7136956679086734,
+      "before_opening": {
+        "t": 1789540793.5529742,
+        "x": 2.683202992047678,
+        "y": 0.9608668886536735,
+        "yaw": 1.7136954962043158,
+        "state_stamp": 1789540793.670421,
+        "parking_error_m": 0.1891249443863565,
+        "heading_error_deg": 8.187519303084697,
+        "base_to_estimated_handle_xy_m": 0.9443839735776164
+      },
+      "target_x": 2.5837540668452896,
+      "target_y": 0.7999999999996307,
+      "target_yaw": 1.5707963267948963,
+      "target_age_sec": 43.66306185722351,
+      "parking_error_m": 0.1684794065563228,
+      "heading_error_deg": 8.187529141019713,
+      "handle_x": 2.5837540668452896,
+      "handle_y": 1.8999999999996307,
+      "base_to_estimated_handle_xy_m": 0.9725647361376786
+    },
+    {
+      "target_id": "observed_blue_10p3_m1p9",
+      "t": 1789540935.7084544,
+      "x": 7.583493442382458,
+      "y": -0.855527895550075,
+      "yaw": -1.4196802070351875,
+      "before_opening": {
+        "t": 1789540918.5029597,
+        "x": 7.587761296415305,
+        "y": -0.8834565902092153,
+        "yaw": -1.419680216997846,
+        "state_stamp": 1789540918.7697916,
+        "parking_error_m": 0.11744312198277136,
+        "heading_error_deg": 8.658315307806538,
+        "base_to_estimated_handle_xy_m": 1.0093796851134167
+      },
+      "target_x": 7.670392310276766,
+      "target_y": -0.8000000000003694,
+      "target_yaw": -1.5707963267948963,
+      "target_age_sec": 34.220906496047974,
+      "parking_error_m": 0.1031249747902584,
+      "heading_error_deg": 8.65831587862482,
+      "handle_x": 7.670392310276767,
+      "handle_y": -1.889448371620916,
+      "base_to_estimated_handle_xy_m": 1.0375658842116329
+    },
+    {
+      "target_id": "observed_blue_15p6_1p4",
+      "t": 1789541109.204784,
+      "x": 14.52043630783338,
+      "y": 0.7401717312319984,
+      "yaw": 1.6098182111195218,
+      "before_opening": {
+        "t": 1789541092.8028562,
+        "x": 14.519399357823259,
+        "y": 0.76664487752095,
+        "yaw": 1.6098243477773986,
+        "state_stamp": 1789541092.913238,
+        "parking_error_m": 0.11861151661259635,
+        "heading_error_deg": 2.236140885045399,
+        "base_to_estimated_handle_xy_m": 0.9975787525669297
+      },
+      "target_x": 14.405574370770449,
+      "target_y": 0.7999999999996307,
+      "target_yaw": 1.5707963267948963,
+      "target_age_sec": 47.09788155555725,
+      "parking_error_m": 0.12950940633630012,
+      "heading_error_deg": 2.235789280448746,
+      "handle_x": 14.405574370770449,
+      "handle_y": 1.7577085686606362,
+      "base_to_estimated_handle_xy_m": 1.023999257866002
+    }
+  ],
+  "scope": "Saved-map + sim-odom mission; simplified arm/hinge backend. Footprint screen is sampled 2D geometry, not a physical contact test. Alignment compares the last published navigation goal, not an independently measured door plane."
+}

@@ -1,0 +1,169 @@
+{
+  "sources": {
+    "fsm": {
+      "path": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_test\\src\\fire_robot_fsm\\fire_robot_fsm\\state_machine_node.py",
+      "copy": "08_코드발췌와원본/주행보존본/state_machine_node.py",
+      "sha256": "3ffd7a914f70e5b44fa2b887ba4d9e2cb48972410226b9bb25dff62b96878984"
+    },
+    "subfsm": {
+      "path": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_test\\src\\fire_robot_fsm\\fire_robot_fsm\\fsm_subsystems.py",
+      "copy": "08_코드발췌와원본/주행보존본/fsm_subsystems.py",
+      "sha256": "297a142ac08073c33065b5706357f06176102edbe5548aa4751bf56be41002fe"
+    },
+    "perception": {
+      "path": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_test\\src\\fire_robot_perception\\fire_robot_perception\\door_detection_node.py",
+      "copy": "08_코드발췌와원본/주행보존본/door_detection_node.py",
+      "sha256": "424fbd49dfe360989bba8d1dbce1cc05f545d588daa411524163b917730fc323"
+    },
+    "initial_map": {
+      "path": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_test\\src\\fire_robot_navigation\\fire_robot_navigation\\initial_static_map_node.py",
+      "copy": "08_코드발췌와원본/주행보존본/initial_static_map_node.py",
+      "sha256": "6516fee083c2cabbc216b2809a3fb561c388850bc261d9919803329a50c29dc3"
+    },
+    "obstacle_map": {
+      "path": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_test\\src\\fire_robot_navigation\\fire_robot_navigation\\fixed_obstacle_map_node.py",
+      "copy": "08_코드발췌와원본/주행보존본/fixed_obstacle_map_node.py",
+      "sha256": "522d48c750bb350928aaa544a3977070bdb4554769f5df15b1a792ad69340597"
+    },
+    "nav_config": {
+      "path": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_test\\src\\fire_robot_navigation\\config\\nav2_params.yaml",
+      "copy": "08_코드발췌와원본/주행보존본/nav2_params.yaml",
+      "sha256": "6283274143f5ec6617f276170a4e5006dfa5a5dccfd59822b657ec592f40df4a"
+    },
+    "launch": {
+      "path": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_test\\src\\fire_robot_bringup\\launch\\simulation.launch.py",
+      "copy": "08_코드발췌와원본/주행보존본/simulation.launch.py",
+      "sha256": "efd2f5cf37d834c1688586184be1fd289e30128ec564f5e0ffdf49706b2c1b31"
+    },
+    "nav": {
+      "path": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_test\\src\\fire_robot_navigation\\fire_robot_navigation\\navigation_node.py",
+      "copy": "08_코드발췌와원본/주행보존본/navigation_node.py",
+      "sha256": "fb0e3dd124d95ed7d1901764b01fd1a602af7e6ca98fde4342634dc2e90ffaa1"
+    },
+    "safety": {
+      "path": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_test\\src\\fire_robot_navigation\\fire_robot_navigation\\cmd_vel_safety_node.py",
+      "copy": "08_코드발췌와원본/주행보존본/cmd_vel_safety_node.py",
+      "sha256": "e0b9272e8e3382dd659c1bd3ca6bcfd8cd9e2f5e921a338532ba9d93b7244109"
+    },
+    "physical": {
+      "path": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_world1_contact_20260916\\src\\fire_robot_manipulation\\fire_robot_manipulation\\physical_contact_manipulation_node.py",
+      "copy": "08_코드발췌와원본/접촉복사본/physical_contact_manipulation_node.py",
+      "sha256": "ea9a63ec1d7c26fff740d62208abf9e0d9ec01cb0c83b2ee530a9c185b85ac0a"
+    },
+    "contact": {
+      "path": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_world1_contact_20260916\\src\\fire_robot_manipulation\\fire_robot_manipulation\\contact_feedback.py",
+      "copy": "08_코드발췌와원본/접촉복사본/contact_feedback.py",
+      "sha256": "dcb991056ca41ff3f1d0ebbd76caf386bfc867124163c81ca92c7714c2cc7b47"
+    },
+    "kinematics": {
+      "path": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_world1_contact_20260916\\src\\fire_robot_manipulation\\fire_robot_manipulation\\piper_actual_kinematics.py",
+      "copy": "08_코드발췌와원본/접촉복사본/piper_actual_kinematics.py",
+      "sha256": "5d29f4c356ab6461933c7f511493d4569f13ec2863a96d4e6d8b3284934541ec"
+    },
+    "contact_perception": {
+      "path": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_world1_contact_20260916\\src\\fire_robot_perception\\fire_robot_perception\\door_detection_node.py",
+      "copy": "08_코드발췌와원본/접촉복사본/door_detection_node.py",
+      "sha256": "53ed85d64ed004a2f1433795c5cef42d1f5ed6b8feca17f6c4109eb48cff46f3"
+    }
+  },
+  "excerpts": [
+    {
+      "page": 8,
+      "source": "initial_map",
+      "first": 103,
+      "last": 108,
+      "sha256": "6516fee083c2cabbc216b2809a3fb561c388850bc261d9919803329a50c29dc3"
+    },
+    {
+      "page": 8,
+      "source": "obstacle_map",
+      "first": 154,
+      "last": 157,
+      "sha256": "522d48c750bb350928aaa544a3977070bdb4554769f5df15b1a792ad69340597"
+    },
+    {
+      "page": 13,
+      "source": "fsm",
+      "first": 2500,
+      "last": 2507,
+      "sha256": "3ffd7a914f70e5b44fa2b887ba4d9e2cb48972410226b9bb25dff62b96878984"
+    },
+    {
+      "page": 17,
+      "source": "fsm",
+      "first": 1030,
+      "last": 1042,
+      "sha256": "3ffd7a914f70e5b44fa2b887ba4d9e2cb48972410226b9bb25dff62b96878984"
+    },
+    {
+      "page": 17,
+      "source": "fsm",
+      "first": 2228,
+      "last": 2239,
+      "sha256": "3ffd7a914f70e5b44fa2b887ba4d9e2cb48972410226b9bb25dff62b96878984"
+    },
+    {
+      "page": 21,
+      "source": "fsm",
+      "first": 18535,
+      "last": 18541,
+      "sha256": "3ffd7a914f70e5b44fa2b887ba4d9e2cb48972410226b9bb25dff62b96878984"
+    },
+    {
+      "page": 22,
+      "source": "nav_config",
+      "first": 119,
+      "last": 126,
+      "sha256": "6283274143f5ec6617f276170a4e5006dfa5a5dccfd59822b657ec592f40df4a"
+    },
+    {
+      "page": 22,
+      "source": "fsm",
+      "first": 3756,
+      "last": 3762,
+      "sha256": "3ffd7a914f70e5b44fa2b887ba4d9e2cb48972410226b9bb25dff62b96878984"
+    },
+    {
+      "page": 25,
+      "source": "perception",
+      "first": 1919,
+      "last": 1931,
+      "sha256": "424fbd49dfe360989bba8d1dbce1cc05f545d588daa411524163b917730fc323"
+    },
+    {
+      "page": 25,
+      "source": "launch",
+      "first": 451,
+      "last": 453,
+      "sha256": "efd2f5cf37d834c1688586184be1fd289e30128ec564f5e0ffdf49706b2c1b31"
+    },
+    {
+      "page": 26,
+      "source": "contact_perception",
+      "first": 1595,
+      "last": 1610,
+      "sha256": "53ed85d64ed004a2f1433795c5cef42d1f5ed6b8feca17f6c4109eb48cff46f3"
+    },
+    {
+      "page": 28,
+      "source": "physical",
+      "first": 2085,
+      "last": 2089,
+      "sha256": "ea9a63ec1d7c26fff740d62208abf9e0d9ec01cb0c83b2ee530a9c185b85ac0a"
+    },
+    {
+      "page": 28,
+      "source": "physical",
+      "first": 2110,
+      "last": 2118,
+      "sha256": "ea9a63ec1d7c26fff740d62208abf9e0d9ec01cb0c83b2ee530a9c185b85ac0a"
+    },
+    {
+      "page": 41,
+      "source": "physical",
+      "first": 2739,
+      "last": 2742,
+      "sha256": "ea9a63ec1d7c26fff740d62208abf9e0d9ec01cb0c83b2ee530a9c185b85ac0a"
+    }
+  ]
+}

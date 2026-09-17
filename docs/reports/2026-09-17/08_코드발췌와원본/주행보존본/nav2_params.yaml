@@ -1,0 +1,417 @@
+# ============================================================
+# Nav2 파라미터 — 화재 대피 모바일 매니퓰레이터
+#
+# 로봇 사양 (fire_robot.urdf.xacro 기준)
+#   - 베이스: 0.40 x 0.35 m
+#   - 풋프린트: [[-0.22,-0.20],[-0.22,0.20],[0.22,0.20],[0.22,-0.20]]
+#   - 최대 속도: 0.5 m/s (복도 안전 속도)
+#   - 2D LiDAR 토픽: /scan (LaserScan 메시지 호환)
+#   - 세그멘테이션 맵: /segmentation_map (시각화) + /segmentation_points (planning)
+# ============================================================
+
+# ── BT Navigator ─────────────────────────────────────────────
+bt_navigator:
+  ros__parameters:
+    use_sim_time: true
+    global_frame: map
+    robot_base_frame: base_link
+    odom_topic: /odom
+    bt_loop_duration: 100
+    default_server_timeout: 20
+    wait_for_service_timeout: 5000
+    navigators: ["navigate_to_pose"]
+    navigate_to_pose:
+      plugin: "nav2_bt_navigator/NavigateToPoseNavigator"
+    # 재계획 BT: 정상 주행은 전진 전용, FollowPath 실패 때만 짧은 후진 복구 허용
+    default_nav_to_pose_bt_xml: "$(find-pkg-share fire_robot_navigation)/config/navigate_to_pose_replanning_no_backup.xml"
+    default_nav_through_poses_bt_xml: "$(find-pkg-share fire_robot_navigation)/config/navigate_through_poses_replanning_no_backup.xml"
+    # This project sends NavigateToPose goals only, but this Humble BtNavigator
+    # still initializes the through-poses tree. Keep its plugins loadable while
+    # using a longer wait timeout so startup does not poison NavigateToPose.
+    plugin_lib_names:
+      - nav2_compute_path_to_pose_action_bt_node
+      - nav2_compute_path_through_poses_action_bt_node
+      - nav2_smooth_path_action_bt_node
+      - nav2_follow_path_action_bt_node
+      - nav2_spin_action_bt_node
+      - nav2_back_up_action_bt_node
+      - nav2_wait_action_bt_node
+      - nav2_assisted_teleop_action_bt_node
+      - nav2_drive_on_heading_bt_node
+      - nav2_clear_costmap_service_bt_node
+      - nav2_is_stuck_condition_bt_node
+      - nav2_goal_reached_condition_bt_node
+      - nav2_goal_updated_condition_bt_node
+      - nav2_globally_updated_goal_condition_bt_node
+      - nav2_is_path_valid_condition_bt_node
+      - nav2_initial_pose_received_condition_bt_node
+      - nav2_reinitialize_global_localization_service_bt_node
+      - nav2_rate_controller_bt_node
+      - nav2_distance_controller_bt_node
+      - nav2_speed_controller_bt_node
+      - nav2_truncate_path_action_bt_node
+      - nav2_truncate_path_local_action_bt_node
+      - nav2_goal_updater_node_bt_node
+      - nav2_recovery_node_bt_node
+      - nav2_pipeline_sequence_bt_node
+      - nav2_round_robin_node_bt_node
+      - nav2_transform_available_condition_bt_node
+      - nav2_time_expired_condition_bt_node
+      - nav2_distance_traveled_condition_bt_node
+      - nav2_single_trigger_bt_node
+      - nav2_goal_checker_selector_bt_node
+      - nav2_controller_selector_bt_node
+      - nav2_navigate_through_poses_action_bt_node
+      - nav2_navigate_to_pose_action_bt_node
+      - nav2_remove_passed_goals_action_bt_node
+      - nav2_planner_selector_bt_node
+      - nav2_smoother_selector_bt_node
+      - nav2_progress_checker_selector_bt_node
+      - nav2_controller_cancel_bt_node
+      - nav2_spin_cancel_bt_node
+      - nav2_back_up_cancel_bt_node
+      - nav2_wait_cancel_bt_node
+      - nav2_drive_on_heading_cancel_bt_node
+      - nav2_assisted_teleop_cancel_bt_node
+
+# ── Planner Server ───────────────────────────────────────────
+planner_server:
+  ros__parameters:
+    use_sim_time: true
+    expected_planner_frequency: 2.0
+    planner_plugins: ["GridBased"]
+    GridBased:
+      plugin: "nav2_smac_planner/SmacPlanner2D"
+      tolerance: 0.55
+      downsample_costmap: false
+      downsampling_factor: 1
+      allow_unknown: true
+      max_iterations: 1000000
+      max_on_approach_iterations: 1000
+      max_planning_time: 3.0
+      cost_travel_multiplier: 4.0
+      use_final_approach_orientation: true
+
+# ── Controller Server ────────────────────────────────────────
+controller_server:
+  ros__parameters:
+    use_sim_time: true
+    controller_frequency: 8.0
+    min_x_velocity_threshold: 0.001
+    min_y_velocity_threshold: 0.001
+    min_theta_velocity_threshold: 0.001
+    failure_tolerance: 0.6
+    progress_checker_plugin: "progress_checker"
+    goal_checker_plugins: ["general_goal_checker"]
+    controller_plugins: ["FollowPath"]
+
+    progress_checker:
+      plugin: "nav2_controller::SimpleProgressChecker"
+      required_movement_radius: 0.05
+      movement_time_allowance: 18.0
+
+    general_goal_checker:
+      stateful: true
+      plugin: "nav2_controller::SimpleGoalChecker"
+      xy_goal_tolerance: 0.12
+      yaw_goal_tolerance: 0.35
+
+    FollowPath:
+      plugin: "nav2_rotation_shim_controller::RotationShimController"
+      primary_controller: "dwb_core::DWBLocalPlanner"
+      angular_dist_threshold: 0.45
+      forward_sampling_distance: 0.50
+      rotate_to_heading_angular_vel: 0.65
+      max_angular_accel: 2.0
+      simulate_ahead_time: 1.0
+      debug_trajectory_details: false
+      min_vel_x: 0.0
+      min_vel_y: 0.0
+      max_vel_x: 0.32
+      max_vel_y: 0.0
+      max_vel_theta: 1.0
+      min_speed_xy: 0.0
+      max_speed_xy: 0.32
+      min_speed_theta: 0.0
+      acc_lim_x: 1.4
+      acc_lim_y: 0.0
+      acc_lim_theta: 2.4
+      decel_lim_x: -1.6
+      decel_lim_y: 0.0
+      decel_lim_theta: -2.6
+      vx_samples: 16
+      vy_samples: 1
+      vtheta_samples: 20
+      sim_time: 1.7
+      linear_granularity: 0.04
+      angular_granularity: 0.025
+      transform_tolerance: 0.3
+      xy_goal_tolerance: 0.12
+      trans_stopped_velocity: 0.08
+      short_circuit_trajectory_evaluation: true
+      stateful: true
+      critics:
+        - "RotateToGoal"
+        - "Oscillation"
+        - "BaseObstacle"
+        - "ObstacleFootprint"
+        - "GoalAlign"
+        - "PathAlign"
+        - "PathDist"
+        - "GoalDist"
+      BaseObstacle.scale: 0.70
+      # Check the rectangular chassis at each sampled trajectory pose.
+      ObstacleFootprint.scale: 1.0
+      PathAlign.scale: 9.0
+      PathAlign.forward_point_distance: 0.25
+      GoalAlign.scale: 12.0
+      GoalAlign.forward_point_distance: 0.25
+      PathDist.scale: 18.0
+      GoalDist.scale: 16.0
+      RotateToGoal.scale: 20.0
+      RotateToGoal.slowing_factor: 4.0
+      RotateToGoal.lookahead_time: -1.0
+
+# ── Smoother Server ──────────────────────────────────────────
+smoother_server:
+  ros__parameters:
+    use_sim_time: true
+    smoother_plugins: ["simple_smoother"]
+    simple_smoother:
+      plugin: "nav2_smoother::SimpleSmoother"
+      tolerance: 1.0e-8
+      max_its: 600
+      do_refinement: true
+
+# ── Behavior Server (회복 행동) ──────────────────────────────
+behavior_server:
+  ros__parameters:
+    use_sim_time: true
+    costmap_topic: local_costmap/costmap_raw
+    footprint_topic: local_costmap/published_footprint
+    cycle_frequency: 10.0
+    behavior_plugins:
+      - "spin"
+      - "backup"
+      - "drive_on_heading"
+      - "assisted_teleop"
+      - "wait"
+    spin:
+      plugin: "nav2_behaviors/Spin"
+    backup:
+      plugin: "nav2_behaviors/BackUp"
+    drive_on_heading:
+      plugin: "nav2_behaviors/DriveOnHeading"
+    assisted_teleop:
+      plugin: "nav2_behaviors/AssistedTeleop"
+    wait:
+      plugin: "nav2_behaviors/Wait"
+    global_frame: odom
+    robot_base_frame: base_link
+    transform_tolerance: 0.5
+    simulate_ahead_time: 2.0
+    max_rotational_vel: 0.8
+    min_rotational_vel: 0.4
+    rotational_acc_lim: 3.2
+
+# ── Waypoint Follower ────────────────────────────────────────
+waypoint_follower:
+  ros__parameters:
+    use_sim_time: true
+    loop_rate: 20
+    stop_on_failure: false
+    action_server_result_timeout: 900.0
+    waypoint_task_executor_plugin: "wait_at_waypoint"
+    wait_at_waypoint:
+      plugin: "nav2_waypoint_follower::WaitAtWaypoint"
+      enabled: true
+      waypoint_pause_duration: 200
+
+# ── Velocity Smoother ────────────────────────────────────────
+velocity_smoother:
+  ros__parameters:
+    use_sim_time: true
+    smoothing_frequency: 20.0
+    scale_velocities: false
+    feedback: "CLOSED_LOOP"
+    max_velocity: [0.32, 0.0, 1.0]     # [vx, vy, vtheta]
+    min_velocity: [-0.10, 0.0, -1.0]
+    max_accel: [1.2, 0.0, 2.4]
+    max_decel: [-1.2, 0.0, -2.4]
+    odom_topic: /odom
+    odom_duration: 0.1
+    deadband_velocity: [0.0, 0.0, 0.0]
+    velocity_timeout: 1.0
+
+# ── Local Costmap ────────────────────────────────────────────
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      use_sim_time: true
+      update_frequency: 5.0
+      publish_frequency: 2.0
+      global_frame: odom
+      robot_base_frame: base_link
+      transform_tolerance: 0.5
+      rolling_window: true
+      width: 8
+      height: 8
+      resolution: 0.05
+      # 로봇 풋프린트 (URDF 베이스 기준)
+      footprint: "[[-0.26, -0.23], [-0.26, 0.23], [0.26, 0.23], [0.26, -0.23]]"
+      plugins:
+        - "obstacle_layer"
+        - "inflation_layer"
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: true
+        footprint_clearing_enabled: true
+        observation_sources: scan
+        scan:
+          topic: /scan
+          data_type: "LaserScan"
+          max_obstacle_height: 2.0
+          min_obstacle_height: 0.0
+          obstacle_max_range: 5.5
+          obstacle_min_range: 0.15
+          raytrace_max_range: 6.0
+          raytrace_min_range: 0.0
+          clearing: true
+          marking: true
+        # /segmentation_points stays published for RViz/debug. In simulation,
+        # with SegFormer disabled, it duplicates every LiDAR hit without
+        # raytrace clearing and can make the local controller stop early.
+        # Keep local planning on /scan until semantic points are validated.
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.50
+
+# ── Global Costmap ───────────────────────────────────────────
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      use_sim_time: true
+      update_frequency: 1.0
+      publish_frequency: 0.5
+      always_send_full_costmap: true
+      global_frame: map
+      robot_base_frame: base_link
+      transform_tolerance: 0.5
+      rolling_window: false
+      width: 40
+      height: 20
+      resolution: 0.05
+      origin_x: -10.0
+      origin_y: -10.0
+      track_unknown_space: false
+      footprint: "[[-0.26, -0.23], [-0.26, 0.23], [0.26, 0.23], [0.26, -0.23]]"
+      plugins:
+        - "static_layer"        # 절대 벽/방 구조: SLAM 누적과 분리
+        - "fixed_obstacle_layer"
+        - "obstacle_layer"      # live scan obstacles with raytrace clearing
+        - "inflation_layer"
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_topic: /initial_static_map
+        map_subscribe_transient_local: true
+        subscribe_to_updates: false
+        enabled: true
+      fixed_obstacle_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_topic: /fixed_obstacle_map
+        map_subscribe_transient_local: true
+        subscribe_to_updates: false
+        # The fixed overlay is still published for inspection, but keeping it as
+        # a blocking StaticLayer can trap the robot after door/obstacle scans.
+        enabled: false
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: true
+        footprint_clearing_enabled: true
+        observation_sources: scan
+        scan:
+          topic: /scan
+          data_type: "LaserScan"
+          sensor_frame: lidar_link
+          expected_update_rate: 0.0
+          observation_persistence: 0.8
+          marking: true
+          clearing: true
+          obstacle_max_range: 8.0
+          obstacle_min_range: 0.15
+          raytrace_max_range: 8.5
+          raytrace_min_range: 0.0
+          max_obstacle_height: 2.0
+          min_obstacle_height: 0.02
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.55
+
+# ── Map Server ───────────────────────────────────────────────
+map_server:
+  ros__parameters:
+    use_sim_time: true
+    yaml_filename: ""   # SLAM 사용 시 비워둠 (slam_toolbox가 맵 발행)
+
+# ── Map Saver ────────────────────────────────────────────────
+map_saver:
+  ros__parameters:
+    use_sim_time: true
+    save_map_timeout: 5.0
+    free_thresh_default: 0.25
+    occupied_thresh_default: 0.65
+    map_subscribe_transient_local: true
+
+# ── AMCL (SLAM 대신 사전 맵으로 위치 추정할 때 사용) ─────────
+# slam_toolbox online 모드 사용 시 비활성화 가능
+amcl:
+  ros__parameters:
+    use_sim_time: true
+    # Corridor walls are repetitive and opened doors no longer match the fixed
+    # map. Keep the particle cloud close to wheel odometry so scan ambiguity
+    # cannot relocate the robot by several metres along the corridor.
+    alpha1: 0.01
+    alpha2: 0.01
+    alpha3: 0.01
+    alpha4: 0.01
+    alpha5: 0.01
+    base_frame_id: "base_footprint"
+    beam_skip_distance: 0.5
+    beam_skip_error_threshold: 0.9
+    beam_skip_threshold: 0.3
+    do_beamskip: true
+    global_frame_id: "map"
+    lambda_short: 0.1
+    laser_likelihood_max_dist: 2.0
+    laser_max_range: 8.0
+    laser_min_range: -1.0
+    laser_model_type: "likelihood_field_prob"
+    max_beams: 90
+    max_particles: 2000
+    min_particles: 500
+    odom_frame_id: "odom"
+    pf_err: 0.05
+    pf_z: 0.99
+    recovery_alpha_fast: 0.0
+    recovery_alpha_slow: 0.0
+    resample_interval: 1
+    robot_model_type: "nav2_amcl::DifferentialMotionModel"
+    save_pose_rate: 0.5
+    sigma_hit: 0.15
+    tf_broadcast: true
+    transform_tolerance: 1.0
+    update_min_a: 0.2
+    update_min_d: 0.25
+    z_hit: 0.70
+    z_max: 0.025
+    z_rand: 0.25
+    z_short: 0.025
+    scan_topic: /scan
+    set_initial_pose: true
+    initial_pose:
+      x: -3.0
+      y: 0.0
+      z: 0.0
+      yaw: 0.0

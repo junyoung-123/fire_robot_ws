@@ -7,3 +7,7 @@
 *.pt  binary
 *.db3 binary
 *.bag binary
+
+# Keep published evidence byte-identical to its SHA256 manifest.
+docs/reports/2026-09-17/** -text whitespace=cr-at-eol
+docs/reports/2026-09-17/**/*.log -diff

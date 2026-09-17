@@ -1,0 +1,32 @@
+[
+  {
+    "panel": 1,
+    "path": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\14_주행보존_단일문개방_20260917\\contact_copy_r40_handle_held\\physical_contact_door_test_20260917_032440\\yolo_primary_detection.png",
+    "sha256": "076f3b44f7dcc178839d1ac265a3536dd7d6629e5e953facb1ccf53fdd659dc4"
+  },
+  {
+    "panel": 2,
+    "path": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\14_주행보존_단일문개방_20260917\\contact_copy_r40_handle_held\\physical_contact_door_test_20260917_032440\\phases\\closeup_00064.50_press_handle.png",
+    "sha256": "0aba6c49b1215fd7d616fe8f24ebabc4e1acb6fea2a1befe0e0cb16a64c481d5"
+  },
+  {
+    "panel": 3,
+    "path": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\14_주행보존_단일문개방_20260917\\contact_copy_r40_handle_held\\physical_contact_door_test_20260917_032440\\phases\\closeup_00131.50_handle_held_base_open.png",
+    "sha256": "3c09572fbdce3a36d760525bc520251312be048383ab83a5835f49cf36157783"
+  },
+  {
+    "panel": 4,
+    "path": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\14_주행보존_단일문개방_20260917\\contact_copy_r40_handle_held\\physical_contact_door_test_20260917_032440\\phases\\closeup_00193.50_handle_held_base_open.png",
+    "sha256": "152c609a8a95f1b4b79ca2cabf445f166ca1d55b2a6be7878e82c9d74ee3b0e1"
+  },
+  {
+    "panel": 5,
+    "path": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\14_주행보존_단일문개방_20260917\\contact_copy_r40_handle_held\\physical_contact_door_test_20260917_032440\\after_perspective.png",
+    "sha256": "611b16738ef7a8e848245a0151264d24e14294c647949ba1b8132430085f0e67"
+  },
+  {
+    "panel": 6,
+    "path": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\14_주행보존_단일문개방_20260917\\contact_copy_r40_handle_held\\physical_contact_door_test_20260917_032440\\door_hinge_angle.png",
+    "sha256": "81b1103f9caf26b023dea7df5287accb263043221b75b0c5becf084dcee5eee3"
+  }
+]

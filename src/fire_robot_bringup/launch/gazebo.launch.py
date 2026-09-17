@@ -2,13 +2,33 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, ExecuteProcess
+from launch.actions import DeclareLaunchArgument, ExecuteProcess, OpaqueFunction
 from launch.conditions import IfCondition, UnlessCondition
 from launch.substitutions import (Command, FindExecutable,
                                   LaunchConfiguration, PathJoinSubstitution)
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
+
+
+def odometry_topics(source):
+    if source == 'wheel':
+        return '/wheel_odom', '/wheel_tf'
+    if source == 'ground_truth':
+        return '/odom', '/tf'
+    raise ValueError('odometry_source must be wheel or ground_truth')
+
+
+def create_odometry_bridge(context):
+    odom, tf = odometry_topics(LaunchConfiguration('odometry_source').perform(context))
+    return [Node(
+        package='ros_gz_bridge', executable='parameter_bridge',
+        name='gz_selected_odometry_bridge',
+        arguments=[odom + '@nav_msgs/msg/Odometry[gz.msgs.Odometry',
+                   tf + '@tf2_msgs/msg/TFMessage[gz.msgs.Pose_V'],
+        remappings=[(odom, '/odom'), (tf, '/tf')],
+        parameters=[{'use_sim_time': LaunchConfiguration('use_sim_time')}],
+        output='screen')]
 
 
 def generate_launch_description():
@@ -52,6 +72,9 @@ def generate_launch_description():
 
     return LaunchDescription([
         DeclareLaunchArgument('use_sim_time', default_value='true'),
+        DeclareLaunchArgument('odometry_source', default_value='ground_truth',
+                              choices=['ground_truth', 'wheel'],
+                              description='Use wheel encoders for sensor-localization tests.'),
         DeclareLaunchArgument('world', default_value='corridor.world'),
         DeclareLaunchArgument(
             'headless',
@@ -177,8 +200,6 @@ def generate_launch_description():
             arguments=[
                 '/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
                 '/cmd_vel@geometry_msgs/msg/Twist]gz.msgs.Twist',
-                '/odom@nav_msgs/msg/Odometry[gz.msgs.Odometry',
-                '/tf@tf2_msgs/msg/TFMessage[gz.msgs.Pose_V',
                 '/joint_states@sensor_msgs/msg/JointState[gz.msgs.Model',
             ],
             remappings=[
@@ -187,6 +208,7 @@ def generate_launch_description():
             parameters=[{'use_sim_time': use_sim_time}],
             output='screen',
         ),
+        OpaqueFunction(function=create_odometry_bridge),
         Node(
             package='ros_gz_bridge',
             executable='parameter_bridge',

@@ -18,6 +18,7 @@ def generate_launch_description():
     min_opened_doors_before_exit = LaunchConfiguration('min_opened_doors_before_exit', default='0')
     launch_moveit = LaunchConfiguration('launch_moveit', default='false')
     localization_mode = LaunchConfiguration('localization_mode', default='sim_odom')
+    odometry_source = LaunchConfiguration('odometry_source', default='ground_truth')
     spawn_x = LaunchConfiguration('spawn_x', default='-3.0')
     spawn_y = LaunchConfiguration('spawn_y', default='0.0')
     spawn_yaw = LaunchConfiguration('spawn_yaw', default='0.0')
@@ -69,6 +70,7 @@ def generate_launch_description():
             'spawn_x':      spawn_x,
             'spawn_y':      spawn_y,
             'spawn_yaw':    spawn_yaw,
+            'odometry_source': odometry_source,
         }.items(),
     )
 
@@ -817,6 +819,8 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
+        DeclareLaunchArgument('odometry_source', default_value='ground_truth',
+                              choices=['ground_truth', 'wheel']),
         DeclareLaunchArgument('use_sim_time', default_value='true'),
         DeclareLaunchArgument('use_rviz',     default_value='true'),
         DeclareLaunchArgument('world',        default_value='obstacle_wall_doors_v5.world'),

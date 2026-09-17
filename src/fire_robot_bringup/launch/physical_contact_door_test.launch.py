@@ -1,5 +1,6 @@
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, TimerAction
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, TimerAction, AppendEnvironmentVariable
+from ament_index_python.packages import get_package_prefix
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
@@ -50,10 +51,11 @@ def generate_launch_description():
         '/door_joint_states@sensor_msgs/msg/JointState[gz.msgs.Model',
         '/proof/overhead/image@sensor_msgs/msg/Image[gz.msgs.Image',
         '/proof/perspective/image@sensor_msgs/msg/Image[gz.msgs.Image',
+        '/proof/handle/image@sensor_msgs/msg/Image[gz.msgs.Image',
     ]
     command_topics += [
-        f'/proof/contact/{part}@ros_gz_interfaces/msg/Contacts[gz.msgs.Contacts'
-        for part in ('lever', 'latch', 'panel')]
+        f'/proof/audit/{part}@ros_gz_interfaces/msg/Contacts[gz.msgs.Contacts'
+        for part in ('lever', 'latch', 'panel', 'jamb', 'strike')]
     bridge = Node(
         package='ros_gz_bridge',
         executable='parameter_bridge',
@@ -112,7 +114,8 @@ def generate_launch_description():
             'post_open_backoff_enabled': True,
             'post_open_backoff_linear_x': -0.10,
             'post_open_backoff_sec': 3.0,
-            'sim_release_handle_before_base_push': True,
+            'sim_release_handle_before_base_push': False,
+            'hold_handle_during_base_open': True,
             'require_detected_handle': require_yolo_handle,
             'require_yolo_handle': require_yolo_handle,
             'feedback_contact_enabled': feedback_contact,
@@ -170,6 +173,8 @@ def generate_launch_description():
         output='screen')
 
     return LaunchDescription([
+        AppendEnvironmentVariable('IGN_GAZEBO_SYSTEM_PLUGIN_PATH',
+                                  get_package_prefix('fire_robot_sim_evidence')+'/lib'),
         DeclareLaunchArgument('headless', default_value='true'),
         DeclareLaunchArgument('use_rviz', default_value='false'),
         DeclareLaunchArgument('enable_perception', default_value='false'),
