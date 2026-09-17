@@ -4,7 +4,27 @@
 
 목표 동작은 시작 위치 기준으로 관측한 벽, 문, 장애물 구조를 map 좌표에 축적하고, 가장 가까운 파란문을 선택해 장애물을 피해 접근한 뒤 문 개방 FSM을 수행하는 것입니다. 더 이상 열 파란문이 없으면 초록 비상구를 관측 기반으로 선택해 통과합니다.
 
-## 현재 상태 (2026-09-13)
+## 최신 코드·보고서 안내 (2026-09-17)
+
+**이 `master`의 로봇 소스는 이전 버전으로 보존하고, 최신 작업은 별도 브랜치로 관리합니다.** 최신 코드를 받으려면 아래 개발 브랜치를 선택하세요. 이번 `master` 갱신은 안내 문서만 변경합니다.
+
+| 목적 | 확인할 곳 |
+| --- | --- |
+| 최신 단일문 물리 접촉 코드 | [codex/world1-contact-integration-20260916](https://github.com/junyoung-123/fire_robot_ws/tree/codex/world1-contact-integration-20260916) |
+| 월드 1~5 보존 주행 성공본 | [codex/feedback-resume-20260914](https://github.com/junyoung-123/fire_robot_ws/tree/codex/feedback-resume-20260914), `d1ffb39` |
+| 로봇팔 이전 성공 코드 | [codex/navigation-success-before-arm](https://github.com/junyoung-123/fire_robot_ws/tree/codex/navigation-success-before-arm), `41ec296` |
+| 최신 보고서·사진·영상 | [REV6 자료 폴더](https://github.com/junyoung-123/fire_robot_ws/tree/codex/world1-contact-integration-20260916/docs/reports/2026-09-17) |
+| 검증 범위와 남은 과제 | [2026-09-17 결과](https://github.com/junyoung-123/fire_robot_ws/blob/codex/world1-contact-integration-20260916/docs/VALIDATION_20260917.md) |
+| 팀원 인계 | [작업 안내](https://github.com/junyoung-123/fire_robot_ws/blob/codex/world1-contact-integration-20260916/docs/TEAM_HANDOFF_20260917.md) |
+
+- 2026-09-16: 월드 1~5 주행 5/5 PASS, 문 회전 16/16. 저장 지도 + sim_odom + 기존 힌지 명령 backend 조건입니다.
+- 2026-09-17 r40: 손잡이 접촉 유지 + 레버 누름 + 본체/팔 협조 이동으로 약 117.72도 개방 후 해제·회수·후진 PASS. 별도 단일 fixture이며 힌지 직접 명령은 없습니다.
+- 새 물리 개방을 모든 월드에 결합한 FULL과 실물 로봇은 미검증입니다. 두 별도 성공을 합쳐 통합 성공이라고 표시하지 않습니다. 후진은 아직 설정 속도·시간 제어입니다.
+- 최신 소스는 r40 보관본 173개 입력과 일치하며, 동기화 시 스크립트 테스트 212개 PASS를 재확인했습니다. 이번 정리 작업에서 새 Gazebo FULL을 실행한 것은 아닙니다.
+
+아래는 과거 날짜의 보존 기록입니다. 이전 차체 접촉 방식과 모델 지표는 최신 손잡이 유지 개방 및 최신 검증 범위와 다릅니다.
+
+## 이전 상태 (2026-09-13 보존)
 
 - `colcon build --symlink-install` PASS
 - Python 문법 검사 PASS
