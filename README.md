@@ -4,7 +4,19 @@
 
 목표 동작은 시작 위치 기준으로 관측한 벽, 문, 장애물 구조를 map 좌표에 축적하고, 가장 가까운 파란문을 선택해 장애물을 피해 접근한 뒤 문 개방 FSM을 수행하는 것입니다. 더 이상 열 파란문이 없으면 초록 비상구를 관측 기반으로 선택해 통과합니다.
 
-## 최신 코드·보고서 안내 (2026-09-17)
+## 최신 코드·이미지·영상 (2026-09-26)
+
+**최신 개발 브랜치는 [codex/observed-door-angle-20260922](https://github.com/junyoung-123/fire_robot_ws/tree/codex/observed-door-angle-20260922), 커밋 `27359f7`입니다.** `master` 소스와 이전 성공 브랜치는 보존하며, 이 갱신에서는 안내 문서만 변경합니다.
+
+- [Claude용 자료 읽는 순서](https://github.com/junyoung-123/fire_robot_ws/blob/codex/observed-door-angle-20260922/docs/handoff/2026-09-26/00_START_HERE.md) / [이미지·영상 폴더](https://github.com/junyoung-123/fire_robot_ws/tree/codex/observed-door-angle-20260922/docs/handoff/2026-09-26) / [주제·페이지별 추천](https://github.com/junyoung-123/fire_robot_ws/blob/codex/observed-door-angle-20260922/docs/handoff/2026-09-26/03_TOPIC_AND_SLIDE_MAP.md)
+- [최신 코드 실행 범위와 검증](https://github.com/junyoung-123/fire_robot_ws/blob/codex/observed-door-angle-20260922/docs/RELEASE_20260926.md) / [센서 입력 계약](https://github.com/junyoung-123/fire_robot_ws/blob/codex/observed-door-angle-20260922/ROBOT_OBSERVATION_ONLY.md)
+- R34 단일문(09-22): YOLO/RGB-D 손잡이 관측, 로봇 엔코더 기반 레버 추정, RGB-D/2D LiDAR 문각으로 접촉 개방·재확인·해제·복귀 PASS. 문/레버 정답값은 독립 평가용입니다. 관측 117.776도, 평가 117.839도.
+- 월드1~5 주행(09-16), 문 기억 R3, R34 접촉 개방은 별도 실행입니다. 최신 팔로 모든 월드를 통합 FULL 통과하거나 실물 검증을 마쳤다고 해석하지 않습니다.
+- 이미지 56개·영상 6개에 ID/날짜/버전/출처/한계를 붙였습니다. 오탐·대기 화면·이전 도표는 archive에 보존합니다. 레버 E1의 P/R 100%는 Gazebo 양성 100장 부분집합이며 실물 성능이 아닙니다.
+- 이번 동기화: Python 문법 138개, 회귀 테스트 68개 PASS, R34 런타임 소스 해시 일치 확인. 새 Gazebo 검증은 실행하지 않았습니다.
+- 재현 시 최신 브랜치의 `scripts/start_robot_observation.sh`와 로컬 경로를 확인하세요. 과거 비교용 launch 기본값에는 정답 피드백 모드도 남아 있습니다.
+
+## 이전 코드·보고서 안내 (2026-09-17 보존)
 
 **이 `master`의 로봇 소스는 이전 버전으로 보존하고, 최신 작업은 별도 브랜치로 관리합니다.** 최신 코드를 받으려면 아래 개발 브랜치를 선택하세요. 이번 `master` 갱신은 안내 문서만 변경합니다.
 
