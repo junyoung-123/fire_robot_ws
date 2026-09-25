@@ -612,7 +612,7 @@
     <sensor name="depth_camera" type="depth_camera">
       <always_on>true</always_on>
       <visualize>false</visualize>
-      <update_rate>5</update_rate>
+      <update_rate>10</update_rate>
       <topic>depth_camera</topic>
       <gz_frame_id>depth_optical_frame</gz_frame_id>
       <camera name="depth">

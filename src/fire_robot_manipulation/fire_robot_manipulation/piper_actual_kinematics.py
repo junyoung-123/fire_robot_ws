@@ -212,7 +212,7 @@ class PiperActualKinematics:
             target_xyz,
             seed=None,
             position_tolerance_m: float = 0.012,
-            max_iterations: int = 240,
+            max_iterations: int = 480,
             orientation_tolerance_rad: float = 0.10,
             target_rotation=None,
             prefer_seed_solution: bool = False) -> IkResult | None:

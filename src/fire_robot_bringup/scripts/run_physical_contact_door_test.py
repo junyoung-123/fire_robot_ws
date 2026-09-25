@@ -843,6 +843,13 @@ def _start_launch(log_path: Path, headless: bool,
         f"door_open_motion:={door_open_motion}",
         f"contact_min_angle_rad:={float(min_angle_rad):.6f}",
         f"feedback_contact_enabled:={str(feedback_contact).lower()}",
+        'fixture_world:='+os.environ.get('CONTACT_FIXTURE_WORLD','physical_contact_door_test.world'),
+        'initial_spawn_yaw:='+os.environ.get('CONTACT_INITIAL_YAW','-0.12'),
+        'feedback_press_sign:='+os.environ.get('CONTACT_LEVER_PRESS_SIGN','-1.0'),
+        'angle_controller:='+os.environ.get('CONTACT_ANGLE_CONTROLLER','observed_angle_manipulation_node'),
+        'handle_inference_size:='+os.environ.get('CONTACT_HANDLE_INFERENCE_SIZE','640'),
+        'environment_feedback_topic:='+os.environ.get('CONTACT_ENVIRONMENT_FEEDBACK_TOPIC','/door_joint_states'),
+        'lever_feedback_joint:='+os.environ.get('CONTACT_LEVER_FEEDBACK_JOINT','lever_joint'),
     ]
     log_file = log_path.open("w", encoding="utf-8", errors="replace")
     return subprocess.Popen(
@@ -923,8 +930,11 @@ def _approach_visible_handle(node, args):
                 ik_sample_time = sample['time_sec']
                 ik_target = xyz.copy()
                 ik_future = ik_worker.submit(kinematics.solve, xyz, max_iterations=100)
+            # Initial acquisition already passed the high confidence gate.
+            # Near-field tracking keeps the same stamped 3D target, with three
+            # consistent observations, rather than reacquiring a new object.
             if (abs(bearing) < .06 and reachable
-                    and observed.handle_confidence >= args.minimum_yolo_confidence):
+                    and observed.handle_confidence >= args.tracking_min_yolo_confidence):
                 node.manual_cmd_vel_pub.publish(command)
                 if sample['time_sec'] != used_time:
                     stable += 1

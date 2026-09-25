@@ -1,0 +1,262 @@
+{
+  "metrics": {
+    "trial": "observed_angle_r34",
+    "source": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_observed_angle_20260922\\artifacts\\validation\\observed_angle_r34\\physical_contact_door_test_20260922_193138",
+    "pass_original_contact_checker": true,
+    "service_success": true,
+    "service_message": "Door opened successfully",
+    "observed_samples": 1962,
+    "rejected_samples": 43,
+    "max_reference_opening_deg": 117.879420104889,
+    "max_observed_rotation_deg": 117.92342470698807,
+    "final_reference_signed_rotation_deg": -117.86429961433551,
+    "final_observed_signed_rotation_deg": -117.82967271314041,
+    "angle_error_rmse_deg": 0.28322802854932405,
+    "moving_angle_error_rmse_deg": 0.3432758372769792,
+    "max_absolute_error_deg": 2.39804520350009,
+    "model": "RGB-D panel plane plus LiDAR panel tracking, transformed by measured robot TF",
+    "control_input": "Door: RGB-D plane or visually initialized robot LiDAR line; lever: measured wrist FK; robot encoders and TF. No wrist-derived door angle.",
+    "limits": "Initial closed-plane baseline. Wrist-derived lever angle assumes rigid grasp; not direct lever sensing or proof of no slip. Robot encoders are simulated. Not a real-hardware test.",
+    "independent_reference": "Gazebo door and lever joints and contact pairs are read only by evidence recorder/checker, not controller",
+    "fixture": {
+      "world": "physical_contact_door_test.world",
+      "initial_spawn_yaw": -0.12,
+      "lever_press_sign": -1.0,
+      "angle_controller": "robot_observation_manipulation_node",
+      "handle_inference_size": 320,
+      "environment_feedback_topic": "/observed_door/rotation",
+      "lever_feedback_joint": "encoder_lever_rotation",
+      "scope": "Fixture and lever-direction configuration; no door coordinates or hinge angle supplied to controller"
+    },
+    "lidar_panel_samples": 133,
+    "legacy_result_scope_note": "The unchanged checker result feedback_scope is a legacy constant. The runtime graph audit and saved controller source define the actual input contract.",
+    "controller_input_audit": {
+      "passed": true,
+      "controller_pass": true,
+      "observer_pass": true,
+      "required": [
+        "/joint_states:",
+        "/observed_door/rotation:",
+        "/detected_door:"
+      ],
+      "observer_required": [
+        "/scan:",
+        "/camera/depth/image_rect_raw:",
+        "/camera/color/image_raw:"
+      ],
+      "forbidden": [
+        "/door_joint_states",
+        "/model_states",
+        "/link_states"
+      ],
+      "audit_script_sha256": "35def414136ddeb22fc32ee8143d5bc3dc8ad4a7cb51d44ec84a9f6df334c6d5",
+      "scope": "Live graph audit plus strict callback name filter. Simulator is retained for independent evaluation."
+    },
+    "control_angle_rmse_deg": 0.37412293972082156,
+    "control_angle_max_error_deg": 2.192351841466782,
+    "grasp_fk_samples": 0,
+    "feedback_log_parse_errors": 0,
+    "opening_verified_by_observed_angle": true,
+    "handle_release_verified": true,
+    "withdrawal_verified": true,
+    "home_verified": true,
+    "opening_visually_reconfirmed": true,
+    "opening_decision_sim_time_sec": 190.991,
+    "opening_decision_observed_deg": 117.77616479042784,
+    "opening_decision_reference_deg": 117.83890794734552,
+    "opening_goal_deg": 117.45634800181875,
+    "base_path_during_held_opening_m": 1.2601795475132849,
+    "base_net_displacement_during_held_opening_m": 1.1716244613446916
+  },
+  "pictures": [
+    {
+      "file": "02_observing_scene.png",
+      "source": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_observed_angle_20260922\\artifacts\\validation\\observed_angle_r34\\physical_contact_door_test_20260922_193138\\demo_frames\\00005_scene.png",
+      "sha256": "84e6a1eb776d758bd0aec5fe704151fbfa5160df4fb1d38095adf16f537c024a",
+      "sim_time": 1.665
+    },
+    {
+      "file": "02_observing_robot.png",
+      "source": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_observed_angle_20260922\\artifacts\\validation\\observed_angle_r34\\physical_contact_door_test_20260922_193138\\demo_frames\\00005_robot.png",
+      "sha256": "43347c12629ecfa0d9fc40e14cfadf2575314146d0b4bac538e66aeffce05a6e",
+      "sim_time": 1.665
+    },
+    {
+      "file": "02_observing_overhead.png",
+      "source": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_observed_angle_20260922\\artifacts\\validation\\observed_angle_r34\\physical_contact_door_test_20260922_193138\\demo_frames\\00005_overhead.png",
+      "sha256": "7abb7f68bce6395617285cd96e2b6d7c47177d094d49e68f2fe4dc26a2a297af",
+      "sim_time": 1.665
+    },
+    {
+      "file": "02_observing_handle.png",
+      "source": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_observed_angle_20260922\\artifacts\\validation\\observed_angle_r34\\physical_contact_door_test_20260922_193138\\demo_frames\\00005_handle.png",
+      "sha256": "9546ca6f43b5d48b2da1cbe39823bdcd132dda9dbe1a802dec2c4b81cc11fc4b",
+      "sim_time": 1.665
+    },
+    {
+      "file": "03_reach_handle_scene.png",
+      "source": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_observed_angle_20260922\\artifacts\\validation\\observed_angle_r34\\physical_contact_door_test_20260922_193138\\demo_frames\\00113_scene.png",
+      "sha256": "157797ec7d7ff52485dff516f5fe97a2f5c5e75d53b3f8c212582b0d2eadb793",
+      "sim_time": 37.629
+    },
+    {
+      "file": "03_reach_handle_robot.png",
+      "source": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_observed_angle_20260922\\artifacts\\validation\\observed_angle_r34\\physical_contact_door_test_20260922_193138\\demo_frames\\00113_robot.png",
+      "sha256": "d273800fe532e4e5fbc1793fed972868cbc998d4f3b713abce03e1a31e0fbdb8",
+      "sim_time": 37.629
+    },
+    {
+      "file": "03_reach_handle_detection.png",
+      "source": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_observed_angle_20260922\\artifacts\\validation\\observed_angle_r34\\physical_contact_door_test_20260922_193138\\demo_frames\\00113_detection.png",
+      "sha256": "4628c622006ee97a9c2e478c22aeeab45fefd0ab8b9c3b4d5f6b31ae0c7bff3a",
+      "sim_time": 37.629
+    },
+    {
+      "file": "03_reach_handle_overhead.png",
+      "source": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_observed_angle_20260922\\artifacts\\validation\\observed_angle_r34\\physical_contact_door_test_20260922_193138\\demo_frames\\00113_overhead.png",
+      "sha256": "ff10f98400a4ff156354cc93b2cd9ba7fdfe65b1b9b2923f5ce582c4eb35ccf9",
+      "sim_time": 37.629
+    },
+    {
+      "file": "03_reach_handle_handle.png",
+      "source": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_observed_angle_20260922\\artifacts\\validation\\observed_angle_r34\\physical_contact_door_test_20260922_193138\\demo_frames\\00113_handle.png",
+      "sha256": "17ed207c8c09c6280919136a39b1697e28cf2cec0683a4bdbe3cffcb9c200bdc",
+      "sim_time": 37.629
+    },
+    {
+      "file": "04_press_lever_scene.png",
+      "source": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_observed_angle_20260922\\artifacts\\validation\\observed_angle_r34\\physical_contact_door_test_20260922_193138\\demo_frames\\00189_scene.png",
+      "sha256": "439c33b52f2d3ee158b9e5609beead34e25036bd37f1d6842a0b50f624ceccde",
+      "sim_time": 62.937
+    },
+    {
+      "file": "04_press_lever_robot.png",
+      "source": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_observed_angle_20260922\\artifacts\\validation\\observed_angle_r34\\physical_contact_door_test_20260922_193138\\demo_frames\\00189_robot.png",
+      "sha256": "8b91d08a0795411b98726cae829a92099ec5590e71404f30b5ac8a7521e81343",
+      "sim_time": 62.937
+    },
+    {
+      "file": "04_press_lever_detection.png",
+      "source": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_observed_angle_20260922\\artifacts\\validation\\observed_angle_r34\\physical_contact_door_test_20260922_193138\\demo_frames\\00189_detection.png",
+      "sha256": "7f39ca5c2e349e1a37ba42fbd4cb84a115c271853da52cf73a50150b1b6e5221",
+      "sim_time": 62.937
+    },
+    {
+      "file": "04_press_lever_overhead.png",
+      "source": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_observed_angle_20260922\\artifacts\\validation\\observed_angle_r34\\physical_contact_door_test_20260922_193138\\demo_frames\\00189_overhead.png",
+      "sha256": "260f388dcf2b229a477c43d08162666b08fe97f0ecc9152f20e66e4bce5b0311",
+      "sim_time": 62.937
+    },
+    {
+      "file": "04_press_lever_handle.png",
+      "source": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_observed_angle_20260922\\artifacts\\validation\\observed_angle_r34\\physical_contact_door_test_20260922_193138\\demo_frames\\00189_handle.png",
+      "sha256": "cc76bc88f0acdad570da9a7e5c4797b62a9a815dee748bd765767474ef5a3099",
+      "sim_time": 62.937
+    },
+    {
+      "file": "05_base_open_scene.png",
+      "source": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_observed_angle_20260922\\artifacts\\validation\\observed_angle_r34\\physical_contact_door_test_20260922_193138\\demo_frames\\00580_scene.png",
+      "sha256": "ff149c39adede10820ab0fc0f965c4f751a56c519cc0563a917f8d02f6337987",
+      "sim_time": 193.14
+    },
+    {
+      "file": "05_base_open_robot.png",
+      "source": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_observed_angle_20260922\\artifacts\\validation\\observed_angle_r34\\physical_contact_door_test_20260922_193138\\demo_frames\\00580_robot.png",
+      "sha256": "3b3a4020ae303627feb28f0be2c3f809979db5f1450144abe0edb9a9d43fdf02",
+      "sim_time": 193.14
+    },
+    {
+      "file": "05_base_open_detection.png",
+      "source": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_observed_angle_20260922\\artifacts\\validation\\observed_angle_r34\\physical_contact_door_test_20260922_193138\\demo_frames\\00580_detection.png",
+      "sha256": "3b3a4020ae303627feb28f0be2c3f809979db5f1450144abe0edb9a9d43fdf02",
+      "sim_time": 193.14
+    },
+    {
+      "file": "05_base_open_overhead.png",
+      "source": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_observed_angle_20260922\\artifacts\\validation\\observed_angle_r34\\physical_contact_door_test_20260922_193138\\demo_frames\\00580_overhead.png",
+      "sha256": "0a1d6a4e8fd51673ae4caa4961a35fbe334b752ba9fe56a6f5b4cdda700978dc",
+      "sim_time": 193.14
+    },
+    {
+      "file": "05_base_open_handle.png",
+      "source": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_observed_angle_20260922\\artifacts\\validation\\observed_angle_r34\\physical_contact_door_test_20260922_193138\\demo_frames\\00580_handle.png",
+      "sha256": "4daccfbd0d3f0bf8bc2aaed8f5db5109278dc7a20cb857db4278be82f72104ae",
+      "sim_time": 193.14
+    },
+    {
+      "file": "06_complete_scene.png",
+      "source": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_observed_angle_20260922\\artifacts\\validation\\observed_angle_r34\\physical_contact_door_test_20260922_193138\\demo_frames\\00602_scene.png",
+      "sha256": "1bb2544f13b0594cd47caca37329a88ffacc4c0a5888e590d2a4b2c93b61a3bf",
+      "sim_time": 200.466
+    },
+    {
+      "file": "06_complete_robot.png",
+      "source": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_observed_angle_20260922\\artifacts\\validation\\observed_angle_r34\\physical_contact_door_test_20260922_193138\\demo_frames\\00602_robot.png",
+      "sha256": "a619e8874148f5e082f811f3f42d6b6929e781b0dbdfc0ff1f226f434980a123",
+      "sim_time": 200.466
+    },
+    {
+      "file": "06_complete_detection.png",
+      "source": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_observed_angle_20260922\\artifacts\\validation\\observed_angle_r34\\physical_contact_door_test_20260922_193138\\demo_frames\\00602_detection.png",
+      "sha256": "858fb7efa77892992b29403def520ca7e88c033e20eee7cb7ba5bb23f1de3d51",
+      "sim_time": 200.466
+    },
+    {
+      "file": "06_complete_overhead.png",
+      "source": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_observed_angle_20260922\\artifacts\\validation\\observed_angle_r34\\physical_contact_door_test_20260922_193138\\demo_frames\\00602_overhead.png",
+      "sha256": "5229b24fd171399b28dbd3e8194dd1dc46a7e2f1d589e9c9f8df25ca20ade691",
+      "sim_time": 200.466
+    },
+    {
+      "file": "06_complete_handle.png",
+      "source": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_observed_angle_20260922\\artifacts\\validation\\observed_angle_r34\\physical_contact_door_test_20260922_193138\\demo_frames\\00602_handle.png",
+      "sha256": "84721dc7590d0bd0efa6ca9917896a853e5a338c67407542c2d8d6b3c83f4fca",
+      "sim_time": 200.466
+    }
+  ],
+  "video": {
+    "file": "10_observed_angle_opening_bbox_4x.mp4",
+    "frames": 602,
+    "fps": 12,
+    "speed_relative_to_sim_time": 4.0,
+    "sim_start": 0.002,
+    "sim_end": 200.466,
+    "duration_sec": 50.166666666666664,
+    "sha256": "8a42f3359fe369f63cc284d6972bb6d641fd10a67850f3971aa9df98468c9332"
+  },
+  "videos": [
+    {
+      "file": "07_observed_angle_opening_4x.mp4",
+      "frames": 602,
+      "fps": 12,
+      "speed_relative_to_sim_time": 4.0,
+      "sim_start": 0.002,
+      "sim_end": 200.466,
+      "duration_sec": 50.166666666666664,
+      "sha256": "2e1df99d31ea377fee187af93a56144a68404fddccd46ef47487f7be8661d2ff"
+    },
+    {
+      "file": "09_gazebo_scene_original_1x.mp4",
+      "frames": 2406,
+      "fps": 12,
+      "speed_relative_to_sim_time": 1.0,
+      "sim_start": 0.002,
+      "sim_end": 200.466,
+      "duration_sec": 200.5,
+      "sha256": "a3d0ad2fcd17849bc56601582d7f5e6275d772f8aafe903655c9c48883c75784"
+    },
+    {
+      "file": "10_observed_angle_opening_bbox_4x.mp4",
+      "frames": 602,
+      "fps": 12,
+      "speed_relative_to_sim_time": 4.0,
+      "sim_start": 0.002,
+      "sim_end": 200.466,
+      "duration_sec": 50.166666666666664,
+      "sha256": "8a42f3359fe369f63cc284d6972bb6d641fd10a67850f3971aa9df98468c9332"
+    }
+  ],
+  "camera_note": "Same-run continuous sequence. Right: original saved detector debug images (door candidate and YOLO handle boxes when detected); no redrawn boxes. Missing or unchanged >1s output is hidden. Debug source stamps were zero, so exact sensor synchronization cannot be certified. Robot-control code and simulation result unchanged.",
+  "source_timeline_sha256": "1172e939801839da89e610dbf3bdcce9495d64865030a3163a758f9d7f485501",
+  "bbox_frame_provenance": "bbox_frame_provenance.json"
+}

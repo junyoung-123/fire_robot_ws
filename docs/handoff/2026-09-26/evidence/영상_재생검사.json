@@ -1,0 +1,32 @@
+[
+  {
+    "id": "PV1",
+    "file": "03_17_24p_관측과지도/04_과거_인식과지도과정_20260910.mp4",
+    "decode_ok": true
+  },
+  {
+    "id": "PV2",
+    "file": "03_17_24p_관측과지도/05_문관측누적_MEMORY_R3_1x.mp4",
+    "decode_ok": true
+  },
+  {
+    "id": "MV1",
+    "file": "04_25_28p_문기억과목표/03_재관측제외_목표유지_MEMORY_R3_1x.mp4",
+    "decode_ok": true
+  },
+  {
+    "id": "MV2",
+    "file": "04_25_28p_문기억과목표/04_두문기억_전체흐름_MEMORY_R3_1x.mp4",
+    "decode_ok": true
+  },
+  {
+    "id": "OV1",
+    "file": "05_29_36p_접근과문개방/06_문발견_정렬_개방_BBox_R34_4x.mp4",
+    "decode_ok": true
+  },
+  {
+    "id": "OV2",
+    "file": "05_29_36p_접근과문개방/07_외부시점_무자막_R34_1x.mp4",
+    "decode_ok": true
+  }
+]

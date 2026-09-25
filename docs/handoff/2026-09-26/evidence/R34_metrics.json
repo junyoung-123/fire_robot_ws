@@ -1,0 +1,69 @@
+{
+  "trial": "observed_angle_r34",
+  "source": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_observed_angle_20260922\\artifacts\\validation\\observed_angle_r34\\physical_contact_door_test_20260922_193138",
+  "pass_original_contact_checker": true,
+  "service_success": true,
+  "service_message": "Door opened successfully",
+  "observed_samples": 1962,
+  "rejected_samples": 43,
+  "max_reference_opening_deg": 117.879420104889,
+  "max_observed_rotation_deg": 117.92342470698807,
+  "final_reference_signed_rotation_deg": -117.86429961433551,
+  "final_observed_signed_rotation_deg": -117.82967271314041,
+  "angle_error_rmse_deg": 0.28322802854932405,
+  "moving_angle_error_rmse_deg": 0.3432758372769792,
+  "max_absolute_error_deg": 2.39804520350009,
+  "model": "RGB-D panel plane plus LiDAR panel tracking, transformed by measured robot TF",
+  "control_input": "Door: RGB-D plane or visually initialized robot LiDAR line; lever: measured wrist FK; robot encoders and TF. No wrist-derived door angle.",
+  "limits": "Initial closed-plane baseline. Wrist-derived lever angle assumes rigid grasp; not direct lever sensing or proof of no slip. Robot encoders are simulated. Not a real-hardware test.",
+  "independent_reference": "Gazebo door and lever joints and contact pairs are read only by evidence recorder/checker, not controller",
+  "fixture": {
+    "world": "physical_contact_door_test.world",
+    "initial_spawn_yaw": -0.12,
+    "lever_press_sign": -1.0,
+    "angle_controller": "robot_observation_manipulation_node",
+    "handle_inference_size": 320,
+    "environment_feedback_topic": "/observed_door/rotation",
+    "lever_feedback_joint": "encoder_lever_rotation",
+    "scope": "Fixture and lever-direction configuration; no door coordinates or hinge angle supplied to controller"
+  },
+  "lidar_panel_samples": 133,
+  "legacy_result_scope_note": "The unchanged checker result feedback_scope is a legacy constant. The runtime graph audit and saved controller source define the actual input contract.",
+  "controller_input_audit": {
+    "passed": true,
+    "controller_pass": true,
+    "observer_pass": true,
+    "required": [
+      "/joint_states:",
+      "/observed_door/rotation:",
+      "/detected_door:"
+    ],
+    "observer_required": [
+      "/scan:",
+      "/camera/depth/image_rect_raw:",
+      "/camera/color/image_raw:"
+    ],
+    "forbidden": [
+      "/door_joint_states",
+      "/model_states",
+      "/link_states"
+    ],
+    "audit_script_sha256": "35def414136ddeb22fc32ee8143d5bc3dc8ad4a7cb51d44ec84a9f6df334c6d5",
+    "scope": "Live graph audit plus strict callback name filter. Simulator is retained for independent evaluation."
+  },
+  "control_angle_rmse_deg": 0.37412293972082156,
+  "control_angle_max_error_deg": 2.192351841466782,
+  "grasp_fk_samples": 0,
+  "feedback_log_parse_errors": 0,
+  "opening_verified_by_observed_angle": true,
+  "handle_release_verified": true,
+  "withdrawal_verified": true,
+  "home_verified": true,
+  "opening_visually_reconfirmed": true,
+  "opening_decision_sim_time_sec": 190.991,
+  "opening_decision_observed_deg": 117.77616479042784,
+  "opening_decision_reference_deg": 117.83890794734552,
+  "opening_goal_deg": 117.45634800181875,
+  "base_path_during_held_opening_m": 1.2601795475132849,
+  "base_net_displacement_during_held_opening_m": 1.1716244613446916
+}

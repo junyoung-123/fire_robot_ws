@@ -1,0 +1,22 @@
+{
+  "passed": true,
+  "controller_pass": true,
+  "observer_pass": true,
+  "required": [
+    "/joint_states:",
+    "/observed_door/rotation:",
+    "/detected_door:"
+  ],
+  "observer_required": [
+    "/scan:",
+    "/camera/depth/image_rect_raw:",
+    "/camera/color/image_raw:"
+  ],
+  "forbidden": [
+    "/door_joint_states",
+    "/model_states",
+    "/link_states"
+  ],
+  "audit_script_sha256": "35def414136ddeb22fc32ee8143d5bc3dc8ad4a7cb51d44ec84a9f6df334c6d5",
+  "scope": "Live graph audit plus strict callback name filter. Simulator is retained for independent evaluation."
+}

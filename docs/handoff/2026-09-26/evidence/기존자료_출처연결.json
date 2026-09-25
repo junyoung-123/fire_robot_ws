@@ -1,0 +1,538 @@
+[
+  {
+    "file": "01_10페이지_다섯단계/01_관측.png",
+    "source": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_corridor_demo_20260922\\artifacts\\validation\\corridor_demo_r1\\physical_contact_door_test_20260922_121222\\yolo_primary_detection.png",
+    "pages": [
+      10,
+      17,
+      32
+    ],
+    "sha256": "1ff1d8f5a50a1046bc3ebe7e0ed6da77a5c8fcc1ba9fd2d8de234b2b55fae48b",
+    "note": "새 복도 근접시험의 실제 검출 이미지. 손잡이 primary YOLO와 registered depth 사용. 문 bbox에는 HSV fallback도 활성화되어 있음.",
+    "method": "byte-identical copy"
+  },
+  {
+    "file": "01_10페이지_다섯단계/02_의미기억.png",
+    "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\03_25_26페이지_문기억_재선택제외\\first_door_opened_map.png",
+    "pages": [
+      10,
+      25,
+      26
+    ],
+    "sha256": "56d271c2ce0317ca57c27887444fdf2d4cac9ba5c7bcfb940577cf63da37d875",
+    "note": "실제 FSM opened_positions와 후보, 목표를 실제 /map 위에 표시. Gazebo 화면 캡처가 아니라 기록 데이터 시각화.",
+    "method": "byte-identical copy"
+  },
+  {
+    "file": "01_10페이지_다섯단계/03_목표선택.png",
+    "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\03_25_26페이지_문기억_재선택제외\\target_selected_map.png",
+    "pages": [
+      10,
+      27,
+      28
+    ],
+    "sha256": "ded36d82e388ff84bb0e687a227e0d3fc804760f2f434d76340a47a8c228a8f6",
+    "note": "실제 FSM target의 parking goal을 노란 원으로 표시. 파란 관측 위치와 주차 목표는 서로 다른 좌표임.",
+    "method": "byte-identical copy"
+  },
+  {
+    "file": "01_10페이지_다섯단계/04_이동정렬.png",
+    "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\02_36페이지_복도문_연속데모\\pre_grasp_scene.png",
+    "pages": [
+      10,
+      29
+    ],
+    "sha256": "dd68dc9a24c1c81a6edbc5a96cdebabb881ea6c61395dd5b5ed7a1e55af6334d",
+    "note": "접근 후 팔이 pre-grasp로 이동하는 실제 장면. 근접 관측+IK 기준의 정렬이며 복도 전체 Nav2 검증과 구분.",
+    "method": "byte-identical copy"
+  },
+  {
+    "file": "01_10페이지_다섯단계/05_개방확인.png",
+    "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\02_36페이지_복도문_연속데모\\handle_held_base_open_handle.png",
+    "pages": [
+      10,
+      33
+    ],
+    "sha256": "44f5b0199d167dc396f7c5b5a2358e72e61a55ee6623d2e495439b7e27f7657f",
+    "note": "같은 복도 근접시험의 손잡이 유지 개방 장면. 완료 여부는 result.json의 관절 피드백으로 별도 확인.",
+    "method": "byte-identical copy"
+  },
+  {
+    "file": "04_11페이지_로봇플랫폼/01_Gazebo_실제PIPER형상.png",
+    "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\02_36페이지_복도문_연속데모\\pre_grasp_scene.png",
+    "pages": [
+      11
+    ],
+    "sha256": "dd68dc9a24c1c81a6edbc5a96cdebabb881ea6c61395dd5b5ed7a1e55af6334d",
+    "note": "시뮬레이션 로봇 원본 이미지. 실물 사진이 아님.",
+    "method": "byte-identical copy"
+  },
+  {
+    "file": "04_11페이지_로봇플랫폼/02_복도와로봇_상단시점.png",
+    "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\02_36페이지_복도문_연속데모\\observing_overhead.png",
+    "pages": [
+      11,
+      38,
+      39
+    ],
+    "sha256": "71f6935c5544e561859b11d420803cfe074e7f9ee28ed634ab65f62b54799b09",
+    "note": "새 근접 시험 복도와 벽 부착 문. 월드1~5 전체 검증의 월드가 아님.",
+    "method": "byte-identical copy"
+  },
+  {
+    "file": "05_40_42페이지_성능과피드백/01_handle_v2_v3_fixed_threshold.png",
+    "source": [
+      "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\04_보고서_추가분석_20260913\\handle_v2_v3_paired_comparison.json"
+    ],
+    "source_sha256": [
+      "9926ec8efa2d599f74000148dfe139a9b814ade53591f21118dbfca0be8db67a"
+    ],
+    "pages": [
+      40
+    ],
+    "sha256": "944780573e30ead685862090da275fd5e8de8fa235992f78c6f49e1b33cc1f6e",
+    "note": "동일 Gazebo holdout 160장, conf=0.25, IoU 매칭>=0.5, imgsz=640. 양성100/음성60. v3 TP100 FP54 FN0. v2 예측0으로 precision 정의 불가. 실제 도메인 성능 또는 ROS 실시간 정확도와 동일하지 않음.",
+    "method": "Plot of recorded data"
+  },
+  {
+    "file": "05_40_42페이지_성능과피드백/02_new_corridor_door_lever_angles.png",
+    "source": [
+      "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_corridor_demo_20260922\\artifacts\\validation\\corridor_demo_r1\\physical_contact_door_test_20260922_121222\\result.json"
+    ],
+    "source_sha256": [
+      "15b6a7572ccb5aa372bc130c32fa3b5acffb4d1e2dd38f52b16f71f440150a96"
+    ],
+    "pages": [
+      34,
+      42
+    ],
+    "sha256": "5e1e335b737bb16321d78d9588a7b665016f16dd136b57f456cc5bb49542463d",
+    "note": "2026-09-22 corridor_demo_r1 실제 Gazebo 관절 피드백. 문 개방 기준 2.05 rad, 레버 누름 기준 0.08 rad. 누름은 각도 기준뿐 아니라 안정된 연속 샘플도 확인함. 시각적 각도 추정이나 실물 힘 센서 측정이 아님.",
+    "method": "Plot of recorded data"
+  },
+  {
+    "file": "05_40_42페이지_성능과피드백/03_arm_approach_tracking_error.png",
+    "source": [
+      "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_corridor_demo_20260922\\artifacts\\validation\\corridor_demo_r1\\physical_contact_door_test_20260922_121222\\result.json"
+    ],
+    "source_sha256": [
+      "15b6a7572ccb5aa372bc130c32fa3b5acffb4d1e2dd38f52b16f71f440150a96"
+    ],
+    "pages": [
+      29,
+      42
+    ],
+    "sha256": "9fd07acd76cc9210c08739735f5a87129cbdacbd7f4871698dadd7c3064993e5",
+    "note": "관절 피드백 FK로 계산한 실제 tool 위치와 해당 단계의 명령 목표 간 오차. 움직이는 실제 손잡이 표면까지의 전 과정 거리나 관측 좌표 절대 정확도가 아님. 목표가 바뀌면 오차가 다시 커질 수 있음.",
+    "method": "Plot of recorded data"
+  },
+  {
+    "file": "06_41페이지_보존된월드1_5_주행/world1_path.png",
+    "source": [
+      "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\10_통합재검증_보고서개정_20260916\\08_동일코드_월드1_5_검증집계_20260916\\world1_trace\\poses.csv",
+      "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\10_통합재검증_보고서개정_20260916\\08_동일코드_월드1_5_검증집계_20260916\\world1_trace\\mission_evidence_final_metrics.json"
+    ],
+    "source_sha256": [
+      "62781b7094599a08332fc321e9219514af7d660b3ed7bf98d19a7c92801e0c2b",
+      "dcc4ffe08cae20676c3c0e58db627eec07b9ba397096a3dd39f4a8e4ff752304"
+    ],
+    "pages": [
+      41
+    ],
+    "sha256": "3bc223347f1d4c005f363cf62637bd9c1f62193ba4e220ca0d166f3b5427ad5b",
+    "note": "보존된 r8/r9 동일 코드 주행 자료. saved map + sim_odom + 단순화 힌지 backend. 현재 PIPER 접촉 데모와 별도 실행이며 장애물 도형은 이 그래프에 표시하지 않음.",
+    "method": "Plot of recorded data"
+  },
+  {
+    "file": "06_41페이지_보존된월드1_5_주행/world1_layout.png",
+    "source": [
+      "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_corridor_demo_20260922\\src\\fire_robot_bringup\\worlds\\obstacle_wall_doors_v5.world",
+      "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\10_통합재검증_보고서개정_20260916\\08_동일코드_월드1_5_검증집계_20260916\\runtime_inputs.sha256"
+    ],
+    "source_sha256": [
+      "eac7667f9439595d471220d5443be8e30fbe4ce3ba7c927a69c0b8cb5697691e",
+      "f503eb532eac25ae116c006845d3557c1de3ebb508daa2b7d773cc9e23feb951"
+    ],
+    "pages": [
+      38,
+      39,
+      41
+    ],
+    "sha256": "30bfaaac15d195d88ff4674ded91a3bffb6e55401fc15364c8d2682a19ae5ab1",
+    "note": "SDF 세계 좌표의 초기 문·벽·장애물 배치도. 기존 실행 world SHA256 일치 확인. Gazebo 캡처나 로봇 인지 지도가 아니며 이 도형을 주행 입력으로 넣었다는 의미가 아님.",
+    "method": "Plot of recorded data"
+  },
+  {
+    "file": "06_41페이지_보존된월드1_5_주행/world2_path.png",
+    "source": [
+      "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\10_통합재검증_보고서개정_20260916\\08_동일코드_월드1_5_검증집계_20260916\\world2_trace\\poses.csv",
+      "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\10_통합재검증_보고서개정_20260916\\08_동일코드_월드1_5_검증집계_20260916\\world2_trace\\mission_evidence_final_metrics.json"
+    ],
+    "source_sha256": [
+      "b368431888a237bb08df7179f15c65a484d16c5e8b878b6a7de14a738cc4b912",
+      "a2983422d167fee0081f6587ff2760c6c84d966c399dd8c294ed05ec9c6bb4fd"
+    ],
+    "pages": [
+      41
+    ],
+    "sha256": "745e5f0305177125b2ab936a1bdbe1ba1ed3f678d0d56e999b697b15a951b448",
+    "note": "보존된 r8/r9 동일 코드 주행 자료. saved map + sim_odom + 단순화 힌지 backend. 현재 PIPER 접촉 데모와 별도 실행이며 장애물 도형은 이 그래프에 표시하지 않음.",
+    "method": "Plot of recorded data"
+  },
+  {
+    "file": "06_41페이지_보존된월드1_5_주행/world2_layout.png",
+    "source": [
+      "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_corridor_demo_20260922\\src\\fire_robot_bringup\\worlds\\obstacle_door_layout_alt_v1.world",
+      "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\10_통합재검증_보고서개정_20260916\\08_동일코드_월드1_5_검증집계_20260916\\runtime_inputs.sha256"
+    ],
+    "source_sha256": [
+      "9484b64022f7dd0ccfe9f78d35b55d458cf5589a993eb208c568e62c2a9d3f9c",
+      "f503eb532eac25ae116c006845d3557c1de3ebb508daa2b7d773cc9e23feb951"
+    ],
+    "pages": [
+      38,
+      39,
+      41
+    ],
+    "sha256": "42c947b35d618fa04a3ab428c6b598b041474492cb592d39c72a3bfca3186317",
+    "note": "SDF 세계 좌표의 초기 문·벽·장애물 배치도. 기존 실행 world SHA256 일치 확인. Gazebo 캡처나 로봇 인지 지도가 아니며 이 도형을 주행 입력으로 넣었다는 의미가 아님.",
+    "method": "Plot of recorded data"
+  },
+  {
+    "file": "06_41페이지_보존된월드1_5_주행/world3_path.png",
+    "source": [
+      "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\10_통합재검증_보고서개정_20260916\\08_동일코드_월드1_5_검증집계_20260916\\world3_trace\\poses.csv",
+      "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\10_통합재검증_보고서개정_20260916\\08_동일코드_월드1_5_검증집계_20260916\\world3_trace\\mission_evidence_final_metrics.json"
+    ],
+    "source_sha256": [
+      "6f5b48e3a166aa2f5ed1ebcc725794a539c9f8db91e193379ec8d7eb97fffcae",
+      "a65115fa6177d233a4e03fc2738517b704327d2ed56afb2863cabeb67562c568"
+    ],
+    "pages": [
+      41
+    ],
+    "sha256": "b755dfd7d32e67179233788458b3896f267d23f69f70901ba2c3d04c3e66492c",
+    "note": "보존된 r8/r9 동일 코드 주행 자료. saved map + sim_odom + 단순화 힌지 backend. 현재 PIPER 접촉 데모와 별도 실행이며 장애물 도형은 이 그래프에 표시하지 않음.",
+    "method": "Plot of recorded data"
+  },
+  {
+    "file": "06_41페이지_보존된월드1_5_주행/world3_layout.png",
+    "source": [
+      "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_corridor_demo_20260922\\src\\fire_robot_bringup\\worlds\\obstacle_door_layout_world3_v1.world",
+      "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\10_통합재검증_보고서개정_20260916\\08_동일코드_월드1_5_검증집계_20260916\\runtime_inputs.sha256"
+    ],
+    "source_sha256": [
+      "08f9928227254bbaf26b637424bc71aeed0bab58f7971ee8d101d51cc3e354c1",
+      "f503eb532eac25ae116c006845d3557c1de3ebb508daa2b7d773cc9e23feb951"
+    ],
+    "pages": [
+      38,
+      39,
+      41
+    ],
+    "sha256": "9032df86a94450d219ef263fd52c102f731681f3b49299bf3fef907543dc6a6f",
+    "note": "SDF 세계 좌표의 초기 문·벽·장애물 배치도. 기존 실행 world SHA256 일치 확인. Gazebo 캡처나 로봇 인지 지도가 아니며 이 도형을 주행 입력으로 넣었다는 의미가 아님.",
+    "method": "Plot of recorded data"
+  },
+  {
+    "file": "06_41페이지_보존된월드1_5_주행/world4_path.png",
+    "source": [
+      "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\10_통합재검증_보고서개정_20260916\\08_동일코드_월드1_5_검증집계_20260916\\world4_trace\\poses.csv",
+      "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\10_통합재검증_보고서개정_20260916\\08_동일코드_월드1_5_검증집계_20260916\\world4_trace\\mission_evidence_final_metrics.json"
+    ],
+    "source_sha256": [
+      "10985d66f9665129f321a69fd490b45da369f7b09500ab77102ab0abe7336ca5",
+      "fb73de4ffb96ce712b1d7ca0128aa006db93aefcc76620b3c63a6190498d9b94"
+    ],
+    "pages": [
+      41
+    ],
+    "sha256": "49263a6bbb7c5c9b40f2b4429d86704494d078565e845ca120bec297f0689fd4",
+    "note": "보존된 r8/r9 동일 코드 주행 자료. saved map + sim_odom + 단순화 힌지 backend. 현재 PIPER 접촉 데모와 별도 실행이며 장애물 도형은 이 그래프에 표시하지 않음.",
+    "method": "Plot of recorded data"
+  },
+  {
+    "file": "06_41페이지_보존된월드1_5_주행/world4_layout.png",
+    "source": [
+      "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_corridor_demo_20260922\\src\\fire_robot_bringup\\worlds\\obstacle_no_blue_world4_v1.world",
+      "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\10_통합재검증_보고서개정_20260916\\08_동일코드_월드1_5_검증집계_20260916\\runtime_inputs.sha256"
+    ],
+    "source_sha256": [
+      "893dbb5d2fff9eafad29cdb90009c89b785e671222059be6ac3d94691da0040b",
+      "f503eb532eac25ae116c006845d3557c1de3ebb508daa2b7d773cc9e23feb951"
+    ],
+    "pages": [
+      38,
+      39,
+      41
+    ],
+    "sha256": "e8e685b77c6d1cf57f25725851d8a943ebc845ca93cca6a76ffab35989c0827c",
+    "note": "SDF 세계 좌표의 초기 문·벽·장애물 배치도. 기존 실행 world SHA256 일치 확인. Gazebo 캡처나 로봇 인지 지도가 아니며 이 도형을 주행 입력으로 넣었다는 의미가 아님.",
+    "method": "Plot of recorded data"
+  },
+  {
+    "file": "06_41페이지_보존된월드1_5_주행/world5_path.png",
+    "source": [
+      "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\10_통합재검증_보고서개정_20260916\\08_동일코드_월드1_5_검증집계_20260916\\world5_trace\\poses.csv",
+      "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\10_통합재검증_보고서개정_20260916\\08_동일코드_월드1_5_검증집계_20260916\\world5_trace\\mission_evidence_final_metrics.json"
+    ],
+    "source_sha256": [
+      "d2dfd849145b477040dd68204832ccf84c5718721b6e5cf21da0d2ff3fcaf976",
+      "fe75336abc8d3462f3bd530a25d0dc8543e8be9ae48dc3f2d4bb518505e809a5"
+    ],
+    "pages": [
+      41
+    ],
+    "sha256": "33e23917faa736ff1eef927c65a990980f08342bbec19e017c6994d5e7a1efe0",
+    "note": "보존된 r8/r9 동일 코드 주행 자료. saved map + sim_odom + 단순화 힌지 backend. 현재 PIPER 접촉 데모와 별도 실행이며 장애물 도형은 이 그래프에 표시하지 않음.",
+    "method": "Plot of recorded data"
+  },
+  {
+    "file": "06_41페이지_보존된월드1_5_주행/world5_layout.png",
+    "source": [
+      "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_corridor_demo_20260922\\src\\fire_robot_bringup\\worlds\\obstacle_all_blue_world5_v1.world",
+      "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\10_통합재검증_보고서개정_20260916\\08_동일코드_월드1_5_검증집계_20260916\\runtime_inputs.sha256"
+    ],
+    "source_sha256": [
+      "547f1f5c08f4abd5fd4fec50dee4583df11c94d54d5d75c5271fed694307a95d",
+      "f503eb532eac25ae116c006845d3557c1de3ebb508daa2b7d773cc9e23feb951"
+    ],
+    "pages": [
+      38,
+      39,
+      41
+    ],
+    "sha256": "f7b544b0d7fd685f6b6696a2e48653c02c02f1225d84310e88caecb424806613",
+    "note": "SDF 세계 좌표의 초기 문·벽·장애물 배치도. 기존 실행 world SHA256 일치 확인. Gazebo 캡처나 로봇 인지 지도가 아니며 이 도형을 주행 입력으로 넣었다는 의미가 아님.",
+    "method": "Plot of recorded data"
+  },
+  {
+    "file": "07_17_24페이지_과거관측지도과정/20260910_live_perception_original.mp4",
+    "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\15_핵심아이디어_통합보고서_20260917\\09_영상\\08_인식과정_실행영상_browser_h264.mp4",
+    "pages": [
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24
+    ],
+    "sha256": "98701dd9a00e4292cf868ea05120419553bb855de77b37550fdae9056dc0aea2",
+    "note": "2026-09-10 별도 센서 관측 실행의 기존 영상. 설명이 합성된 원본을 보존하여 제공하며 최신 물리 접촉 실행으로 표시하지 않음.",
+    "method": "byte-identical copy"
+  },
+  {
+    "file": "08_17_40페이지_문검출_사진패널/20260910_blue_door_bbox.png",
+    "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\02_FSM별_검증증빙\\01_센서인식_Perception\\2026-09-10_성공_라이브_문인식좌표융합\\06_YOLO_문BBox_HSV색상인식.png",
+    "source_sha256": "327920ebc2b8602981a890428645775d4656cd62f3e623dcb9c82f00750ffafe",
+    "sha256": "e116729bf238b9e6f71d61f4a38b3f304cc4ca3d605a87901d32277065a3ef0a",
+    "pages": [
+      17,
+      40
+    ],
+    "note": "보존된 검출 증빙에서 카메라 패널만 추출. 파란문 검출 외에 박스 물체의 오검출도 그대로 유지. 최신 실행 이미지 아님.",
+    "method": "Crop of preserved evidence panel",
+    "crop_xywh": [
+      94,
+      367,
+      662,
+      417
+    ]
+  },
+  {
+    "file": "08_17_40페이지_문검출_사진패널/20260910_red_door_bbox.png",
+    "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\02_FSM별_검증증빙\\01_센서인식_Perception\\2026-09-10_성공_라이브_문인식좌표융합\\06_YOLO_문BBox_HSV색상인식.png",
+    "source_sha256": "327920ebc2b8602981a890428645775d4656cd62f3e623dcb9c82f00750ffafe",
+    "sha256": "0513248e4785b0814107deafed3ebc69183a6f6bac0f4088125a80bc7c6fd0f5",
+    "pages": [
+      17,
+      40
+    ],
+    "note": "보존된 검출 증빙에서 카메라 패널만 추출. 사진 속 bbox를 새로 생성하거나 변경하지 않음.",
+    "method": "Crop of preserved evidence panel",
+    "crop_xywh": [
+      870,
+      367,
+      662,
+      417
+    ]
+  },
+  {
+    "file": "07_17_24페이지_과거관측지도과정/20260910_01_map_panel.png",
+    "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\02_FSM별_검증증빙\\02_지도생성_문기억_Map_Memory\\2026-09-10_성공_라이브_좌표정밀화\\01_초기맵.png",
+    "source_sha256": "aef28d3f3d656f3860696f87144eadccee538e7f56351f7dd7082a0896fd9c4b",
+    "sha256": "5c1d6101352e3fe4347624f6d88a819ca8e5933df6af49935417111bcff1239f",
+    "pages": [
+      19,
+      20,
+      21,
+      22,
+      23,
+      24
+    ],
+    "note": "기존 라이브 관측 그림의 지도 패널을 추출. 지도/점/광선과 패널 내부 측정 표시는 보존. 새 문기억 실행의 저장맵과 구별.",
+    "method": "Crop of preserved evidence panel",
+    "crop_xywh": [
+      24,
+      240,
+      952,
+      590
+    ]
+  },
+  {
+    "file": "07_17_24페이지_과거관측지도과정/20260910_01_camera_panel.png",
+    "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\02_FSM별_검증증빙\\02_지도생성_문기억_Map_Memory\\2026-09-10_성공_라이브_좌표정밀화\\01_초기맵.png",
+    "source_sha256": "aef28d3f3d656f3860696f87144eadccee538e7f56351f7dd7082a0896fd9c4b",
+    "sha256": "bd49374f88a985eff80804718c618369a40ab8fa8e6561df0a09d06a481b5363",
+    "pages": [
+      19,
+      20,
+      21,
+      22,
+      23,
+      24
+    ],
+    "note": "같은 보존 그림의 로봇 카메라 패널. bbox 및 HSV handle 표시는 당시 파이프라인 출력으로 현재 YOLO 손잡이 결과가 아님.",
+    "method": "Crop of preserved evidence panel",
+    "crop_xywh": [
+      1042,
+      55,
+      496,
+      372
+    ]
+  },
+  {
+    "file": "07_17_24페이지_과거관측지도과정/20260910_02_map_panel.png",
+    "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\02_FSM별_검증증빙\\02_지도생성_문기억_Map_Memory\\2026-09-10_성공_라이브_좌표정밀화\\02_이동중_LiDAR_맵확장.png",
+    "source_sha256": "c0632916ae3ff3caa5a6063cf1f2313411f447a0583b600b3f4142bfe610e328",
+    "sha256": "b1fe50f9f9d8e39b044196243f44152eaa655828563f6ec06dd0bbcb0f405f5b",
+    "pages": [
+      19,
+      20,
+      21,
+      22,
+      23,
+      24
+    ],
+    "note": "기존 라이브 관측 그림의 지도 패널을 추출. 지도/점/광선과 패널 내부 측정 표시는 보존. 새 문기억 실행의 저장맵과 구별.",
+    "method": "Crop of preserved evidence panel",
+    "crop_xywh": [
+      24,
+      240,
+      952,
+      590
+    ]
+  },
+  {
+    "file": "07_17_24페이지_과거관측지도과정/20260910_02_camera_panel.png",
+    "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\02_FSM별_검증증빙\\02_지도생성_문기억_Map_Memory\\2026-09-10_성공_라이브_좌표정밀화\\02_이동중_LiDAR_맵확장.png",
+    "source_sha256": "c0632916ae3ff3caa5a6063cf1f2313411f447a0583b600b3f4142bfe610e328",
+    "sha256": "53083b2acc41547ca846673c8f121d0c1222390d3e1b138858bf255ea3ed990e",
+    "pages": [
+      19,
+      20,
+      21,
+      22,
+      23,
+      24
+    ],
+    "note": "같은 보존 그림의 로봇 카메라 패널. bbox 및 HSV handle 표시는 당시 파이프라인 출력으로 현재 YOLO 손잡이 결과가 아님.",
+    "method": "Crop of preserved evidence panel",
+    "crop_xywh": [
+      1042,
+      55,
+      496,
+      372
+    ]
+  },
+  {
+    "file": "07_17_24페이지_과거관측지도과정/20260910_03_map_panel.png",
+    "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\02_FSM별_검증증빙\\02_지도생성_문기억_Map_Memory\\2026-09-10_성공_라이브_좌표정밀화\\03_파란문_의미기억.png",
+    "source_sha256": "9372606bde4b37c80e40b2748a34dc40a3dae6b74baf536803e85f916c83aa37",
+    "sha256": "f3fcff058d0ffd7cdac5d835857c03fb330d61a92a3a8ec7b4e0a83de7464394",
+    "pages": [
+      19,
+      20,
+      21,
+      22,
+      23,
+      24
+    ],
+    "note": "기존 라이브 관측 그림의 지도 패널을 추출. 지도/점/광선과 패널 내부 측정 표시는 보존. 새 문기억 실행의 저장맵과 구별.",
+    "method": "Crop of preserved evidence panel",
+    "crop_xywh": [
+      24,
+      240,
+      952,
+      590
+    ]
+  },
+  {
+    "file": "07_17_24페이지_과거관측지도과정/20260910_03_camera_panel.png",
+    "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\02_FSM별_검증증빙\\02_지도생성_문기억_Map_Memory\\2026-09-10_성공_라이브_좌표정밀화\\03_파란문_의미기억.png",
+    "source_sha256": "9372606bde4b37c80e40b2748a34dc40a3dae6b74baf536803e85f916c83aa37",
+    "sha256": "d5a4a3977803a634d6606a95a844ddbe040c80a49f33d13c7042613d54d2d6a5",
+    "pages": [
+      19,
+      20,
+      21,
+      22,
+      23,
+      24
+    ],
+    "note": "같은 보존 그림의 로봇 카메라 패널. bbox 및 HSV handle 표시는 당시 파이프라인 출력으로 현재 YOLO 손잡이 결과가 아님.",
+    "method": "Crop of preserved evidence panel",
+    "crop_xywh": [
+      1042,
+      55,
+      496,
+      372
+    ]
+  },
+  {
+    "file": "07_17_24페이지_과거관측지도과정/20260910_04_map_panel.png",
+    "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\02_FSM별_검증증빙\\02_지도생성_문기억_Map_Memory\\2026-09-10_성공_라이브_좌표정밀화\\04_근접관측_좌표정밀화.png",
+    "source_sha256": "96786f6898fb0935b77bda735498784cc14efa837acff9f19f0c3e4cdc2c1b30",
+    "sha256": "41ef3be9e979205c7e7382243c48e334d4d1d92674724e78efec665600101cfd",
+    "pages": [
+      19,
+      20,
+      21,
+      22,
+      23,
+      24
+    ],
+    "note": "기존 라이브 관측 그림의 지도 패널을 추출. 지도/점/광선과 패널 내부 측정 표시는 보존. 새 문기억 실행의 저장맵과 구별.",
+    "method": "Crop of preserved evidence panel",
+    "crop_xywh": [
+      24,
+      240,
+      952,
+      590
+    ]
+  },
+  {
+    "file": "07_17_24페이지_과거관측지도과정/20260910_04_camera_panel.png",
+    "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\02_FSM별_검증증빙\\02_지도생성_문기억_Map_Memory\\2026-09-10_성공_라이브_좌표정밀화\\04_근접관측_좌표정밀화.png",
+    "source_sha256": "96786f6898fb0935b77bda735498784cc14efa837acff9f19f0c3e4cdc2c1b30",
+    "sha256": "6caf9cbbf94076819baf3fa0a48f79a448cdf96112079fb2a601d6cf516868de",
+    "pages": [
+      19,
+      20,
+      21,
+      22,
+      23,
+      24
+    ],
+    "note": "같은 보존 그림의 로봇 카메라 패널. bbox 및 HSV handle 표시는 당시 파이프라인 출력으로 현재 YOLO 손잡이 결과가 아님.",
+    "method": "Crop of preserved evidence panel",
+    "crop_xywh": [
+      1042,
+      55,
+      496,
+      372
+    ]
+  }
+]

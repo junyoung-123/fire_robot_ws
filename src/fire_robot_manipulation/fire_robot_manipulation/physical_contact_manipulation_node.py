@@ -1685,6 +1685,10 @@ class ManipulationNode(Node):
             except (ValueError, IndexError):
                 continue
 
+    def _feedback_handle_is_confident(self, msg: DoorInfo):
+        return (math.isfinite(msg.handle_confidence)
+                and msg.handle_confidence>=self._feedback_config['handle_min_confidence'])
+
     def _detected_door_callback(self, msg: DoorInfo):
         if not msg.handle_detected or not msg.handle_position.header.frame_id:
             return
@@ -1693,9 +1697,7 @@ class ManipulationNode(Node):
                 or not str(msg.handle_detection_method).startswith(
                     ('yolo:primary', 'track:primary_yolo'))
                 or not str(msg.handle_detection_method).endswith(':registered_depth')
-                or not math.isfinite(msg.handle_confidence)
-                or msg.handle_confidence
-                < self._feedback_config['handle_min_confidence']):
+                or not self._feedback_handle_is_confident(msg)):
             return
         point = PointStamped()
         point.header = msg.handle_position.header
@@ -2579,6 +2581,9 @@ class ManipulationNode(Node):
                              orientation_error_rad=orientation_error)
         return self._feedback_move_tool(goal, 'encoder_contact_follow')
 
+    def _select_contact_probe(self, speed, angular_z, opening_speed):
+        return speed, angular_z
+
     def _feedback_probe_contact_motion(self, angular_z=0., speed=.02, opening_speed=None):
         # IK can take longer than a short probe. Plan while stopped, then
         # measure only the commanded motion interval, with live safety checks.
@@ -2586,6 +2591,11 @@ class ManipulationNode(Node):
         if not self._feedback_retain_lever_press() or not self._feedback_follow_contact():
             return None
         if not self._feedback_settle_held_target():
+            return None
+        try:
+            speed, angular_z = self._select_contact_probe(speed, angular_z, opening_speed)
+        except (ValueError, TransformException) as exc:
+            self._feedback_stop(str(exc))
             return None
         cfg = self._feedback_config
         duration = min(.35, cfg.get('follow_step_m', .008) / max(speed,.001))

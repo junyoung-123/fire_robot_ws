@@ -29,13 +29,14 @@ def generate_launch_description():
         PythonLaunchDescriptionSource(PathJoinSubstitution([
             FindPackageShare('fire_robot_bringup'), 'launch', 'gazebo.launch.py'])),
         launch_arguments={
-            'world': 'physical_contact_door_test.world',
+            'world': LaunchConfiguration('fixture_world',default='physical_contact_door_test.world'),
             'headless': headless,
             'render_engine_gui': 'ogre',
             'use_sim_time': 'true',
             'robot_xacro_file': 'fire_robot_actual_piper.urdf.xacro',
             'enable_depth_camera': feedback_contact,
             'spawn_x': '-3.80',
+            'spawn_yaw': LaunchConfiguration('initial_spawn_yaw',default='-0.12'),
             'spawn_z': '0.0',
             # This dedicated test intentionally permits low-speed contact with
             # the panel after the lever latch has been released.
@@ -65,7 +66,7 @@ def generate_launch_description():
 
     manipulation = TimerAction(period=4.0, actions=[Node(
         package='fire_robot_manipulation',
-        executable='physical_contact_manipulation_node',
+        executable=LaunchConfiguration('angle_controller',default='observed_angle_manipulation_node'),
         name='manipulation_node',
         output='screen',
         parameters=[{
@@ -95,6 +96,9 @@ def generate_launch_description():
             'sim_door_contact_only': True,
             'sim_door_contact_min_angle_rad': contact_min_angle,
             'sim_verify_door': True,
+            'sim_door_feedback_joint_name': 'camera_door_rotation',
+            'sim_door_feedback_topic': LaunchConfiguration('environment_feedback_topic', default='/door_joint_states'),
+            'sim_lever_feedback_joint_name': LaunchConfiguration('lever_feedback_joint', default='lever_joint'),
             'sim_feedback_timeout_sec': 45.0,
             'sim_lever_press_min_angle_rad': 0.08,
             'sim_lever_press_timeout_sec': 8.0,
@@ -125,7 +129,7 @@ def generate_launch_description():
             'feedback_clearance_min_m': 0.05,
             'feedback_clearance_max_m': 0.15,
             'feedback_press_max_travel_m': 0.11,
-            'feedback_press_sign': -1.0,
+            'feedback_press_sign': LaunchConfiguration('feedback_press_sign',default='-1.0'),
         }])])
 
     perception = TimerAction(period=4.0, actions=[Node(
@@ -142,7 +146,7 @@ def generate_launch_description():
             'confidence_threshold': 0.20,
             'handle_confidence_threshold': 0.20,
             'yolo_min_interval_sec': 0.35,
-            'handle_yolo_imgsz': 640,
+            'handle_yolo_imgsz': LaunchConfiguration('handle_inference_size', default='640'),
             'handle_yolo_min_area_px': 400,
             'torch_num_threads': 2,
             'publish_debug_image': True,
@@ -182,8 +186,17 @@ def generate_launch_description():
         DeclareLaunchArgument('feedback_contact_enabled', default_value='false'),
         DeclareLaunchArgument('door_open_motion', default_value='push'),
         DeclareLaunchArgument('contact_min_angle_rad', default_value='2.05'),
+        DeclareLaunchArgument('fixture_world', default_value='physical_contact_door_test.world'),
+        DeclareLaunchArgument('initial_spawn_yaw', default_value='-0.12'),
+        DeclareLaunchArgument('feedback_press_sign', default_value='-1.0'),
+        DeclareLaunchArgument('angle_controller', default_value='observed_angle_manipulation_node'),
+        DeclareLaunchArgument('handle_inference_size', default_value='640'),
+        DeclareLaunchArgument('environment_feedback_topic', default_value='/door_joint_states'),
+        DeclareLaunchArgument('lever_feedback_joint', default_value='lever_joint'),
         gazebo,
         bridge,
+        Node(package='fire_robot_manipulation', executable='observed_door_angle_node',
+             output='screen', parameters=[{'use_sim_time': True}]),
         manipulation,
         perception,
         rviz,
