@@ -4,7 +4,21 @@
 
 목표 동작은 시작 위치 기준으로 관측한 벽, 문, 장애물 구조를 map 좌표에 축적하고, 가장 가까운 파란문을 선택해 장애물을 피해 접근한 뒤 문 개방 FSM을 수행하는 것입니다. 더 이상 열 파란문이 없으면 초록 비상구를 관측 기반으로 선택해 통과합니다.
 
-## 최신 코드·이미지·영상 (2026-09-26)
+## 최신 온라인 SLAM 주행·발표 자료 (2026-09-29)
+
+**최신 주행 코드는 [codex/observed-nav-20260928](https://github.com/junyoung-123/fire_robot_ws/tree/codex/observed-nav-20260928), 커밋 `d0d2a9e`입니다.**
+이 `master` 소스는 기존 기준선으로 보존하며 이번 변경은 안내 문서뿐입니다.
+
+- [결과·한계·재현 안내](https://github.com/junyoung-123/fire_robot_ws/blob/codex/observed-nav-20260928/docs/RELEASE_20260929.md)
+- [최신 이미지·영상 자료집](https://github.com/junyoung-123/fire_robot_ws/tree/codex/observed-nav-20260928/docs/handoff/2026-09-29) / [자료 선택 순서](https://github.com/junyoung-123/fire_robot_ws/blob/codex/observed-nav-20260928/docs/handoff/2026-09-29/00_START_HERE.md)
+- [World 1~5 실험 원본](https://github.com/junyoung-123/fire_robot_ws/tree/codex/observed-nav-20260928/docs/handoff/2026-09-29/evidence/nav_r29) / [수정 PPT](https://github.com/junyoung-123/fire_robot_ws/tree/codex/observed-nav-20260928/docs/reports/2026-09-29)
+- 저장 지도 없이 휠 odometry·LiDAR 온라인 SLAM으로 매번 시작한 다섯 월드에서 유효 문 방문 3/3, 3/3, 4/4, 0/0, 6/6 및 출구 통과를 확인했습니다. 사전 문 개수·문/장애물 좌표·시뮬레이터 위치는 제어에 넣지 않았습니다.
+- **주행·문 방문 전용 시험**입니다. 문 방문 어댑터를 사용하며 물리 개방은 포함하지 않습니다. R34 단일문 접촉 개방과 별도 결과이며 다중 문 물리 개방 통합은 미검증입니다.
+- r29 동일 소스의 월드별 1회 결과입니다. W3 재접근·W4 긴 회피 재시도, 위치추정 오차 등 한계는 결과 문서에 명시했습니다.
+- 최신 주행 이미지 51개를 포함한 총 113개 이미지·영상 자료에 ID·날짜·범위·출처를 연결했습니다. 이전 W* 이미지는 archive로 구분하고 원본은 보존했습니다.
+- 게시 전 89개 소스·10개 실행/기록 파일의 해시 일치와 회귀 테스트 96개 PASS를 확인했습니다. 게시 작업에서 새 Gazebo 실행은 하지 않았습니다.
+
+## 이전 코드·이미지·영상 (2026-09-26 보존)
 
 **최신 개발 브랜치는 [codex/observed-door-angle-20260922](https://github.com/junyoung-123/fire_robot_ws/tree/codex/observed-door-angle-20260922), 커밋 `27359f7`입니다.** `master` 소스와 이전 성공 브랜치는 보존하며, 이 갱신에서는 안내 문서만 변경합니다.
 
