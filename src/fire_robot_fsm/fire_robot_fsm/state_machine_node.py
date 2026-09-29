@@ -20,6 +20,8 @@ from fire_robot_interfaces.msg import DoorInfo, FireInfo, RobotState
 from fire_robot_interfaces.srv import OpenDoor
 from fire_robot_fsm.fsm_subsystems import DoorApproachSubFsm, DoorTargetSubFsm
 from fire_robot_fsm.alignment_safety import grid_segment_is_clear
+from fire_robot_fsm.observed_exit_aperture import find_aperture
+from fire_robot_fsm.observed_wall_normal import fit_wall_normal
 
 
 class State(IntEnum):
@@ -235,6 +237,7 @@ class StateMachineNode(Node):
         self.declare_parameter('min_target_door_abs_y_m', 0.0)
         self.declare_parameter('axis_door_approach_enabled', True)
         self.declare_parameter('axis_door_side_standoff_m', 0.85)
+        self.declare_parameter('axis_door_lane_bounds_enabled', True)
         self.declare_parameter('axis_door_min_side_goal_lateral_m', 0.35)
         self.declare_parameter('axis_door_min_abs_lateral_m', 0.45)
         self.declare_parameter('axis_door_max_handle_pose_progress_delta_m', 1.6)
@@ -277,6 +280,10 @@ class StateMachineNode(Node):
         self.declare_parameter('exit_y',    0.0)
         self.declare_parameter('exit_yaw',  0.0)
         self.declare_parameter('allow_fallback_exit_goal', False)
+        self.declare_parameter('exit_use_observed_lateral', False)
+        self.declare_parameter('exit_use_nav2_crossing', False)
+        self.declare_parameter('exit_observed_aperture', False)
+        self.declare_parameter('door_alignment_observed_normal', False)
         self.declare_parameter('use_detected_exit', True)
         self.declare_parameter('detected_exit_min_x_margin_m', 3.0)
         self.declare_parameter('detected_exit_max_y_error_m', 1.5)
@@ -673,6 +680,8 @@ class StateMachineNode(Node):
             self.get_parameter('axis_door_approach_enabled').value)
         self._axis_door_side_standoff_m = float(
             self.get_parameter('axis_door_side_standoff_m').value)
+        self._axis_door_lane_bounds_enabled = bool(
+            self.get_parameter('axis_door_lane_bounds_enabled').value)
         self._axis_door_min_side_goal_lateral_m = float(
             self.get_parameter('axis_door_min_side_goal_lateral_m').value)
         self._axis_door_min_abs_lateral_m = float(
@@ -758,6 +767,14 @@ class StateMachineNode(Node):
         self._exit_yaw = self.get_parameter('exit_yaw').value
         self._allow_fallback_exit_goal = bool(
             self.get_parameter('allow_fallback_exit_goal').value)
+        self._exit_use_observed_lateral = bool(
+            self.get_parameter('exit_use_observed_lateral').value)
+        self._exit_use_nav2_crossing = bool(
+            self.get_parameter('exit_use_nav2_crossing').value)
+        self._exit_observed_aperture = bool(
+            self.get_parameter('exit_observed_aperture').value)
+        self._door_alignment_observed_normal = bool(
+            self.get_parameter('door_alignment_observed_normal').value)
         self._use_detected_exit = bool(self.get_parameter('use_detected_exit').value)
         self._detected_exit_min_x_margin_m = float(
             self.get_parameter('detected_exit_min_x_margin_m').value)
@@ -955,6 +972,7 @@ class StateMachineNode(Node):
         self._force_final_scan_before_exit = False
         self._exit_reentry_guard_active = False
         self._active_exit_goal: tuple[float, float, float] | None = None
+        self._exit_nav2_approach_complete = False
         self._exit_goal_pending = False
         self._exit_crossing_start_time: Time | None = None
         self._exit_crossing_start_odom_xy: tuple[float, float] | None = None
@@ -1196,6 +1214,12 @@ class StateMachineNode(Node):
         if observation.door_color != 'blue':
             return
         if not self._door_has_map_identity(observation):
+            return
+        # A panel-centre estimate is not the observed handle. Alternating the
+        # two restarts close alignment even when the same door stays selected.
+        if (getattr(self, '_door_alignment_observed_normal', False)
+                and self._has_trusted_observed_handle(target)
+                and not self._has_trusted_observed_handle(observation)):
             return
         same_observed_cluster = self._observation_matches_locked_observed_blue_cluster(
             observation)
@@ -1566,6 +1590,12 @@ class StateMachineNode(Node):
             return
 
         now = self.get_clock().now()
+        if (getattr(self, '_door_alignment_observed_normal', False)
+                and close_alignment_active
+                and self._has_trusted_observed_handle(target)
+                and self._has_trusted_observed_handle(refined)
+                and not self._consistent_close_handle_refinement(refined, now)):
+            return
         if self._last_locked_target_refine_time is not None:
             elapsed = (now - self._last_locked_target_refine_time).nanoseconds / 1e9
             if elapsed < max(0.0, self._locked_target_refine_min_period_sec):
@@ -1609,6 +1639,21 @@ class StateMachineNode(Node):
             f' -> ({new_xy[0]:.2f},{new_xy[1]:.2f})')
         if self._door_retarget_backoff_until is None:
             self.target_door_pub.publish(self.target_door)
+
+    def _consistent_close_handle_refinement(self, door: DoorInfo, now) -> bool:
+        """Require repeated agreement before restarting fine alignment."""
+        seconds = now.nanoseconds / 1e9
+        xy = self._door_handle_xy(door)
+        history = getattr(self, '_close_handle_refinement_history', [])
+        history = [sample for sample in history
+                   if sample[0] == door.door_id and 0.0 <= seconds-sample[1] <= 2.0]
+        if not history or seconds-history[-1][1] >= .15:
+            history.append((door.door_id, seconds, xy))
+        history = history[-3:]
+        self._close_handle_refinement_history = history
+        return len(history) == 3 and all(
+            math.hypot(a[2][0]-b[2][0], a[2][1]-b[2][1]) <= .15
+            for a in history for b in history)
 
     def _maybe_replace_locked_observed_blue_target(
             self, observation: DoorInfo, target: DoorInfo) -> bool:
@@ -1824,6 +1869,10 @@ class StateMachineNode(Node):
             return
         next_key = self._canonical_door_id(door.door_id)
         next_xy = self._door_identity_xy(door)
+        if (getattr(self, '_locked_blue_source_key', None) != next_key):
+            self._locked_blue_source_key = next_key
+            self._locked_blue_source_cluster = getattr(
+                self, '_observed_blue_door_id_to_cluster', {}).get(door.door_id)
         same_anchor = (
             self._locked_blue_anchor_key == next_key
             and self._locked_blue_anchor_xy is not None
@@ -1842,6 +1891,9 @@ class StateMachineNode(Node):
         self._locked_blue_live_match_time = None
 
     def _clear_locked_blue_anchor(self):
+        self._close_handle_refinement_history = []
+        self._locked_blue_source_key = None
+        self._locked_blue_source_cluster = None
         self._locked_blue_anchor_key = None
         self._locked_blue_anchor_xy = None
         self._locked_blue_anchor_set_sec = None
@@ -1899,6 +1951,17 @@ class StateMachineNode(Node):
 
     def _update_detected_exit(self, msg: DoorInfo):
         new_xy = self._exit_observation_xy(msg)
+        if getattr(self, '_exit_observed_aperture', False):
+            # A SLAM map need not retain the initial corridor centerline.
+            # Green is an association cue; only LiDAR passage geometry may
+            # later establish the crossing plane and completion condition.
+            if (new_xy is not None and msg.confidence >= .4
+                    and all(math.isfinite(v) for v in new_xy)):
+                self._exit_door = copy.deepcopy(msg)
+                self._last_valid_exit_xy = new_xy
+                self._last_valid_exit_from_front_wall = False
+                self._remember_provisional_exit_observation(new_xy, msg.door_id)
+            return
         if new_xy is None:
             if self._exit_door is None:
                 self._exit_door = copy.deepcopy(msg)
@@ -2087,6 +2150,13 @@ class StateMachineNode(Node):
         return xy
 
     def _exit_observation_xy(self, door: DoorInfo) -> tuple[float, float] | None:
+        if getattr(self, '_exit_observed_aperture', False):
+            observed = self._observed_door_xy(door)
+            if observed is not None:
+                return observed
+            if door.handle_position.header.frame_id == 'map':
+                return (float(door.handle_position.point.x),
+                        float(door.handle_position.point.y))
         candidates: list[tuple[float, float]] = []
         if door.door_pose.header.frame_id == 'map':
             candidates.append((
@@ -6477,6 +6547,7 @@ class StateMachineNode(Node):
 
     def _mark_door_opened(self, door: DoorInfo):
         self._add_door_id_keys(self._opened_door_ids, door.door_id)
+        self._complete_selected_observed_cluster(door)
         if door.door_pose.header.frame_id == 'map':
             door_x, door_y = self._door_identity_xy(door)
             opened_progresses = [
@@ -6504,6 +6575,28 @@ class StateMachineNode(Node):
             if math.hypot(dx, dy) <= self._opened_door_merge_dist_m:
                 self._add_door_id_keys(self._opened_door_ids, other.door_id)
         self._prune_opened_blue_observations()
+
+    def _complete_selected_observed_cluster(self, door: DoorInfo):
+        if not getattr(self, '_door_alignment_observed_normal', False):
+            return
+        # Follow the exact selected memory object through coordinate refinement.
+        # A proximity search at the final pose can miss its older projection.
+        if door.door_color != 'blue':
+            return
+        clusters = [getattr(self, '_observed_blue_door_id_to_cluster', {}).get(door.door_id)]
+        if (getattr(self, '_locked_blue_source_key', None)
+                == self._canonical_door_id(door.door_id)):
+            clusters.append(getattr(self, '_locked_blue_source_cluster', None))
+        completed = 0
+        for cluster in clusters:
+            if cluster is not None:
+                cluster['opened'] = 1.0
+                completed += 1
+        if not completed:
+            return
+        self.get_logger().info(
+            f'Selected observation memory completed: {door.door_id}; '
+            'original candidate excluded after position refinement.')
 
     def _discard_opened_blue_candidate_memory(self, door: DoorInfo) -> int:
         if door.door_color != 'blue' or not self._door_has_map_identity(door):
@@ -6596,6 +6689,11 @@ class StateMachineNode(Node):
                 self._nav_start_time = None
                 if self._explore_start_time is None:
                     self._explore_start_time = self.get_clock().now()
+            return
+
+        if (getattr(self, '_exit_use_nav2_crossing', False)
+                and self._active_exit_goal is not None):
+            self._continue_nav2_exit_crossing()
             return
 
         if (self._active_exit_goal is not None
@@ -6883,6 +6981,16 @@ class StateMachineNode(Node):
         pose = self._current_map_pose()
         if pose is None:
             return False
+        if getattr(self, '_exit_observed_aperture', False):
+            plane = getattr(self, '_observed_exit_plane', None)
+            if plane is None:
+                return False
+            px, py, heading, width = plane
+            dx, dy = pose[0]-px, pose[1]-py
+            forward = dx*math.cos(heading)+dy*math.sin(heading)
+            lateral = abs(-dx*math.sin(heading)+dy*math.cos(heading))
+            # Mobile base half-length/width plus clearance, not world geometry.
+            return forward >= .41 and lateral <= max(0., width/2-.28)
         x, y, yaw = pose
         goal = self._active_exit_goal
         if goal is None:
@@ -6894,7 +7002,7 @@ class StateMachineNode(Node):
         yaw_error = abs(self._normalize_angle(goal_yaw - yaw))
         robot_progress = self._axis_progress_xy(x, y)
         goal_progress = self._axis_progress_xy(goal_x, goal_y)
-        lateral_error = abs(self._axis_lateral_xy(x, y) - self._explore_center_y)
+        lateral_error = abs(self._axis_lateral_xy(x, y) - self._exit_reference_lateral(goal))
         lateral_tolerance = max(0.65, self._detected_exit_max_center_y_m)
         progress_complete = (
             robot_progress >= goal_progress - self._exit_complete_margin_m
@@ -6978,7 +7086,7 @@ class StateMachineNode(Node):
             robot_progress + max(0.60, self._exit_pass_through_m))
         direct_x, direct_y = self._axis_to_map_xy(
             direct_progress,
-            self._explore_center_y)
+            self._exit_reference_lateral(goal))
         self._active_exit_goal = (direct_x, direct_y, yaw)
 
     def _ready_for_direct_exit_crossing(self) -> bool:
@@ -7003,7 +7111,8 @@ class StateMachineNode(Node):
         if pose is None:
             return False
         lateral_error = abs(
-            self._axis_lateral_xy(pose[0], pose[1]) - self._explore_center_y)
+            self._axis_lateral_xy(pose[0], pose[1])
+            - self._exit_reference_lateral(self._active_exit_goal))
         lateral_limit = max(0.65, self._detected_exit_max_center_y_m)
         if lateral_error > lateral_limit:
             self.get_logger().warn(
@@ -7171,7 +7280,21 @@ class StateMachineNode(Node):
             self._active_exit_goal = None
             return False
 
-        if self.state == State.EXITING and self._active_exit_goal is not None:
+        observed_aperture = None
+        if getattr(self, '_exit_observed_aperture', False):
+            observed_aperture = self._observed_exit_aperture_goal_pair()
+        if observed_aperture is not None:
+            exit_nav_goal, exit_complete_goal = observed_aperture
+            self._active_exit_goal = exit_complete_goal
+            self.get_logger().info(
+                f'Observed exit aperture: approach={exit_nav_goal}, crossing={exit_complete_goal}')
+        elif (getattr(self, '_exit_observed_aperture', False)
+              and getattr(self, '_observed_exit_plane', None) is None):
+            # A visual range can be biased or occluded. It is an approach hint,
+            # never evidence that the robot has crossed the actual exit.
+            self._active_exit_goal = exit_complete_goal
+            self._exit_nav2_approach_complete = False
+        elif self.state == State.EXITING and self._active_exit_goal is not None:
             locked_exit_goal = self._active_exit_goal
             locked_yaw = locked_exit_goal[2]
             backoff = max(0.0, self._exit_pass_through_m) + max(
@@ -7191,6 +7314,10 @@ class StateMachineNode(Node):
         else:
             self._active_exit_goal = exit_complete_goal
 
+        nav2_crossing = getattr(self, '_exit_use_nav2_crossing', False)
+        if nav2_crossing and getattr(self, '_exit_nav2_approach_complete', False):
+            exit_nav_goal = exit_complete_goal
+
         pose = self._current_map_pose()
         if pose is not None:
             robot_progress = self._axis_progress_xy(pose[0], pose[1])
@@ -7198,7 +7325,7 @@ class StateMachineNode(Node):
             complete_progress = self._axis_progress_xy(
                 exit_complete_goal[0],
                 exit_complete_goal[1])
-            if robot_progress >= nav_progress - 0.05:
+            if not nav2_crossing and robot_progress >= nav_progress - 0.05:
                 yaw = exit_complete_goal[2]
                 forward_margin = max(0.60, self._exit_pass_through_m)
                 direct_progress = max(
@@ -7206,7 +7333,7 @@ class StateMachineNode(Node):
                     robot_progress + forward_margin)
                 direct_x, direct_y = self._axis_to_map_xy(
                     direct_progress,
-                    self._explore_center_y)
+                    self._exit_reference_lateral(exit_complete_goal))
                 self._active_exit_goal = (direct_x, direct_y, yaw)
                 self._last_exit_goal_time = self.get_clock().now()
                 self._nav_done = True
@@ -7253,6 +7380,8 @@ class StateMachineNode(Node):
         if xy is None:
             return False
 
+        if getattr(self, '_exit_observed_aperture', False):
+            return all(math.isfinite(v) for v in xy)
         x, y = xy
         if not self._exit_candidate_axis_valid(
                 (float(x), float(y)),
@@ -7827,6 +7956,63 @@ class StateMachineNode(Node):
             return None
         return self._exit_goal_pair_from_xy(xy)
 
+    def _continue_nav2_exit_crossing(self):
+        # Let the observed costmap route through the aperture, including the
+        # final segment. A straight manual command cannot avoid an offset jamb.
+        if self._nav_done:
+            self._nav_done = False
+            if self._exit_pose_complete():
+                self._transition(State.MISSION_COMPLETE)
+            else:
+                self._exit_nav2_approach_complete = (
+                    not getattr(self, '_exit_observed_aperture', False)
+                    or getattr(self, '_observed_exit_plane', None) is not None)
+                self._send_exit_goal()
+        elif self._nav_failed and self._exit_retry_ready():
+            self._nav_failed = False
+            self._send_exit_goal()
+
+    def _observed_exit_aperture_goal_pair(self):
+        scan = self._latest_scan
+        anchor = self._last_valid_exit_xy
+        if scan is None or anchor is None:
+            return None
+        stamp = Time.from_msg(scan.header.stamp)
+        age = (self.get_clock().now() - stamp).nanoseconds / 1e9
+        if age < 0.0 or age > .6:
+            return None
+        try:
+            tf = self._tf_buffer.lookup_transform(
+                'map', scan.header.frame_id, stamp, timeout=Duration(seconds=.05))
+        except TransformException:
+            return None
+        p, q = tf.transform.translation, tf.transform.rotation
+        yaw = math.atan2(2*(q.w*q.z+q.x*q.y), 1-2*(q.y*q.y+q.z*q.z))
+        c, s = math.cos(yaw), math.sin(yaw)
+        dx, dy = anchor[0]-p.x, anchor[1]-p.y
+        local_anchor = (c*dx+s*dy, -s*dx+c*dy)
+        aperture = find_aperture(scan.ranges, scan.angle_min, scan.angle_increment,
+                                 scan.range_min, scan.range_max, local_anchor)
+        if aperture is None:
+            return None
+        x, y, normal, width = aperture
+        mx, my, heading = p.x+c*x-s*y, p.y+s*x+c*y, yaw+normal
+        previous = getattr(self, '_observed_exit_plane', None)
+        if previous is not None and math.cos(heading-previous[2]) < 0:
+            # A rearward view after crossing must not reverse the exit normal.
+            heading = self._normalize_angle(heading+math.pi)
+        self._observed_exit_plane = (mx, my, heading, width)
+        ux, uy = math.cos(heading), math.sin(heading)
+        return ((mx-ux*self._exit_nav_standoff_m, my-uy*self._exit_nav_standoff_m, heading),
+                (mx+ux*self._exit_pass_through_m, my+uy*self._exit_pass_through_m, heading))
+
+    def _exit_reference_lateral(self, goal) -> float:
+        # A SLAM map can rotate/drift relative to the initial corridor axis.
+        # The observed exit, not the initial robot centerline, defines crossing.
+        if getattr(self, '_exit_use_observed_lateral', False) and goal is not None:
+            return self._axis_lateral_xy(goal[0], goal[1])
+        return self._explore_center_y
+
     def _exit_goal_pair_from_xy(
             self,
             xy: tuple[float, float]) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
@@ -7842,7 +8028,8 @@ class StateMachineNode(Node):
                 center_limit,
                 self._detected_exit_max_y_error_m,
                 self._observed_blue_fresh_evidence_max_lateral_gap_m * 0.75)
-        if center_limit > 0.0 and abs(lateral_error) <= center_limit:
+        if (not getattr(self, '_exit_use_observed_lateral', False)
+                and center_limit > 0.0 and abs(lateral_error) <= center_limit):
             # The green panel is on the end wall; projection noise can shift its
             # apparent y. Approach along the mission axis, biased toward center.
             lateral_scale = 0.35
@@ -8723,6 +8910,13 @@ class StateMachineNode(Node):
             wall_abs_lateral = max(wall_abs_lateral, min_wall + standoff)
 
         rel_lateral_abs = max(0.0, wall_abs_lateral - standoff)
+        if not self._axis_door_lane_bounds_enabled:
+            # With live SLAM the wall need not remain near a preset map lane.
+            # Preserve the measured wall-to-goal clearance; Nav2 and the fine
+            # alignment path checks still reject occupied approach segments.
+            parking_lateral = handle_lateral - side * standoff
+            parking_yaw = self._mission_forward_yaw() + side * math.pi / 2.0
+            return handle_progress, parking_lateral, parking_yaw, handle_lateral
         min_side_lane = max(
             0.0,
             self._axis_door_min_side_goal_lateral_m,
@@ -17463,10 +17657,37 @@ class StateMachineNode(Node):
         dx = gx - rx
         dy = gy - ry
         dist = math.hypot(dx, dy)
+        if getattr(self, '_door_alignment_observed_normal', False) and dist < .6:
+            observed_yaw = self._observed_door_wall_normal(door)
+            if observed_yaw is not None:
+                goal_yaw = observed_yaw
         yaw_error = self._normalize_angle(goal_yaw - robot_yaw)
         forward_error = math.cos(robot_yaw) * dx + math.sin(robot_yaw) * dy
         lateral_error = -math.sin(robot_yaw) * dx + math.cos(robot_yaw) * dy
         return dist, yaw_error, forward_error, lateral_error
+
+    def _observed_door_wall_normal(self, door):
+        scan = self._latest_scan
+        if scan is None or door.handle_position.header.frame_id != 'map':
+            return None
+        stamp = Time.from_msg(scan.header.stamp)
+        age = (self.get_clock().now()-stamp).nanoseconds/1e9
+        if age < 0.0 or age > .6:
+            return None
+        try:
+            tf = self._tf_buffer.lookup_transform(
+                'map', scan.header.frame_id, stamp, timeout=Duration(seconds=.03))
+        except TransformException:
+            return None
+        p, q = tf.transform.translation, tf.transform.rotation
+        yaw = math.atan2(2*(q.w*q.z+q.x*q.y), 1-2*(q.y*q.y+q.z*q.z))
+        c, s = math.cos(yaw), math.sin(yaw)
+        h = door.handle_position.point
+        dx, dy = h.x-p.x, h.y-p.y
+        normal = fit_wall_normal(scan.ranges, scan.angle_min, scan.angle_increment,
+                                 scan.range_min, scan.range_max,
+                                 (c*dx+s*dy, -s*dx+c*dy))
+        return None if normal is None else self._normalize_angle(yaw+normal)
 
     def _blue_target_open_pose_aligned_for_safe_memory(self, door: DoorInfo) -> bool:
         error = self._door_open_pose_error(door)
@@ -17483,6 +17704,20 @@ class StateMachineNode(Node):
         )
 
     def _prepare_door_opening_pose(self, door: DoorInfo) -> str:
+        if getattr(self, '_door_alignment_observed_normal', False):
+            if self._observed_door_wall_normal(door) is None:
+                self.cmd_vel_pub.publish(Twist())
+                now = self.get_clock().now()
+                since = getattr(self, '_observed_normal_missing_since', None)
+                if since is None:
+                    self._observed_normal_missing_since = now
+                elif (now-since).nanoseconds/1e9 > 5.0:
+                    self._observed_normal_missing_since = None
+                    return 'retry'
+                self.get_logger().warn('Waiting for a fresh door-wall normal before alignment.',
+                                       throttle_duration_sec=2.0)
+                return 'waiting'
+            self._observed_normal_missing_since = None
         if not self._fine_alignment_path_clear(door):
             self.cmd_vel_pub.publish(Twist())
             self._door_open_align_start_time = None
@@ -17535,6 +17770,8 @@ class StateMachineNode(Node):
         verified_close_yaw_tolerance = max(
             ready_yaw_tolerance,
             math.radians(10.0))
+        if getattr(self, '_door_alignment_observed_normal', False):
+            verified_close_yaw_tolerance = ready_yaw_tolerance
         if (
                 dist <= verified_close_dist_tolerance
                 and lateral_abs <= verified_close_lateral_tolerance
@@ -17679,6 +17916,8 @@ class StateMachineNode(Node):
                 verified_close_yaw_tolerance,
                 ready_yaw_tolerance * 2.5,
                 math.radians(16.0))
+            if getattr(self, '_door_alignment_observed_normal', False):
+                settled_sim_open_yaw_tolerance = ready_yaw_tolerance
             if (
                     elapsed >= near_stall_escape_after_sec
                     and dist <= max(verified_close_dist_tolerance, 0.24)
@@ -18106,10 +18345,15 @@ class StateMachineNode(Node):
     def _refresh_observed_blue_target_before_opening(self) -> bool:
         """Replace a stale long-range station with recent close wall memory."""
         target = self.target_door
+        if (target is not None
+                and getattr(self, '_door_alignment_observed_normal', False)
+                and self._has_trusted_observed_handle(target)):
+            return False
         if (
                 target is None
                 or target.door_color != 'blue'
-                or not target.door_id.startswith('observed_blue_')
+                or (not target.door_id.startswith('observed_blue_')
+                    and not getattr(self, '_door_alignment_observed_normal', False))
                 or not self._door_has_map_identity(target)
                 or not self._blue_target_open_pose_aligned_for_safe_memory(target)):
             return False
@@ -18158,9 +18402,12 @@ class StateMachineNode(Node):
                 self._axis_lateral_xy(candidate_xy[0], candidate_xy[1])
                 - self._explore_center_y)
             forward_correction = candidate_progress - target_progress
+            correction_distance = (abs(forward_correction)
+                                   if getattr(self, '_door_alignment_observed_normal', False)
+                                   else forward_correction)
             if (
                     target_lateral * candidate_lateral <= 0.0
-                    or not 0.25 <= forward_correction <= max_forward_correction
+                    or not 0.25 <= correction_distance <= max_forward_correction
                     or abs(candidate_lateral - target_lateral)
                     > max(0.55, self._observed_blue_fresh_evidence_max_lateral_gap_m)
                     or not self._is_blue_xy_recordable_wall_observation(candidate_xy)
@@ -18172,7 +18419,7 @@ class StateMachineNode(Node):
                 continue
             # Repeated close observations outrank a single geometrically close
             # projection.  The smaller forward correction breaks equal scores.
-            candidates.append((float(count), confidence, -forward_correction, cluster))
+            candidates.append((float(count), confidence, -correction_distance, cluster))
 
         if not candidates:
             return False
@@ -18846,6 +19093,7 @@ class StateMachineNode(Node):
             self._last_exit_goal_time = None
             self._nav_done = False
             self._nav_failed = False
+            self._exit_nav2_approach_complete = False
             self._exit_goal_pending = True
             self._nav_start_time = None
             if old_state not in nav2_motion_states:

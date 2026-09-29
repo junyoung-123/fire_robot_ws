@@ -1,0 +1,40 @@
+# No environment geometry, world path, door count or saved map is a control input.
+mission_axis_node:
+  ros__parameters:
+    map_topic: /map
+    axis_estimator: wall_lines
+    max_robot_heading_deviation_deg: 0.0
+    fallback_without_map_after_sec: 0.0
+door_detection_node:
+  ros__parameters:
+    visual_range_requires_complete_bbox: true
+    nav_goal_max_abs_y_m: 0.0
+    side_handle_max_abs_y_m: 0.0
+    side_wall_projection_enabled: false
+navigation_node:
+  ros__parameters:
+    goal_adjust_max_abs_y_m: 0.0
+cmd_vel_safety_node:
+  ros__parameters:
+    lidar_stop_manual_commands: true
+    stop_on_missing_scan: true
+    coupled_collision_stop: true
+    rear_stop_distance_m: 0.40
+    rotation_stop_distance_m: 0.32
+state_machine_node:
+  ros__parameters:
+    axis_door_lane_bounds_enabled: false
+    nav_start_center_recovery_enabled: false
+    use_sim_open_feedback_for_memory: false
+    min_opened_doors_before_exit: 0
+    observed_blue_min_abs_wall_y_m: 0.0
+    observed_blue_max_abs_wall_y_m: 0.0
+    no_blue_exit_min_robot_forward_m: 0.0
+    allow_fallback_exit_goal: false
+    exit_use_observed_lateral: true
+    exit_use_nav2_crossing: true
+    exit_observed_aperture: true
+    door_alignment_observed_normal: true
+    door_open_ready_yaw_tolerance_deg: 4.0
+    allow_front_wall_exit_fallback: false
+    complete_when_past_exit_x: false

@@ -1,0 +1,2 @@
+[INFO] [1790649282.853452921] [evaluation_truth_bridge]: Creating GZ->ROS Bridge: [/odom (gz.msgs.Odometry) -> /odom (nav_msgs/msg/Odometry)] (Lazy 0)
+[INFO] [1790650495.052956721] [rclcpp]: signal_handler(SIGINT/SIGTERM)

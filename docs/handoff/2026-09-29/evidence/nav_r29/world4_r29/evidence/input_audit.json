@@ -1,0 +1,15 @@
+{
+  "sim_time": 675.0,
+  "map_messages_recorded": 33,
+  "map_to_base_available": 1,
+  "navigate_action_server_present": true,
+  "map_publishers": [
+    "slam_toolbox"
+  ],
+  "odom_publishers": [
+    "gz_selected_odometry_bridge"
+  ],
+  "evaluation_truth_subscribers": [
+    "observed_navigation_recorder"
+  ]
+}

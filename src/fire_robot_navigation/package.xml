@@ -17,6 +17,7 @@
   <depend>action_msgs</depend>
   <depend>fire_robot_interfaces</depend>
   <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-opencv</exec_depend>
 
   <buildtool_depend>ament_python</buildtool_depend>
 

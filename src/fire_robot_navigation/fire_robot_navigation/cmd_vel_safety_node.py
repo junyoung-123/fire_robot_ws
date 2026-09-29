@@ -29,6 +29,8 @@ class CmdVelSafetyNode(Node):
         self.declare_parameter('rotation_stop_distance_m', 0.0)
         self.declare_parameter('drive_stop_half_angle_deg', 35.0)
         self.declare_parameter('lidar_stop_manual_commands', False)
+        self.declare_parameter('stop_on_missing_scan', False)
+        self.declare_parameter('coupled_collision_stop', False)
 
         self._allow_reverse = bool(self.get_parameter('allow_reverse').value)
         self._max_blocked_reverse_linear_x = abs(float(
@@ -45,6 +47,8 @@ class CmdVelSafetyNode(Node):
             0.0, float(self.get_parameter('rotation_stop_distance_m').value))
         self._lidar_stop_manual_commands = bool(
             self.get_parameter('lidar_stop_manual_commands').value)
+        self._stop_on_missing_scan = bool(self.get_parameter('stop_on_missing_scan').value)
+        self._coupled_collision_stop = bool(self.get_parameter('coupled_collision_stop').value)
         self._drive_stop_half_angle = math.radians(max(
             1.0, float(self.get_parameter('drive_stop_half_angle_deg').value)))
         input_topic = str(self.get_parameter('input_topic').value)
@@ -112,12 +116,15 @@ class CmdVelSafetyNode(Node):
 
     def _apply_lidar_collision_stop(self, safe: Twist):
         scan = self._latest_scan
-        if scan is None:
-            return
-        if (
+        stale = (
                 self._scan_timeout_sec > 0.0
                 and self._now_sec() - self._latest_scan_time_sec
-                > self._scan_timeout_sec):
+                > self._scan_timeout_sec)
+        if scan is None or stale:
+            if self._stop_on_missing_scan:
+                safe.linear.x = 0.0
+                safe.angular.z = 0.0
+                self._log_obstacle_clamp('scan unavailable or stale')
             return
 
         front = self._sector_min(
@@ -133,12 +140,20 @@ class CmdVelSafetyNode(Node):
         elif safe.linear.x < 0.0 and rear < self._rear_stop_distance_m:
             safe.linear.x = 0.0
             blocked.append(f'rear={rear:.2f}m')
-        if (
+        turn_blocked = (
                 abs(safe.angular.z) > 1e-3
-                and surround < self._rotation_stop_distance_m):
+                and surround < self._rotation_stop_distance_m)
+        if turn_blocked:
             safe.angular.z = 0.0
             blocked.append(f'turn_clearance={surround:.2f}m')
         if blocked:
+            # Dropping only steering changes a checked arc into an unchecked
+            # straight path. A translation stop may retain a separately checked
+            # in-place turn, but never retain translation after a turn stop.
+            if self._coupled_collision_stop:
+                safe.linear.x = 0.0
+                if turn_blocked or self._rotation_stop_distance_m <= 0.0:
+                    safe.angular.z = 0.0
             self._log_obstacle_clamp(', '.join(blocked))
 
     @staticmethod

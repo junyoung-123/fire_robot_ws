@@ -1,0 +1,37 @@
+[
+  {
+    "world": 1,
+    "blue": 3,
+    "red": 3,
+    "green": 1,
+    "obstacles": 12
+  },
+  {
+    "world": 2,
+    "blue": 3,
+    "red": 3,
+    "green": 1,
+    "obstacles": 12
+  },
+  {
+    "world": 3,
+    "blue": 4,
+    "red": 2,
+    "green": 1,
+    "obstacles": 7
+  },
+  {
+    "world": 4,
+    "blue": 0,
+    "red": 4,
+    "green": 1,
+    "obstacles": 10
+  },
+  {
+    "world": 5,
+    "blue": 6,
+    "red": 0,
+    "green": 1,
+    "obstacles": 12
+  }
+]

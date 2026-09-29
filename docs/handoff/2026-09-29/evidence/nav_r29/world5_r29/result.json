@@ -1,0 +1,6 @@
+{
+  "status": "MISSION_COMPLETE",
+  "wall_seconds": 944.0497520140002,
+  "physical_opening_tested": false,
+  "note": "MISSION_COMPLETE alone is not a validation PASS; review visits and trace."
+}

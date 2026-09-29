@@ -1,0 +1,70 @@
+{
+  "status": "PASS_NAV_VISITS_EXIT",
+  "failures": [],
+  "expected_blue_count_evaluator_only": 4,
+  "unique_valid_visits": 4,
+  "matches": [
+    {
+      "id": "observed_blue_4p9_m1p9__axis_p5p37_m1p94",
+      "matched_door": "door_blue1",
+      "color": "blue",
+      "distance_m": 1.0180977461880452,
+      "longitudinal_error_m": 0.25268980938873575,
+      "normal_error_deg": 0.7256763319544484,
+      "bearing_error_deg": 13.64522749038994,
+      "pass": true
+    },
+    {
+      "id": "observed_blue_9p4_1p3__axis_p10p56_p1p98",
+      "matched_door": "door_blue2",
+      "color": "blue",
+      "distance_m": 1.1055442215156517,
+      "longitudinal_error_m": 0.15385006759277964,
+      "normal_error_deg": 3.5947746033387578,
+      "bearing_error_deg": 11.594149200276867,
+      "pass": true
+    },
+    {
+      "id": "observed_blue_13p1_m1p3__axis_p13p96_m1p83",
+      "matched_door": "door_blue3",
+      "color": "blue",
+      "distance_m": 1.1052645401550185,
+      "longitudinal_error_m": 0.4446879636890966,
+      "normal_error_deg": 5.819732768087204,
+      "bearing_error_deg": 17.90457594000798,
+      "pass": true
+    },
+    {
+      "id": "observed_blue_18p6_1p9__axis_p18p87_p1p95",
+      "matched_door": "door_blue4",
+      "color": "blue",
+      "distance_m": 1.1076130895631329,
+      "longitudinal_error_m": 0.07488680069209153,
+      "normal_error_deg": 3.0621233308351767,
+      "bearing_error_deg": 6.938904288983995,
+      "pass": true
+    }
+  ],
+  "input_audit": {
+    "sim_time": 705.0,
+    "map_messages_recorded": 35,
+    "map_to_base_available": 1,
+    "navigate_action_server_present": true,
+    "map_publishers": [
+      "slam_toolbox"
+    ],
+    "odom_publishers": [
+      "gz_selected_odometry_bridge"
+    ],
+    "evaluation_truth_subscribers": [
+      "observed_navigation_recorder"
+    ]
+  },
+  "physical_opening_tested": false,
+  "physical_contact_collision_audit": "not instrumented",
+  "navigation_footprint_overlap_obstacles": [],
+  "navigation_footprint_overlap_events": {},
+  "retained_obstacles_evaluator_only": 7,
+  "exit_jambs_evaluated": 2,
+  "wall_panel_boxes_evaluated": 13
+}

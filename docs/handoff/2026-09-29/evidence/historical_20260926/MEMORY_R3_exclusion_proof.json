@@ -1,0 +1,94 @@
+{
+  "first_exclusion": {
+    "stamp": 1790048132.783077,
+    "wall_elapsed": 365.459750247,
+    "node": "state_machine_node",
+    "text": "Blue candidate door_blue_97230b ignored: physical/opened door station already handled nearby at (-0.15, 1.52)."
+  },
+  "opened_positions": [
+    [
+      0.25653750599478664,
+      1.8388433319178819
+    ]
+  ],
+  "opened_ids": [
+    "door_blue_985793",
+    "door_blue_cd4202",
+    "door_blue_f4b334",
+    "observed_blue_2p3_1p4",
+    "observed_blue_2p6_2p5",
+    "observed_blue_2p9_2p2",
+    "observed_blue_4p2_2p2"
+  ],
+  "target_before": {
+    "id": "observed_blue_6p0_m2p0",
+    "color": "blue",
+    "is_open": false,
+    "frame": "map",
+    "goal": [
+      3.2642017886956025,
+      -0.8000000000003443,
+      0.0
+    ],
+    "orientation": [
+      0.0,
+      0.0,
+      -0.7071067811865475,
+      0.7071067811865476
+    ],
+    "handle": [
+      3.2642017886956025,
+      -1.8058426030277783,
+      0.848891803669474
+    ],
+    "handle_frame": "map"
+  },
+  "target_at_exclusion": {
+    "id": "observed_blue_6p0_m2p0",
+    "color": "blue",
+    "is_open": false,
+    "frame": "map",
+    "goal": [
+      3.2642017886956025,
+      -0.8000000000003443,
+      0.0
+    ],
+    "orientation": [
+      0.0,
+      0.0,
+      -0.7071067811865475,
+      0.7071067811865476
+    ],
+    "handle": [
+      3.2642017886956025,
+      -1.8058426030277783,
+      0.848891803669474
+    ],
+    "handle_frame": "map"
+  },
+  "target_after": {
+    "id": "observed_blue_6p0_m2p0",
+    "color": "blue",
+    "is_open": false,
+    "frame": "map",
+    "goal": [
+      3.2642017886956025,
+      -0.8000000000003443,
+      0.0
+    ],
+    "orientation": [
+      0.0,
+      0.0,
+      -0.7071067811865475,
+      0.7071067811865476
+    ],
+    "handle": [
+      3.2642017886956025,
+      -1.8058426030277783,
+      0.848891803669474
+    ],
+    "handle_frame": "map"
+  },
+  "target_unchanged_through_sim_180": true,
+  "note": "New detection IDs are associated by handled location; identical detection ID is not required."
+}

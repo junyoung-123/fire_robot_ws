@@ -9,6 +9,7 @@ from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from rclpy.time import Time
 from tf2_ros import Buffer, TransformException, TransformListener
+from .observed_wall_axis import estimate_wall_axis
 
 
 class MissionAxisNode(Node):
@@ -34,8 +35,10 @@ class MissionAxisNode(Node):
         self.declare_parameter('fallback_yaw', 0.0)
         self.declare_parameter('max_robot_heading_deviation_deg', 0.0)
         self.declare_parameter('fallback_without_map_after_sec', 0.0)
+        self.declare_parameter('axis_estimator', 'pca')
 
         self._map_topic = str(self.get_parameter('map_topic').value)
+        self._axis_estimator = str(self.get_parameter('axis_estimator').value)
         self._base_frame = str(self.get_parameter('base_frame').value)
         self._map_frame = str(self.get_parameter('map_frame').value)
         self._occupied_threshold = int(self.get_parameter('occupied_threshold').value)
@@ -85,6 +88,8 @@ class MissionAxisNode(Node):
             return
 
         robot_pose = self._robot_pose()
+        if self._axis_estimator == 'wall_lines' and robot_pose is None:
+            return
         origin_xy = self._origin_xy
         if origin_xy is None:
             if self._lock_origin and robot_pose is not None:
@@ -113,6 +118,8 @@ class MissionAxisNode(Node):
         if self._axis_yaw is None or not self._lock_axis:
             estimated = self._estimate_axis_yaw(grid)
             if estimated is None:
+                if self._axis_estimator == 'wall_lines':
+                    return
                 estimated = self._fallback_yaw
             if robot_pose is not None:
                 estimated = self._align_axis_to_robot_heading(estimated, robot_pose[2])
@@ -197,6 +204,10 @@ class MissionAxisNode(Node):
         if data.size != grid.info.width * grid.info.height:
             return None
         data = data.reshape((grid.info.height, grid.info.width))
+
+        if self._axis_estimator == 'wall_lines':
+            return estimate_wall_axis(data >= self._occupied_threshold,
+                                      float(grid.info.resolution))
 
         occupied = np.argwhere(data >= self._occupied_threshold)
         if occupied.shape[0] < self._min_occupied_cells:

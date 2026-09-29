@@ -1,7 +1,7 @@
 from launch import LaunchDescription
 from launch.actions import (DeclareLaunchArgument, ExecuteProcess,
                              IncludeLaunchDescription, TimerAction)
-from launch.conditions import IfCondition
+from launch.conditions import IfCondition, UnlessCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import (LaunchConfiguration, PathJoinSubstitution,
                                   PythonExpression)
@@ -23,6 +23,8 @@ def generate_launch_description():
     spawn_y = LaunchConfiguration('spawn_y', default='0.0')
     spawn_yaw = LaunchConfiguration('spawn_yaw', default='0.0')
     enable_segformer = LaunchConfiguration('enable_segformer', default='false')
+    navigation_only = LaunchConfiguration('navigation_only', default='false')
+    app_overrides = LaunchConfiguration('app_overrides')
     localization_start_delay = LaunchConfiguration('localization_start_delay', default='8.0')
     localization_recover_delay = LaunchConfiguration('localization_recover_delay', default='18.0')
     nav2_start_delay = LaunchConfiguration('nav2_start_delay', default='12.0')
@@ -48,13 +50,15 @@ def generate_launch_description():
     sim_world_path = PathJoinSubstitution([
         FindPackageShare('fire_robot_bringup'), 'worlds', world_file,
     ])
-    nav2_params = PathJoinSubstitution([
+    nav2_params_default = PathJoinSubstitution([
         FindPackageShare('fire_robot_navigation'), 'config', 'nav2_params.yaml',
     ])
+    nav2_params = LaunchConfiguration('nav2_params_file', default=nav2_params_default)
 
-    slam_params = PathJoinSubstitution([
+    slam_params_default = PathJoinSubstitution([
         FindPackageShare('fire_robot_navigation'), 'config', 'slam_toolbox_params.yaml',
     ])
+    slam_params = LaunchConfiguration('slam_params_file', default=slam_params_default)
 
     # ── 1. Gazebo + 로봇 스폰 + 브릿지 ─────────────────────
     gazebo_launch = IncludeLaunchDescription(
@@ -71,6 +75,7 @@ def generate_launch_description():
             'spawn_y':      spawn_y,
             'spawn_yaw':    spawn_yaw,
             'odometry_source': odometry_source,
+            'app_overrides': app_overrides,
         }.items(),
     )
 
@@ -300,6 +305,7 @@ def generate_launch_description():
                 package='fire_robot_navigation',
                 executable='initial_static_map_node',
                 name='initial_static_map_node',
+                condition=UnlessCondition(navigation_only),
                 parameters=[{
                     'use_sim_time': use_sim_time,
                     'source_map_topic': '/map',
@@ -329,6 +335,7 @@ def generate_launch_description():
                 package='fire_robot_navigation',
                 executable='fixed_obstacle_map_node',
                 name='fixed_obstacle_map_node',
+                condition=UnlessCondition(navigation_only),
                 parameters=[{
                     'use_sim_time': use_sim_time,
                     'static_map_topic': '/initial_static_map',
@@ -363,13 +370,14 @@ def generate_launch_description():
                     'max_robot_heading_deviation_deg': 3.0,
                     'fallback_without_map_after_sec': 10.0,
                     'publish_rate_hz': 1.0,
-                }],
+                }, app_overrides],
                 output='screen',
             ),
             Node(
                 package='fire_robot_perception',
                 executable='sensor_fusion_node',
                 name='sensor_fusion_node',
+                condition=UnlessCondition(navigation_only),
                 parameters=[{
                     'use_sim_time': use_sim_time,
                     'publish_rate': 0.25,
@@ -491,7 +499,7 @@ def generate_launch_description():
                         'front_left|/camera/front_left/image_raw|/camera/front_left/camera_info|70.0',
                         'front_right|/camera/front_right/image_raw|/camera/front_right/camera_info|-70.0',
                     ],
-                }],
+                }, app_overrides],
                 output='screen',
             ),
             Node(
@@ -526,13 +534,14 @@ def generate_launch_description():
                     'retarget_cancel_settle_sec': 0.05,
                   'duplicate_goal_replan_after_sec': 0.0,
                     'early_success_cancel_enabled': True,
-                }],
+                }, app_overrides],
                 output='screen',
             ),
             Node(
                 package='fire_robot_manipulation',
                 executable='manipulation_node',
                 name='manipulation_node',
+                condition=UnlessCondition(navigation_only),
                 parameters=[{
                     'use_sim_time':     use_sim_time,
                     'sim_mode':         True,
@@ -559,6 +568,14 @@ def generate_launch_description():
                     'velocity_scaling': 0.5,
                 }],
                 remappings=[('/cmd_vel', '/cmd_vel_manual')],
+                output='screen',
+            ),
+            Node(
+                package='fire_robot_navigation',
+                executable='navigation_visit_node',
+                name='navigation_visit_node',
+                parameters=[{'use_sim_time': use_sim_time}],
+                condition=IfCondition(navigation_only),
                 output='screen',
             ),
             TimerAction(
@@ -797,7 +814,7 @@ def generate_launch_description():
                             'nav_start_center_recovery_yaw_tolerance_deg': 32.0,
                             'nav_start_center_recovery_max_sec': 22.0,
                             'start_without_fire':   start_without_fire,
-                        }],
+                        }, app_overrides],
                         remappings=[('/cmd_vel', '/cmd_vel_manual')],
                         output='screen',
                     ),
@@ -819,6 +836,12 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
+        DeclareLaunchArgument('navigation_only', default_value='false'),
+        DeclareLaunchArgument('nav2_params_file', default_value=nav2_params_default),
+        DeclareLaunchArgument('slam_params_file', default_value=slam_params_default),
+        DeclareLaunchArgument('app_overrides', default_value=PathJoinSubstitution([
+            FindPackageShare('fire_robot_bringup'), 'config', 'empty_overrides.yaml',
+        ])),
         DeclareLaunchArgument('odometry_source', default_value='ground_truth',
                               choices=['ground_truth', 'wheel']),
         DeclareLaunchArgument('use_sim_time', default_value='true'),

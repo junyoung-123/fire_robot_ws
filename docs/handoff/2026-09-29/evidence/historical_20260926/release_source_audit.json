@@ -1,0 +1,361 @@
+{
+  "date": "2026-09-26",
+  "new_simulation_run": false,
+  "scope": "Post-recording source audit and focused unit tests only, not a new Gazebo mission.",
+  "ast_files": 138,
+  "test_modules": [
+    "test_confirmed_handle_track",
+    "test_contact_probe_selector",
+    "test_encoder_articulation",
+    "test_minimal_angle_policy",
+    "test_observed_angle_input_contract",
+    "test_observed_contact_view",
+    "test_observed_door_plane",
+    "test_observed_freshness",
+    "test_observed_lidar_panel",
+    "test_observed_panel_mask",
+    "test_piper_ik_boundary",
+    "test_released_base_withdrawal"
+  ],
+  "tests": 68,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "passed": true,
+  "runtime_files": [
+    {
+      "file": "src/fire_robot_manipulation/setup.py",
+      "recorded_sha256": "cf90020355d8cb20b127df61e47b029d1cca196d581aeb3dcca9eb435452ce0f",
+      "current_sha256": "cf90020355d8cb20b127df61e47b029d1cca196d581aeb3dcca9eb435452ce0f",
+      "unchanged": true
+    },
+    {
+      "file": "src/fire_robot_manipulation/fire_robot_manipulation/observed_panel_mask.py",
+      "recorded_sha256": "3c9345580203f5002194cd473bfdbc22c2a53ff402077510a128b2deb02ffc04",
+      "current_sha256": "3c9345580203f5002194cd473bfdbc22c2a53ff402077510a128b2deb02ffc04",
+      "unchanged": true
+    },
+    {
+      "file": "src/fire_robot_manipulation/fire_robot_manipulation/__init__.py",
+      "recorded_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "current_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "unchanged": true
+    },
+    {
+      "file": "src/fire_robot_manipulation/fire_robot_manipulation/manipulation_node.py",
+      "recorded_sha256": "5eaf84a764b1b92a67bd32e260fd29cea71270f68721cdcdb09fc738f9fe82b5",
+      "current_sha256": "5eaf84a764b1b92a67bd32e260fd29cea71270f68721cdcdb09fc738f9fe82b5",
+      "unchanged": true
+    },
+    {
+      "file": "src/fire_robot_manipulation/fire_robot_manipulation/physical_contact_manipulation_node.py",
+      "recorded_sha256": "8a09a38532457d3459eca8c8760298d03e1065e59e174f664ab0c875f3c04cde",
+      "current_sha256": "8a09a38532457d3459eca8c8760298d03e1065e59e174f664ab0c875f3c04cde",
+      "unchanged": true
+    },
+    {
+      "file": "src/fire_robot_manipulation/fire_robot_manipulation/robot_observation_manipulation_node.py",
+      "recorded_sha256": "b0d8a2afc52bbf3b3f5a104cfbcea1e7eb164db5268858dc5870d9ae48057593",
+      "current_sha256": "b0d8a2afc52bbf3b3f5a104cfbcea1e7eb164db5268858dc5870d9ae48057593",
+      "unchanged": true
+    },
+    {
+      "file": "src/fire_robot_manipulation/fire_robot_manipulation/encoder_articulation.py",
+      "recorded_sha256": "a4f30ecd9493e6103c369c705e242ff7efba0de66575634d88e32a7d47996e7c",
+      "current_sha256": "a4f30ecd9493e6103c369c705e242ff7efba0de66575634d88e32a7d47996e7c",
+      "unchanged": true
+    },
+    {
+      "file": "src/fire_robot_manipulation/fire_robot_manipulation/contact_probe_selector.py",
+      "recorded_sha256": "3f63434b64634130d9dee8bc839c73eab2b9bea36c886393811df0dbd10de945",
+      "current_sha256": "3f63434b64634130d9dee8bc839c73eab2b9bea36c886393811df0dbd10de945",
+      "unchanged": true
+    },
+    {
+      "file": "src/fire_robot_manipulation/fire_robot_manipulation/piper_actual_kinematics.py",
+      "recorded_sha256": "e7822f02c76ae8e29e409220974cd6b6572c3cadef868990d58c3865fe9f08d3",
+      "current_sha256": "e7822f02c76ae8e29e409220974cd6b6572c3cadef868990d58c3865fe9f08d3",
+      "unchanged": true
+    },
+    {
+      "file": "src/fire_robot_manipulation/fire_robot_manipulation/preserved_contact_policy.py",
+      "recorded_sha256": "ea9a63ec1d7c26fff740d62208abf9e0d9ec01cb0c83b2ee530a9c185b85ac0a",
+      "current_sha256": "ea9a63ec1d7c26fff740d62208abf9e0d9ec01cb0c83b2ee530a9c185b85ac0a",
+      "unchanged": true
+    },
+    {
+      "file": "src/fire_robot_manipulation/fire_robot_manipulation/released_retreat.py",
+      "recorded_sha256": "7d2001f71d1d4171f29a83919cd2ff6146ac05e62321a703ba728d3300758681",
+      "current_sha256": "7d2001f71d1d4171f29a83919cd2ff6146ac05e62321a703ba728d3300758681",
+      "unchanged": true
+    },
+    {
+      "file": "src/fire_robot_manipulation/fire_robot_manipulation/observed_lidar_panel.py",
+      "recorded_sha256": "38d7abd1baf4ad1ff00345a23e3dc8249fcc17b8f9c4af02fb46a02eb94caeff",
+      "current_sha256": "38d7abd1baf4ad1ff00345a23e3dc8249fcc17b8f9c4af02fb46a02eb94caeff",
+      "unchanged": true
+    },
+    {
+      "file": "src/fire_robot_manipulation/fire_robot_manipulation/observed_freshness.py",
+      "recorded_sha256": "5a9456c19719480b3418cc975a706d50ea04f99847331b76fda2bd5e78a0ad78",
+      "current_sha256": "5a9456c19719480b3418cc975a706d50ea04f99847331b76fda2bd5e78a0ad78",
+      "unchanged": true
+    },
+    {
+      "file": "src/fire_robot_manipulation/fire_robot_manipulation/contact_feedback.py",
+      "recorded_sha256": "dcb991056ca41ff3f1d0ebbd76caf386bfc867124163c81ca92c7714c2cc7b47",
+      "current_sha256": "dcb991056ca41ff3f1d0ebbd76caf386bfc867124163c81ca92c7714c2cc7b47",
+      "unchanged": true
+    },
+    {
+      "file": "src/fire_robot_manipulation/fire_robot_manipulation/observed_contact_view.py",
+      "recorded_sha256": "a073e90e767da39405031c82f5bc0d630e25495fb9791913dc320f19902b7bad",
+      "current_sha256": "a073e90e767da39405031c82f5bc0d630e25495fb9791913dc320f19902b7bad",
+      "unchanged": true
+    },
+    {
+      "file": "src/fire_robot_manipulation/fire_robot_manipulation/minimal_observed_angle_node.py",
+      "recorded_sha256": "9bf3c2b7c697e189072fbace84c4bb9bdde51c0168cee92636222f4c822de37f",
+      "current_sha256": "9bf3c2b7c697e189072fbace84c4bb9bdde51c0168cee92636222f4c822de37f",
+      "unchanged": true
+    },
+    {
+      "file": "src/fire_robot_manipulation/fire_robot_manipulation/observed_angle_manipulation_node.py",
+      "recorded_sha256": "345e66728bde407da46c966e2b2cc12ec0bd5c4fbccf948541ef48d2998b4929",
+      "current_sha256": "345e66728bde407da46c966e2b2cc12ec0bd5c4fbccf948541ef48d2998b4929",
+      "unchanged": true
+    },
+    {
+      "file": "src/fire_robot_manipulation/fire_robot_manipulation/confirmed_handle_track.py",
+      "recorded_sha256": "8bdc80e12fd06278290a10cf43507302ec4cb2a1f55ebf04d057d11dd3962285",
+      "current_sha256": "8bdc80e12fd06278290a10cf43507302ec4cb2a1f55ebf04d057d11dd3962285",
+      "unchanged": true
+    },
+    {
+      "file": "src/fire_robot_manipulation/fire_robot_manipulation/observed_door_angle_node.py",
+      "recorded_sha256": "6914fc45feda888b663ac3af7ad0b6aacd1ff3266cc0004b75bca21d35cf7059",
+      "current_sha256": "6914fc45feda888b663ac3af7ad0b6aacd1ff3266cc0004b75bca21d35cf7059",
+      "unchanged": true
+    },
+    {
+      "file": "src/fire_robot_manipulation/fire_robot_manipulation/sim_door_feedback.py",
+      "recorded_sha256": "779533fe8a026d66c69c8248b290742f9aaae3a78fba35c49b988d02a937c6b5",
+      "current_sha256": "779533fe8a026d66c69c8248b290742f9aaae3a78fba35c49b988d02a937c6b5",
+      "unchanged": true
+    },
+    {
+      "file": "src/fire_robot_manipulation/fire_robot_manipulation/observed_door_plane.py",
+      "recorded_sha256": "1a39f5f3a51eb3d6b7184a8495c980dba08fe7f88c9d3a08ad956ded87199077",
+      "current_sha256": "1a39f5f3a51eb3d6b7184a8495c980dba08fe7f88c9d3a08ad956ded87199077",
+      "unchanged": true
+    },
+    {
+      "file": "src/fire_robot_manipulation/launch/move_group.launch.py",
+      "recorded_sha256": "686aa06bb8754e4d81ae4cffb0251d9618a348c33a420e7b9b91e3ffcf49779a",
+      "current_sha256": "686aa06bb8754e4d81ae4cffb0251d9618a348c33a420e7b9b91e3ffcf49779a",
+      "unchanged": true
+    },
+    {
+      "file": "src/fire_robot_bringup/launch/physical_contact_door_test.launch.py",
+      "recorded_sha256": "ba76d7863d6e0c536ef5a5965eb7db61a9dd7adeed30374af71728ac8d075d9d",
+      "current_sha256": "ba76d7863d6e0c536ef5a5965eb7db61a9dd7adeed30374af71728ac8d075d9d",
+      "unchanged": true
+    },
+    {
+      "file": "src/fire_robot_bringup/launch/gazebo.launch.py",
+      "recorded_sha256": "4332f1714e92281d4df94d86f06b12046f46ecb6213374b6426cf8752a2d61b1",
+      "current_sha256": "4332f1714e92281d4df94d86f06b12046f46ecb6213374b6426cf8752a2d61b1",
+      "unchanged": true
+    },
+    {
+      "file": "src/fire_robot_bringup/worlds/physical_contact_door_test.world",
+      "recorded_sha256": "7ad62430a2e33aad7687d9310bcf64302c3c13b30b5a00a4b1fda537d1c98dbb",
+      "current_sha256": "7ad62430a2e33aad7687d9310bcf64302c3c13b30b5a00a4b1fda537d1c98dbb",
+      "unchanged": true
+    },
+    {
+      "file": "src/fire_robot_bringup/worlds/physical_contact_door_mirrored.world",
+      "recorded_sha256": "478ccf06b76af582897f814d0186ec1345fc43611203ce3c522616f2f149d46a",
+      "current_sha256": "478ccf06b76af582897f814d0186ec1345fc43611203ce3c522616f2f149d46a",
+      "unchanged": true
+    },
+    {
+      "file": "src/fire_robot_bringup/scripts/run_physical_contact_door_test.py",
+      "recorded_sha256": "f26213f1dd196d7be3287fb2683d69c76cd756df57caa29e94eebd1cd852ddda",
+      "current_sha256": "f26213f1dd196d7be3287fb2683d69c76cd756df57caa29e94eebd1cd852ddda",
+      "unchanged": true
+    },
+    {
+      "file": "src/fire_robot_description/urdf/fire_robot_actual_piper.urdf.xacro",
+      "recorded_sha256": "540dfe50eba0d8df168aeed7b26abad099133358ed1c832e3d2b2bc1ba8e5701",
+      "current_sha256": "540dfe50eba0d8df168aeed7b26abad099133358ed1c832e3d2b2bc1ba8e5701",
+      "unchanged": true
+    },
+    {
+      "file": "src/fire_robot_perception/fire_robot_perception/door_detection_node.py",
+      "recorded_sha256": "53ed85d64ed004a2f1433795c5cef42d1f5ed6b8feca17f6c4109eb48cff46f3",
+      "current_sha256": "53ed85d64ed004a2f1433795c5cef42d1f5ed6b8feca17f6c4109eb48cff46f3",
+      "unchanged": true
+    },
+    {
+      "file": "scripts/run_observed_angle_demo.py",
+      "recorded_sha256": "36d01be901aca236e9771dc8b08e49d4091ee68e180d0cc431544517adef1ecb",
+      "current_sha256": "36d01be901aca236e9771dc8b08e49d4091ee68e180d0cc431544517adef1ecb",
+      "unchanged": true
+    },
+    {
+      "file": "scripts/run_corridor_demo.py",
+      "recorded_sha256": "347c4c6839251e1ce0c24cb0be0fc0e004e2d0cc0239b312be103ced1da831ee",
+      "current_sha256": "347c4c6839251e1ce0c24cb0be0fc0e004e2d0cc0239b312be103ced1da831ee",
+      "unchanged": true
+    },
+    {
+      "file": "scripts/start_observed_angle.sh",
+      "recorded_sha256": "8099344d9f635e30c6fffcf276d59647a108e0abebc439d038a376c94c218941",
+      "current_sha256": "8099344d9f635e30c6fffcf276d59647a108e0abebc439d038a376c94c218941",
+      "unchanged": true
+    },
+    {
+      "file": "scripts/capture_angle_sensor_inputs.py",
+      "recorded_sha256": "05ed57c3be07d9e13f754bab7f12f55f46d0bd7e45cb3245097e4c20c61e8cb6",
+      "current_sha256": "05ed57c3be07d9e13f754bab7f12f55f46d0bd7e45cb3245097e4c20c61e8cb6",
+      "unchanged": true
+    },
+    {
+      "file": "scripts/start_minimal_angle.sh",
+      "recorded_sha256": "20974671bd68491f5fba4351100331a0987a3f33f748944a2f53eb9db3105a47",
+      "current_sha256": "20974671bd68491f5fba4351100331a0987a3f33f748944a2f53eb9db3105a47",
+      "unchanged": true
+    },
+    {
+      "file": "scripts/test_minimal_angle_policy.py",
+      "recorded_sha256": "4e4821b65b20ecb7ce6b5031fcfb4f5cf5a137a2522069c1bc0fed9c78049746",
+      "current_sha256": "4e4821b65b20ecb7ce6b5031fcfb4f5cf5a137a2522069c1bc0fed9c78049746",
+      "unchanged": true
+    },
+    {
+      "file": "scripts/start_robot_observation.sh",
+      "recorded_sha256": "648f9d359e8635756bc068e92073695ed088b0938fb32768d13ee372a181e6a0",
+      "current_sha256": "648f9d359e8635756bc068e92073695ed088b0938fb32768d13ee372a181e6a0",
+      "unchanged": true
+    },
+    {
+      "file": "scripts/test_encoder_articulation.py",
+      "recorded_sha256": "430caa5f6add493863704bceed332076e059827d3339f73a43202386e690cf3b",
+      "current_sha256": "430caa5f6add493863704bceed332076e059827d3339f73a43202386e690cf3b",
+      "unchanged": true
+    },
+    {
+      "file": "scripts/audit_robot_observation_graph.py",
+      "recorded_sha256": "35def414136ddeb22fc32ee8143d5bc3dc8ad4a7cb51d44ec84a9f6df334c6d5",
+      "current_sha256": "35def414136ddeb22fc32ee8143d5bc3dc8ad4a7cb51d44ec84a9f6df334c6d5",
+      "unchanged": true
+    },
+    {
+      "file": "ROBOT_OBSERVATION_ONLY.md",
+      "recorded_sha256": "00ed7230c519fa9277f2c8c1a2e0b5f9261945ebd9a32ffcbd896d79f6f8a942",
+      "current_sha256": "719a5401a38c2e190ec125372cf8060f9d5ebe6e48f1c7d8c1c9abc6fc3fd4b4",
+      "unchanged": false
+    },
+    {
+      "file": "scripts/test_piper_ik_boundary.py",
+      "recorded_sha256": "25ebc9bf8c0c29c1e2864a4ec8431b957ae025812eab5a8247f2a9b77328c9d0",
+      "current_sha256": "25ebc9bf8c0c29c1e2864a4ec8431b957ae025812eab5a8247f2a9b77328c9d0",
+      "unchanged": true
+    },
+    {
+      "file": "scripts/replay_panel_quality.py",
+      "recorded_sha256": "c2fa7f704a9eb40c4ceac2978f2f76acb1d0093f383b0fd065d7d419d05d2980",
+      "current_sha256": "c2fa7f704a9eb40c4ceac2978f2f76acb1d0093f383b0fd065d7d419d05d2980",
+      "unchanged": true
+    },
+    {
+      "file": "src/fire_robot_description/urdf/piper_arm_actual.xacro",
+      "recorded_sha256": "0c5facc7565af1a9f1710e38470bbbe918c304f1c6bf5072de14fffb0525ea5a",
+      "current_sha256": "0c5facc7565af1a9f1710e38470bbbe918c304f1c6bf5072de14fffb0525ea5a",
+      "unchanged": true
+    },
+    {
+      "file": "scripts/replay_lidar_panel.py",
+      "recorded_sha256": "98b06ff8499f4e1ab97c5666e37f92ac8f99ddbfdf0b89d29be1feac46d31e08",
+      "current_sha256": "98b06ff8499f4e1ab97c5666e37f92ac8f99ddbfdf0b89d29be1feac46d31e08",
+      "unchanged": true
+    },
+    {
+      "file": "scripts/test_observed_lidar_panel.py",
+      "recorded_sha256": "82ed1cb31aebde62e788a59103329635ec281087e198a84226b595a09f851e14",
+      "current_sha256": "7fafb3ba58e7f8b26daeb77924881f74b307d01a11fe829e7cea4a840b2edde2",
+      "unchanged": false
+    },
+    {
+      "file": "scripts/test_observed_panel_mask.py",
+      "recorded_sha256": "06c47d581af308378be6862063d33e21a63981b58ebd271a2d1c370bcca4fbac",
+      "current_sha256": "06c47d581af308378be6862063d33e21a63981b58ebd271a2d1c370bcca4fbac",
+      "unchanged": true
+    },
+    {
+      "file": "scripts/prepare_mirrored_contact_world.py",
+      "recorded_sha256": "0522a37cd6bef6ee08123a2a129296e7db8ed8594302c552a06a361e3f0793f1",
+      "current_sha256": "0522a37cd6bef6ee08123a2a129296e7db8ed8594302c552a06a361e3f0793f1",
+      "unchanged": true
+    },
+    {
+      "file": "scripts/test_observed_door_plane.py",
+      "recorded_sha256": "a6d72770d6e18c2c20786bee2e8053585d61c74e830b6b872294c5b884b55838",
+      "current_sha256": "a6d72770d6e18c2c20786bee2e8053585d61c74e830b6b872294c5b884b55838",
+      "unchanged": true
+    },
+    {
+      "file": "scripts/test_observed_angle_input_contract.py",
+      "recorded_sha256": "65694bfda9535598d13583e2d11fc7102d536a5f61312c309aa80d491400f767",
+      "current_sha256": "65694bfda9535598d13583e2d11fc7102d536a5f61312c309aa80d491400f767",
+      "unchanged": true
+    },
+    {
+      "file": "scripts/test_observed_contact_view.py",
+      "recorded_sha256": "576e9ff5c55e9964a6ca5a9555730abfce847e4c8b06dcd8d630ea9379f3d95d",
+      "current_sha256": "576e9ff5c55e9964a6ca5a9555730abfce847e4c8b06dcd8d630ea9379f3d95d",
+      "unchanged": true
+    },
+    {
+      "file": "scripts/test_contact_probe_selector.py",
+      "recorded_sha256": "199b7ed5245a7584d17ff485767562831dfc2940448453edb1738c944d3f2030",
+      "current_sha256": "199b7ed5245a7584d17ff485767562831dfc2940448453edb1738c944d3f2030",
+      "unchanged": true
+    },
+    {
+      "file": "scripts/test_released_base_withdrawal.py",
+      "recorded_sha256": "76f044c5898c51e49327757b3dd469334ca83ce65afedca5f3bf446c5367667e",
+      "current_sha256": "76f044c5898c51e49327757b3dd469334ca83ce65afedca5f3bf446c5367667e",
+      "unchanged": true
+    },
+    {
+      "file": "scripts/test_observed_freshness.py",
+      "recorded_sha256": "973e8beffbdcd36bc340334ec4382b0b758b3e7d95db108ba91a440e4e84bd90",
+      "current_sha256": "973e8beffbdcd36bc340334ec4382b0b758b3e7d95db108ba91a440e4e84bd90",
+      "unchanged": true
+    },
+    {
+      "file": "scripts/test_confirmed_handle_track.py",
+      "recorded_sha256": "28c8ff33bfde94111f8b424f5c32d4799eb5c4dbcce491c25c0ad19ec3f2b374",
+      "current_sha256": "28c8ff33bfde94111f8b424f5c32d4799eb5c4dbcce491c25c0ad19ec3f2b374",
+      "unchanged": true
+    },
+    {
+      "file": "REAL_SENSOR_INTERFACE.md",
+      "recorded_sha256": "6b1c69735bd07966133c46393d9f21bf927cac57c340369c9facb96ce25ea9c2",
+      "current_sha256": "6b1c69735bd07966133c46393d9f21bf927cac57c340369c9facb96ce25ea9c2",
+      "unchanged": true
+    },
+    {
+      "file": "OBSERVED_ANGLE_EXPERIMENT.md",
+      "recorded_sha256": "043c32f51e37ec448683d17d283167637ee111e660d49ff4426033f6536a0a71",
+      "current_sha256": "043c32f51e37ec448683d17d283167637ee111e660d49ff4426033f6536a0a71",
+      "unchanged": true
+    }
+  ],
+  "changed_since_recording": [
+    "ROBOT_OBSERVATION_ONLY.md",
+    "scripts/test_observed_lidar_panel.py"
+  ]
+}

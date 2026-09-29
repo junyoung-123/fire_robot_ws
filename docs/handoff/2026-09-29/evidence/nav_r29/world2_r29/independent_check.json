@@ -1,0 +1,60 @@
+{
+  "status": "PASS_NAV_VISITS_EXIT",
+  "failures": [],
+  "expected_blue_count_evaluator_only": 3,
+  "unique_valid_visits": 3,
+  "matches": [
+    {
+      "id": "door_blue_2bfe49__axis_p5p76_p2p06",
+      "matched_door": "door_blue1",
+      "color": "blue",
+      "distance_m": 1.0536626736469727,
+      "longitudinal_error_m": 0.39827820536132474,
+      "normal_error_deg": 0.020054966202369958,
+      "bearing_error_deg": 22.189428822368797,
+      "pass": true
+    },
+    {
+      "id": "observed_blue_9p2_m1p3__axis_p11p03_m1p86",
+      "matched_door": "door_blue2",
+      "color": "blue",
+      "distance_m": 1.271906446830209,
+      "longitudinal_error_m": 0.12480749912477229,
+      "normal_error_deg": 0.4014941125274059,
+      "bearing_error_deg": 5.2297917287431215,
+      "pass": true
+    },
+    {
+      "id": "observed_blue_16p6_1p6__axis_p18p00_p1p85",
+      "matched_door": "door_blue3",
+      "color": "blue",
+      "distance_m": 1.1309121922695913,
+      "longitudinal_error_m": 0.2342963657990591,
+      "normal_error_deg": 5.770749289414402,
+      "bearing_error_deg": 6.186082866391301,
+      "pass": true
+    }
+  ],
+  "input_audit": {
+    "sim_time": 360.0,
+    "map_messages_recorded": 18,
+    "map_to_base_available": 1,
+    "navigate_action_server_present": true,
+    "map_publishers": [
+      "slam_toolbox"
+    ],
+    "odom_publishers": [
+      "gz_selected_odometry_bridge"
+    ],
+    "evaluation_truth_subscribers": [
+      "observed_navigation_recorder"
+    ]
+  },
+  "physical_opening_tested": false,
+  "physical_contact_collision_audit": "not instrumented",
+  "navigation_footprint_overlap_obstacles": [],
+  "navigation_footprint_overlap_events": {},
+  "retained_obstacles_evaluator_only": 12,
+  "exit_jambs_evaluated": 2,
+  "wall_panel_boxes_evaluated": 11
+}

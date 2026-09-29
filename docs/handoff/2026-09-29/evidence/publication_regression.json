@@ -1,0 +1,11 @@
+{
+  "date": "2026-09-29",
+  "environment": "Ubuntu2204Recovered / ROS2 Humble",
+  "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest scripts/test_observed_*.py scripts/test_motion_scan_filter.py scripts/test_open_exit_world.py scripts/test_slam_correction_tf.py -q",
+  "result": "96 passed in 4.10s",
+  "new_gazebo_run": false,
+  "environment_notes": [
+    "External pytest plugin autoload disabled after anyio/system-pytest incompatibility.",
+    "install setup reported missing optional fire_robot_sim_evidence/local_setup.bash; selected tests still collected and passed."
+  ]
+}

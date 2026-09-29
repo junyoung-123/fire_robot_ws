@@ -1,0 +1,1669 @@
+{
+  "created": "2026-09-22",
+  "revision": 2,
+  "original_ppt_edited": false,
+  "simulation_rerun": false,
+  "source_files_unchanged": true,
+  "scope": "Media curation. The latest R34 single-door run, memory test and historical navigation are distinct.",
+  "assets": [
+    {
+      "id": "F1",
+      "folder": "01_10p_전체흐름",
+      "file": "01_10p_전체흐름/01_관측_R34_20260922.png",
+      "title": "관측: 로봇 카메라 원본",
+      "pages": [
+        10,
+        17
+      ],
+      "date": "2026-09-22",
+      "version": "R34 / robot-only observation / 단일문 PASS",
+      "kind": "카메라 원본",
+      "caption": "카메라에서 문과 손잡이를 찾고, 거리와 로봇 좌표 변환을 결합해 접근 대상을 정한다.",
+      "caution": "기본 방향 단일문 한 번의 성공. 실제 로봇, 반대 힌지, 다문 접촉 통합 성공을 뜻하지 않음.",
+      "priority": "추천",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\22_로봇센서기반_기본문개방_20260922\\observed_angle_r34\\02_observing_robot.png",
+      "sha256": "43347c12629ecfa0d9fc40e14cfadf2575314146d0b4bac538e66aeffce05a6e",
+      "bytes": 7786,
+      "dimensions": [
+        320,
+        240
+      ]
+    },
+    {
+      "id": "F2",
+      "folder": "01_10p_전체흐름",
+      "file": "01_10p_전체흐름/02_문기억_MEMORY_R3_20260922.png",
+      "title": "문 기억: 첫 문 개방 후 지도",
+      "pages": [
+        10,
+        25
+      ],
+      "date": "2026-09-22",
+      "version": "memory_demo_r3 / 기억 기능 확인 / 복구 오류 포함",
+      "kind": "기록 데이터 시각화",
+      "caption": "열린 문의 위치를 기억해 다음 목표를 고를 때 제외한다.",
+      "caution": "고정 /map 위 FSM 문 기억 자료. 단순 힌지 명령으로 개방했으며 최신 PIPER 물리 접촉과 별도 실행. 무오류 주행이나 새 SLAM 확장 증거가 아님. 로봇 모양은 기록된 위치·방향을 나타내는 표시용 아이콘.",
+      "priority": "추천",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\11_로봇표시_고정카메라_1배속\\08_첫문개방_기억지도.png",
+      "sha256": "6dabda40b6f88e2cb17eadf23128fc42c49f47bf643d59fba40230a5d26f1365",
+      "bytes": 13773,
+      "dimensions": [
+        1880,
+        440
+      ]
+    },
+    {
+      "id": "F3",
+      "folder": "01_10p_전체흐름",
+      "file": "01_10p_전체흐름/03_목표선택_MEMORY_R3_20260922.png",
+      "title": "목표 선택: 접근 대상 유지",
+      "pages": [
+        10,
+        27,
+        28
+      ],
+      "date": "2026-09-22",
+      "version": "memory_demo_r3 / 기억 기능 확인 / 복구 오류 포함",
+      "kind": "기록 데이터 시각화",
+      "caption": "선택한 문을 처리하는 동안 현재 접근 목표를 유지한다.",
+      "caution": "고정 /map 위 FSM 문 기억 자료. 단순 힌지 명령으로 개방했으며 최신 PIPER 물리 접촉과 별도 실행. 무오류 주행이나 새 SLAM 확장 증거가 아님. 노란 원은 손잡이 위치가 아니라 접근·주차 목표.",
+      "priority": "추천",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\11_로봇표시_고정카메라_1배속\\07_목표선택_지도.png",
+      "sha256": "9ce2d391e858b7f416867b43ac0e2067593e5ece59d4b7ef6c158d7500000f34",
+      "bytes": 12051,
+      "dimensions": [
+        1880,
+        440
+      ]
+    },
+    {
+      "id": "F4",
+      "folder": "01_10p_전체흐름",
+      "file": "01_10p_전체흐름/04_접근정렬_R34_20260922.png",
+      "title": "접근·정렬: 근접 접근 마지막 기록",
+      "pages": [
+        10,
+        29
+      ],
+      "date": "2026-09-22",
+      "version": "R34 / robot-only observation / 단일문 PASS",
+      "kind": "Gazebo 외부 카메라 원본",
+      "caption": "관측 손잡이와 PIPER 도달 가능성을 기준으로 본체 접근을 조정한다.",
+      "caution": "기본 방향 단일문 한 번의 성공. 실제 로봇, 반대 힌지, 다문 접촉 통합 성공을 뜻하지 않음. Nav2 복도 전체 주행이 아니라 가까운 문에서 시작한 접근 시험.",
+      "priority": "추천",
+      "source": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_observed_angle_20260922\\artifacts\\validation\\observed_angle_r34\\physical_contact_door_test_20260922_193138\\demo_frames\\00058_scene.png",
+      "sha256": "6a1cc70fc705f9a2284cfb1700d75d90baf4f5642fb94d395fc2c419f0818eff",
+      "bytes": 40704,
+      "sim_time": 19.314,
+      "dimensions": [
+        1280,
+        720
+      ]
+    },
+    {
+      "id": "F5",
+      "folder": "01_10p_전체흐름",
+      "file": "01_10p_전체흐름/05_개방확인_R34_20260922.png",
+      "title": "개방 확인: 팔 복귀 후",
+      "pages": [
+        10,
+        34,
+        42
+      ],
+      "date": "2026-09-22",
+      "version": "R34 / robot-only observation / 단일문 PASS",
+      "kind": "Gazebo 상단 원본",
+      "caption": "관측 각도로 개방을 확인한 뒤 손잡이를 놓고 로봇팔을 복귀시킨다.",
+      "caution": "기본 방향 단일문 한 번의 성공. 실제 로봇, 반대 힌지, 다문 접촉 통합 성공을 뜻하지 않음.",
+      "priority": "추천",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\22_로봇센서기반_기본문개방_20260922\\observed_angle_r34\\06_complete_overhead.png",
+      "sha256": "5229b24fd171399b28dbd3e8194dd1dc46a7e2f1d589e9c9f8df25ca20ade691",
+      "bytes": 18250,
+      "dimensions": [
+        1280,
+        720
+      ]
+    },
+    {
+      "id": "R1",
+      "folder": "02_11p_로봇플랫폼",
+      "file": "02_11p_로봇플랫폼/01_Gazebo_실제PIPER형상.png",
+      "title": "PIPER 탑재 로봇 형상",
+      "pages": [
+        11
+      ],
+      "date": "2026-09-22",
+      "version": "corridor_demo_r1 / 형상 자료",
+      "kind": "Gazebo 원본",
+      "caption": "Gazebo에 배치한 모바일 베이스와 PIPER 로봇팔의 구성이다.",
+      "caution": "실물 사진이 아니며 센서 장착 위치를 실측했다는 증거가 아님.",
+      "priority": "추천",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\04_11페이지_로봇플랫폼\\01_Gazebo_실제PIPER형상.png",
+      "sha256": "dd68dc9a24c1c81a6edbc5a96cdebabb881ea6c61395dd5b5ed7a1e55af6334d",
+      "bytes": 41131,
+      "dimensions": [
+        1280,
+        720
+      ]
+    },
+    {
+      "id": "R2",
+      "folder": "02_11p_로봇플랫폼",
+      "file": "02_11p_로봇플랫폼/02_복도와로봇_상단시점.png",
+      "title": "복도와 로봇 배치",
+      "pages": [
+        11
+      ],
+      "date": "2026-09-22",
+      "version": "corridor_demo_r1 / 형상 자료",
+      "kind": "Gazebo 원본",
+      "caption": "Gazebo에 배치한 모바일 베이스와 PIPER 로봇팔의 구성이다.",
+      "caution": "실물 사진이 아니며 센서 장착 위치를 실측했다는 증거가 아님.",
+      "priority": "추천",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\04_11페이지_로봇플랫폼\\02_복도와로봇_상단시점.png",
+      "sha256": "71f6935c5544e561859b11d420803cfe074e7f9ee28ed634ab65f62b54799b09",
+      "bytes": 15329,
+      "dimensions": [
+        1280,
+        720
+      ]
+    },
+    {
+      "id": "P1",
+      "folder": "03_17_24p_관측과지도",
+      "file": "03_17_24p_관측과지도/01_문손잡이_BBox_R34_20260922.png",
+      "title": "최신 문 후보·손잡이 bbox",
+      "pages": [
+        17,
+        32
+      ],
+      "date": "2026-09-22",
+      "version": "R34 / robot-only observation / 단일문 PASS",
+      "kind": "실제 검출 출력",
+      "caption": "파란 테두리는 문 후보, 노란 박스는 v3 YOLO 손잡이 검출 결과다.",
+      "caution": "문 후보 생성에는 YOLO와 HSV fallback이 함께 켜져 있다. 문 박스 전체를 YOLO 단독 결과라고 설명하지 않는다.",
+      "priority": "추천",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\22_로봇센서기반_기본문개방_20260922\\observed_angle_r34\\yolo_primary_detection.png",
+      "sha256": "471b8151c1b20e4720eb92c975e072c7a86463ea4f3f7bb9b272180eb2af72bc",
+      "bytes": 8439,
+      "dimensions": [
+        320,
+        240
+      ]
+    },
+    {
+      "id": "P_blue",
+      "folder": "03_17_24p_관측과지도",
+      "file": "03_17_24p_관측과지도/02_파란문_BBox_과거20260910.png",
+      "title": "오탐 사례: 장애물을 문으로 검출",
+      "pages": [
+        40
+      ],
+      "date": "2026-09-10",
+      "version": "과거 인식 기록",
+      "kind": "기존 bbox 패널",
+      "caption": "왼쪽 장애물을 Door 0.27로 잘못 검출했다. 오른쪽 실제 문 검출과 함께 나타난 오탐 사례다.",
+      "caution": "정상 검출 예시로 사용하지 않는다. 이 그림만으로 장애물을 FSM 목표로 선택했는지는 알 수 없다.",
+      "priority": "오탐 / 발표 비추천",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\08_17_40페이지_문검출_사진패널\\20260910_blue_door_bbox.png",
+      "sha256": "e116729bf238b9e6f71d61f4a38b3f304cc4ca3d605a87901d32277065a3ef0a",
+      "bytes": 253135,
+      "archived": true,
+      "dimensions": [
+        662,
+        417
+      ]
+    },
+    {
+      "id": "P_red",
+      "folder": "03_17_24p_관측과지도",
+      "file": "03_17_24p_관측과지도/02_빨간문_BBox_과거20260910.png",
+      "title": "빨간문 검출 예시",
+      "pages": [
+        17,
+        40
+      ],
+      "date": "2026-09-10",
+      "version": "과거 인식 기록",
+      "kind": "기존 bbox 패널",
+      "caption": "실제 빨간문에 Door 0.61 박스가 표시된 과거 검출 기록이다.",
+      "caution": "과거 자료의 손잡이 표시는 최신 v3 YOLO 손잡이 성능 증거가 아님.",
+      "priority": "선택",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\08_17_40페이지_문검출_사진패널\\20260910_red_door_bbox.png",
+      "sha256": "0513248e4785b0814107deafed3ebc69183a6f6bac0f4088125a80bc7c6fd0f5",
+      "bytes": 182829,
+      "archived": false,
+      "dimensions": [
+        662,
+        417
+      ]
+    },
+    {
+      "id": "P1_map",
+      "folder": "03_17_24p_관측과지도",
+      "file": "03_17_24p_관측과지도/03_01_지도_과거20260910.png",
+      "title": "과거 인식 과정 1: 지도",
+      "pages": [
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24
+      ],
+      "date": "2026-09-10",
+      "version": "과거 라이브 인식 기록",
+      "kind": "기존 영상에서 추출한 패널",
+      "caption": "과거 기록의 지도 패널. 첫 카메라가 대기 화면이고 시점 일관성이 부족한 묶음이므로 발표 추천에서 제외했다. (1/4)",
+      "caution": "추천 대체 자료는 Q1/Q2 카메라·지도 쌍과 PV2 영상. 다른 시점의 사진을 붙여 같은 순간처럼 보이게 하지 않았다.",
+      "priority": "이전 원본 / 추천 제외",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\07_17_24페이지_과거관측지도과정\\20260910_01_map_panel.png",
+      "sha256": "5c1d6101352e3fe4347624f6d88a819ca8e5933df6af49935417111bcff1239f",
+      "bytes": 18417,
+      "archived": true,
+      "dimensions": [
+        952,
+        590
+      ]
+    },
+    {
+      "id": "P1_camera",
+      "folder": "03_17_24p_관측과지도",
+      "file": "03_17_24p_관측과지도/03_01_카메라_과거20260910.png",
+      "title": "카메라 수신 대기 화면 (사진 없음)",
+      "pages": [
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24
+      ],
+      "date": "2026-09-10",
+      "version": "과거 라이브 인식 기록",
+      "kind": "기존 영상에서 추출한 패널",
+      "caption": "원본부터 /door_detection/debug 수신 대기 문구만 있다. 파일 누락이나 웹페이지 오류가 아니다.",
+      "caution": "추천 대체 자료는 Q1/Q2 카메라·지도 쌍과 PV2 영상. 다른 시점의 사진을 붙여 같은 순간처럼 보이게 하지 않았다.",
+      "priority": "이전 원본 / 추천 제외",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\07_17_24페이지_과거관측지도과정\\20260910_01_camera_panel.png",
+      "sha256": "bd49374f88a985eff80804718c618369a40ab8fa8e6561df0a09d06a481b5363",
+      "bytes": 6417,
+      "archived": true,
+      "dimensions": [
+        496,
+        372
+      ]
+    },
+    {
+      "id": "P2_map",
+      "folder": "03_17_24p_관측과지도",
+      "file": "03_17_24p_관측과지도/03_02_지도_과거20260910.png",
+      "title": "과거 인식 과정 2: 지도",
+      "pages": [
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24
+      ],
+      "date": "2026-09-10",
+      "version": "과거 라이브 인식 기록",
+      "kind": "기존 영상에서 추출한 패널",
+      "caption": "과거 기록의 지도 패널. 첫 카메라가 대기 화면이고 시점 일관성이 부족한 묶음이므로 발표 추천에서 제외했다. (2/4)",
+      "caution": "추천 대체 자료는 Q1/Q2 카메라·지도 쌍과 PV2 영상. 다른 시점의 사진을 붙여 같은 순간처럼 보이게 하지 않았다.",
+      "priority": "이전 원본 / 추천 제외",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\07_17_24페이지_과거관측지도과정\\20260910_02_map_panel.png",
+      "sha256": "b1fe50f9f9d8e39b044196243f44152eaa655828563f6ec06dd0bbcb0f405f5b",
+      "bytes": 52382,
+      "archived": true,
+      "dimensions": [
+        952,
+        590
+      ]
+    },
+    {
+      "id": "P2_camera",
+      "folder": "03_17_24p_관측과지도",
+      "file": "03_17_24p_관측과지도/03_02_카메라_과거20260910.png",
+      "title": "과거 인식 과정 2: 카메라",
+      "pages": [
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24
+      ],
+      "date": "2026-09-10",
+      "version": "과거 라이브 인식 기록",
+      "kind": "기존 영상에서 추출한 패널",
+      "caption": "과거 기록의 카메라 패널. 첫 카메라가 대기 화면이고 시점 일관성이 부족한 묶음이므로 발표 추천에서 제외했다. (2/4)",
+      "caution": "추천 대체 자료는 Q1/Q2 카메라·지도 쌍과 PV2 영상. 다른 시점의 사진을 붙여 같은 순간처럼 보이게 하지 않았다.",
+      "priority": "이전 원본 / 추천 제외",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\07_17_24페이지_과거관측지도과정\\20260910_02_camera_panel.png",
+      "sha256": "53083b2acc41547ca846673c8f121d0c1222390d3e1b138858bf255ea3ed990e",
+      "bytes": 10447,
+      "archived": true,
+      "dimensions": [
+        496,
+        372
+      ]
+    },
+    {
+      "id": "P3_map",
+      "folder": "03_17_24p_관측과지도",
+      "file": "03_17_24p_관측과지도/03_03_지도_과거20260910.png",
+      "title": "과거 인식 과정 3: 지도",
+      "pages": [
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24
+      ],
+      "date": "2026-09-10",
+      "version": "과거 라이브 인식 기록",
+      "kind": "기존 영상에서 추출한 패널",
+      "caption": "과거 기록의 지도 패널. 첫 카메라가 대기 화면이고 시점 일관성이 부족한 묶음이므로 발표 추천에서 제외했다. (3/4)",
+      "caution": "추천 대체 자료는 Q1/Q2 카메라·지도 쌍과 PV2 영상. 다른 시점의 사진을 붙여 같은 순간처럼 보이게 하지 않았다.",
+      "priority": "이전 원본 / 추천 제외",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\07_17_24페이지_과거관측지도과정\\20260910_03_map_panel.png",
+      "sha256": "f3fcff058d0ffd7cdac5d835857c03fb330d61a92a3a8ec7b4e0a83de7464394",
+      "bytes": 44126,
+      "archived": true,
+      "dimensions": [
+        952,
+        590
+      ]
+    },
+    {
+      "id": "P3_camera",
+      "folder": "03_17_24p_관측과지도",
+      "file": "03_17_24p_관측과지도/03_03_카메라_과거20260910.png",
+      "title": "과거 인식 과정 3: 카메라",
+      "pages": [
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24
+      ],
+      "date": "2026-09-10",
+      "version": "과거 라이브 인식 기록",
+      "kind": "기존 영상에서 추출한 패널",
+      "caption": "과거 기록의 카메라 패널. 첫 카메라가 대기 화면이고 시점 일관성이 부족한 묶음이므로 발표 추천에서 제외했다. (3/4)",
+      "caution": "추천 대체 자료는 Q1/Q2 카메라·지도 쌍과 PV2 영상. 다른 시점의 사진을 붙여 같은 순간처럼 보이게 하지 않았다.",
+      "priority": "이전 원본 / 추천 제외",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\07_17_24페이지_과거관측지도과정\\20260910_03_camera_panel.png",
+      "sha256": "d5a4a3977803a634d6606a95a844ddbe040c80a49f33d13c7042613d54d2d6a5",
+      "bytes": 35616,
+      "archived": true,
+      "dimensions": [
+        496,
+        372
+      ]
+    },
+    {
+      "id": "P4_map",
+      "folder": "03_17_24p_관측과지도",
+      "file": "03_17_24p_관측과지도/03_04_지도_과거20260910.png",
+      "title": "과거 인식 과정 4: 지도",
+      "pages": [
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24
+      ],
+      "date": "2026-09-10",
+      "version": "과거 라이브 인식 기록",
+      "kind": "기존 영상에서 추출한 패널",
+      "caption": "과거 기록의 지도 패널. 첫 카메라가 대기 화면이고 시점 일관성이 부족한 묶음이므로 발표 추천에서 제외했다. (4/4)",
+      "caution": "추천 대체 자료는 Q1/Q2 카메라·지도 쌍과 PV2 영상. 다른 시점의 사진을 붙여 같은 순간처럼 보이게 하지 않았다.",
+      "priority": "이전 원본 / 추천 제외",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\07_17_24페이지_과거관측지도과정\\20260910_04_map_panel.png",
+      "sha256": "41ef3be9e979205c7e7382243c48e334d4d1d92674724e78efec665600101cfd",
+      "bytes": 51377,
+      "archived": true,
+      "dimensions": [
+        952,
+        590
+      ]
+    },
+    {
+      "id": "P4_camera",
+      "folder": "03_17_24p_관측과지도",
+      "file": "03_17_24p_관측과지도/03_04_카메라_과거20260910.png",
+      "title": "과거 인식 과정 4: 카메라",
+      "pages": [
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24
+      ],
+      "date": "2026-09-10",
+      "version": "과거 라이브 인식 기록",
+      "kind": "기존 영상에서 추출한 패널",
+      "caption": "과거 기록의 카메라 패널. 첫 카메라가 대기 화면이고 시점 일관성이 부족한 묶음이므로 발표 추천에서 제외했다. (4/4)",
+      "caution": "추천 대체 자료는 Q1/Q2 카메라·지도 쌍과 PV2 영상. 다른 시점의 사진을 붙여 같은 순간처럼 보이게 하지 않았다.",
+      "priority": "이전 원본 / 추천 제외",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\07_17_24페이지_과거관측지도과정\\20260910_04_camera_panel.png",
+      "sha256": "6caf9cbbf94076819baf3fa0a48f79a448cdf96112079fb2a601d6cf516868de",
+      "bytes": 42524,
+      "archived": true,
+      "dimensions": [
+        496,
+        372
+      ]
+    },
+    {
+      "id": "PV1",
+      "folder": "03_17_24p_관측과지도",
+      "file": "03_17_24p_관측과지도/04_과거_인식과지도과정_20260910.mp4",
+      "title": "과거 영상: 카메라 시점·가림 문제",
+      "pages": [
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24
+      ],
+      "date": "2026-09-10",
+      "version": "과거 라이브 인식 기록",
+      "kind": "원본 영상",
+      "caption": "오른쪽 카메라가 복도와 벽만 보이는 장면을 반복하고 화면을 가리는 형상이 나타난다. 정상적인 고정 정면 시점 예시로 추천하지 않는다.",
+      "caution": "원본 기록 자체의 문제이며 재생 링크 문제는 아니다. 가림 형상의 원인과 시점 변경 원인은 이 영상만으로 확정하지 않는다. PV2를 대체 자료로 사용.",
+      "priority": "시점 불명확 / 추천 제외",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\07_17_24페이지_과거관측지도과정\\20260910_live_perception_original.mp4",
+      "sha256": "98701dd9a00e4292cf868ea05120419553bb855de77b37550fdae9056dc0aea2",
+      "bytes": 6456404,
+      "archived": true
+    },
+    {
+      "id": "PV2",
+      "folder": "03_17_24p_관측과지도",
+      "file": "03_17_24p_관측과지도/05_문관측누적_MEMORY_R3_1x.mp4",
+      "title": "문 관측 누적과 로봇 시점",
+      "pages": [
+        19,
+        20,
+        21,
+        22,
+        23,
+        24
+      ],
+      "date": "2026-09-22",
+      "version": "memory_demo_r3 / 기억 기능 확인 / 복구 오류 포함",
+      "kind": "기록 재생 영상",
+      "caption": "반복 관측으로 문 랜드마크와 관측 횟수가 갱신되는 과정을 보여준다.",
+      "caution": "고정 /map 위 FSM 문 기억 자료. 단순 힌지 명령으로 개방했으며 최신 PIPER 물리 접촉과 별도 실행. 무오류 주행이나 새 SLAM 확장 증거가 아님.",
+      "priority": "추천",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\13_재관측제외_증거와19페이지_20260922\\06_19페이지_관측누적_로봇시점_1x.mp4",
+      "sha256": "cd236045dfbff02131741183228300fe6fd8f80910f2e08d8635f7da3fa37423",
+      "bytes": 926081,
+      "duration_sec": 60.25,
+      "speed": "1x, Simulation time"
+    },
+    {
+      "id": "Q1_camera",
+      "folder": "03_17_24p_관측과지도",
+      "file": "03_17_24p_관측과지도/06_01_카메라_MEMORY_R3.png",
+      "title": "관측 과정 1: 카메라",
+      "pages": [
+        17,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24
+      ],
+      "date": "2026-09-22",
+      "version": "memory_demo_r3 / 기억 기능 확인 / 복구 오류 포함",
+      "kind": "front 카메라 원본",
+      "caption": "같은 기록 프레임 12, Simulation time 35.50초의 카메라·지도 쌍이다. 초기 관측과 반복 관측을 비교한다.",
+      "caution": "카메라의 최근 수신 영상과 FSM 기록의 대응이며 노출 시각의 완전 동기화를 뜻하지 않는다. 고정 /map 위 문 기억 갱신이다. 지도 점은 추정값으로 벽 밖으로 치우친 오차도 그대로 남겼으며 절대 위치 정확도의 증거가 아니다.",
+      "priority": "추천",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\tmp\\ppt_bundle_revision2\\Q1_camera_MEMORY_R3.png",
+      "sha256": "7b8abd5dc8eb902346f59a7730501a432fd40142bcaad1298ff5c780a3247796",
+      "bytes": 27311,
+      "frame": 12,
+      "sim_time": 35.5,
+      "dimensions": [
+        320,
+        240
+      ]
+    },
+    {
+      "id": "Q1_map",
+      "folder": "03_17_24p_관측과지도",
+      "file": "03_17_24p_관측과지도/06_01_기억지도_MEMORY_R3.png",
+      "title": "관측 과정 1: 기억지도",
+      "pages": [
+        17,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24
+      ],
+      "date": "2026-09-22",
+      "version": "memory_demo_r3 / 기억 기능 확인 / 복구 오류 포함",
+      "kind": "실제 기억 데이터 지도 패널",
+      "caption": "같은 기록 프레임 12, Simulation time 35.50초의 카메라·지도 쌍이다. 초기 관측과 반복 관측을 비교한다.",
+      "caution": "카메라의 최근 수신 영상과 FSM 기록의 대응이며 노출 시각의 완전 동기화를 뜻하지 않는다. 고정 /map 위 문 기억 갱신이다. 지도 점은 추정값으로 벽 밖으로 치우친 오차도 그대로 남겼으며 절대 위치 정확도의 증거가 아니다.",
+      "priority": "추천",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\tmp\\ppt_bundle_revision2\\Q1_map_MEMORY_R3.png",
+      "sha256": "29df56595eb5b09468d5e548a49d87fb7061fd31e32157f97e9f3d329946d913",
+      "bytes": 16007,
+      "frame": 12,
+      "sim_time": 35.5,
+      "dimensions": [
+        1080,
+        690
+      ]
+    },
+    {
+      "id": "Q2_camera",
+      "folder": "03_17_24p_관측과지도",
+      "file": "03_17_24p_관측과지도/06_02_카메라_MEMORY_R3.png",
+      "title": "관측 과정 2: 카메라",
+      "pages": [
+        17,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24
+      ],
+      "date": "2026-09-22",
+      "version": "memory_demo_r3 / 기억 기능 확인 / 복구 오류 포함",
+      "kind": "front 카메라 원본",
+      "caption": "같은 기록 프레임 60, Simulation time 59.50초의 카메라·지도 쌍이다. 초기 관측과 반복 관측을 비교한다.",
+      "caution": "카메라의 최근 수신 영상과 FSM 기록의 대응이며 노출 시각의 완전 동기화를 뜻하지 않는다. 고정 /map 위 문 기억 갱신이다. 지도 점은 추정값으로 벽 밖으로 치우친 오차도 그대로 남겼으며 절대 위치 정확도의 증거가 아니다.",
+      "priority": "추천",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\tmp\\ppt_bundle_revision2\\Q2_camera_MEMORY_R3.png",
+      "sha256": "b3b408a7f99750c0612117358cc544da17fdcea94f61eb73e348902a7badd006",
+      "bytes": 24421,
+      "frame": 60,
+      "sim_time": 59.50000000000001,
+      "dimensions": [
+        320,
+        240
+      ]
+    },
+    {
+      "id": "Q2_map",
+      "folder": "03_17_24p_관측과지도",
+      "file": "03_17_24p_관측과지도/06_02_기억지도_MEMORY_R3.png",
+      "title": "관측 과정 2: 기억지도",
+      "pages": [
+        17,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24
+      ],
+      "date": "2026-09-22",
+      "version": "memory_demo_r3 / 기억 기능 확인 / 복구 오류 포함",
+      "kind": "실제 기억 데이터 지도 패널",
+      "caption": "같은 기록 프레임 60, Simulation time 59.50초의 카메라·지도 쌍이다. 초기 관측과 반복 관측을 비교한다.",
+      "caution": "카메라의 최근 수신 영상과 FSM 기록의 대응이며 노출 시각의 완전 동기화를 뜻하지 않는다. 고정 /map 위 문 기억 갱신이다. 지도 점은 추정값으로 벽 밖으로 치우친 오차도 그대로 남겼으며 절대 위치 정확도의 증거가 아니다.",
+      "priority": "추천",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\tmp\\ppt_bundle_revision2\\Q2_map_MEMORY_R3.png",
+      "sha256": "a1947170171f9c2b984403a105fddcdc4d03b4a26a5ca08ab1e0b390688279fb",
+      "bytes": 17980,
+      "frame": 60,
+      "sim_time": 59.50000000000001,
+      "dimensions": [
+        1080,
+        690
+      ]
+    },
+    {
+      "id": "M1",
+      "folder": "04_25_28p_문기억과목표",
+      "file": "04_25_28p_문기억과목표/01_01_재관측제외_결정증거.png",
+      "title": "열었던 문을 재관측해도 제외",
+      "pages": [
+        25,
+        26,
+        28
+      ],
+      "date": "2026-09-22",
+      "version": "memory_demo_r3 / 기억 기능 확인 / 복구 오류 포함",
+      "kind": "로그·지도·카메라 증거 패널",
+      "caption": "새 검출 ID도 이미 처리한 문 위치와 연결해 제외하고 현재 목표를 유지한다.",
+      "caution": "고정 /map 위 FSM 문 기억 자료. 단순 힌지 명령으로 개방했으며 최신 PIPER 물리 접촉과 별도 실행. 무오류 주행이나 새 SLAM 확장 증거가 아님.",
+      "priority": "추천",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\13_재관측제외_증거와19페이지_20260922\\01_재관측제외_결정증거.png",
+      "sha256": "983af8808dc814ecf85f64f6c1276dc351ec1ac7d55c26178ee4ef2117ae858d",
+      "bytes": 119769,
+      "dimensions": [
+        1920,
+        1080
+      ]
+    },
+    {
+      "id": "M1raw",
+      "folder": "04_25_28p_문기억과목표",
+      "file": "04_25_28p_문기억과목표/01_카메라원본.png",
+      "title": "열었던 문을 재관측해도 제외 / 카메라 원본",
+      "pages": [
+        25,
+        26
+      ],
+      "date": "2026-09-22",
+      "version": "memory_demo_r3 / 기억 기능 확인 / 복구 오류 포함",
+      "kind": "카메라 원본",
+      "caption": "설명 패널 없이 삽입할 때 사용하는 같은 기록의 카메라 원본이다.",
+      "caution": "고정 /map 위 FSM 문 기억 자료. 단순 힌지 명령으로 개방했으며 최신 PIPER 물리 접촉과 별도 실행. 무오류 주행이나 새 SLAM 확장 증거가 아님.",
+      "priority": "선택",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\13_재관측제외_증거와19페이지_20260922\\01_재관측제외_결정증거_camera_raw.png",
+      "sha256": "2b8a6f0f034744ef198f06a8e75e83bd123d62519b096b7f213e18a71184e7a9",
+      "bytes": 22746,
+      "dimensions": [
+        320,
+        240
+      ]
+    },
+    {
+      "id": "M2",
+      "folder": "04_25_28p_문기억과목표",
+      "file": "04_25_28p_문기억과목표/02_02_제외후_목표유지.png",
+      "title": "제외 후에도 다음 목표 유지",
+      "pages": [
+        25,
+        26,
+        28
+      ],
+      "date": "2026-09-22",
+      "version": "memory_demo_r3 / 기억 기능 확인 / 복구 오류 포함",
+      "kind": "로그·지도·카메라 증거 패널",
+      "caption": "새 검출 ID도 이미 처리한 문 위치와 연결해 제외하고 현재 목표를 유지한다.",
+      "caution": "고정 /map 위 FSM 문 기억 자료. 단순 힌지 명령으로 개방했으며 최신 PIPER 물리 접촉과 별도 실행. 무오류 주행이나 새 SLAM 확장 증거가 아님.",
+      "priority": "추천",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\13_재관측제외_증거와19페이지_20260922\\02_제외후_목표유지.png",
+      "sha256": "a12294f45862346e66b41325d5df00c98062e31be3a8cc5b15bd95dbcc027917",
+      "bytes": 149767,
+      "dimensions": [
+        1920,
+        1080
+      ]
+    },
+    {
+      "id": "M2raw",
+      "folder": "04_25_28p_문기억과목표",
+      "file": "04_25_28p_문기억과목표/02_카메라원본.png",
+      "title": "제외 후에도 다음 목표 유지 / 카메라 원본",
+      "pages": [
+        25,
+        26
+      ],
+      "date": "2026-09-22",
+      "version": "memory_demo_r3 / 기억 기능 확인 / 복구 오류 포함",
+      "kind": "카메라 원본",
+      "caption": "설명 패널 없이 삽입할 때 사용하는 같은 기록의 카메라 원본이다.",
+      "caution": "고정 /map 위 FSM 문 기억 자료. 단순 힌지 명령으로 개방했으며 최신 PIPER 물리 접촉과 별도 실행. 무오류 주행이나 새 SLAM 확장 증거가 아님.",
+      "priority": "선택",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\13_재관측제외_증거와19페이지_20260922\\02_제외후_목표유지_camera_raw.png",
+      "sha256": "2b7ff09a514de0976177732d3576fdc10f3e3efef42c0b4a4fc39f9dcff98ad5",
+      "bytes": 27714,
+      "dimensions": [
+        320,
+        240
+      ]
+    },
+    {
+      "id": "MV1",
+      "folder": "04_25_28p_문기억과목표",
+      "file": "04_25_28p_문기억과목표/03_재관측제외_목표유지_MEMORY_R3_1x.mp4",
+      "title": "재관측 제외 핵심 영상",
+      "pages": [
+        25,
+        26,
+        28
+      ],
+      "date": "2026-09-22",
+      "version": "memory_demo_r3 / 기억 기능 확인 / 복구 오류 포함",
+      "kind": "기록 재생 영상",
+      "caption": "이미 처리한 문 후보를 제외하고 다른 목표를 유지하는 22초 증거 영상이다.",
+      "caution": "고정 /map 위 FSM 문 기억 자료. 단순 힌지 명령으로 개방했으며 최신 PIPER 물리 접촉과 별도 실행. 무오류 주행이나 새 SLAM 확장 증거가 아님.",
+      "priority": "추천",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\13_재관측제외_증거와19페이지_20260922\\05_재관측제외_현재목표유지_1x.mp4",
+      "sha256": "62677c7d24ca1db7e196eccad7e810a00f1288571a492ec6a8f7fbf28aa9e178",
+      "bytes": 465599,
+      "duration_sec": 22.0,
+      "speed": "1x, Simulation time"
+    },
+    {
+      "id": "MV2",
+      "folder": "04_25_28p_문기억과목표",
+      "file": "04_25_28p_문기억과목표/04_두문기억_전체흐름_MEMORY_R3_1x.mp4",
+      "title": "문 발견부터 두 문 기억·재관측 제외",
+      "pages": [
+        25,
+        26,
+        27,
+        28
+      ],
+      "date": "2026-09-22",
+      "version": "memory_demo_r3 / 기억 기능 확인 / 복구 오류 포함",
+      "kind": "기록 재생 영상",
+      "caption": "좌·정면·우 카메라와 큰 기억 지도로 전체 문 처리 흐름을 확인한다.",
+      "caution": "고정 /map 위 FSM 문 기억 자료. 단순 힌지 명령으로 개방했으며 최신 PIPER 물리 접촉과 별도 실행. 무오류 주행이나 새 SLAM 확장 증거가 아님. 기존 실패·복구 구간을 포함한다. 약 4분 36초.",
+      "priority": "선택",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\11_로봇표시_고정카메라_1배속\\06_문발견_두문개방_재관측제외_고정카메라_1x.mp4",
+      "sha256": "3db0f472871383fbdd2595eb34fb47ef8fc323c072012295df6758798e837039",
+      "bytes": 6721286,
+      "speed": "1x, Simulation time"
+    },
+    {
+      "id": "A1",
+      "folder": "05_29_36p_접근과문개방",
+      "file": "05_29_36p_접근과문개방/01_접근_1_R34_20260922.png",
+      "title": "근접 접근 과정 1/3",
+      "pages": [
+        29
+      ],
+      "date": "2026-09-22",
+      "version": "R34 / robot-only observation / 단일문 PASS",
+      "kind": "Gazebo 외부 카메라 원본",
+      "caption": "관측 기반 접근의 시간순 장면이다. 마지막 장면은 F4 파일을 사용한다.",
+      "caution": "기본 방향 단일문 한 번의 성공. 실제 로봇, 반대 힌지, 다문 접촉 통합 성공을 뜻하지 않음.",
+      "priority": "추천",
+      "source": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_observed_angle_20260922\\artifacts\\validation\\observed_angle_r34\\physical_contact_door_test_20260922_193138\\demo_frames\\00011_scene.png",
+      "sha256": "0407ac96f8c4ca18e1213d33ad4fb47e7cb8585b8d41bbfb7995715704847f18",
+      "bytes": 43313,
+      "sim_time": 3.6630000000000003,
+      "dimensions": [
+        1280,
+        720
+      ]
+    },
+    {
+      "id": "A2",
+      "folder": "05_29_36p_접근과문개방",
+      "file": "05_29_36p_접근과문개방/01_접근_2_R34_20260922.png",
+      "title": "근접 접근 과정 2/3",
+      "pages": [
+        29
+      ],
+      "date": "2026-09-22",
+      "version": "R34 / robot-only observation / 단일문 PASS",
+      "kind": "Gazebo 외부 카메라 원본",
+      "caption": "관측 기반 접근의 시간순 장면이다. 마지막 장면은 F4 파일을 사용한다.",
+      "caution": "기본 방향 단일문 한 번의 성공. 실제 로봇, 반대 힌지, 다문 접촉 통합 성공을 뜻하지 않음.",
+      "priority": "추천",
+      "source": "\\\\wsl.localhost\\Ubuntu2204Recovered\\home\\junyoung\\fire_robot_ws_observed_angle_20260922\\artifacts\\validation\\observed_angle_r34\\physical_contact_door_test_20260922_193138\\demo_frames\\00035_scene.png",
+      "sha256": "951d7b687e828e89443abcfa6e001da08bb4f21bafbf1175e146ee3e8c4f02d9",
+      "bytes": 41217,
+      "sim_time": 11.655,
+      "dimensions": [
+        1280,
+        720
+      ]
+    },
+    {
+      "id": "O1",
+      "folder": "05_29_36p_접근과문개방",
+      "file": "05_29_36p_접근과문개방/02_손잡이접근_R34.png",
+      "title": "팔을 손잡이로 접근",
+      "pages": [
+        33,
+        35,
+        36,
+        42
+      ],
+      "date": "2026-09-22",
+      "version": "R34 / robot-only observation / 단일문 PASS",
+      "kind": "Gazebo 원본",
+      "caption": "관측 손잡이 위치로 PIPER 말단을 접근시킨다.",
+      "caution": "기본 방향 단일문 한 번의 성공. 실제 로봇, 반대 힌지, 다문 접촉 통합 성공을 뜻하지 않음.",
+      "priority": "추천",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\22_로봇센서기반_기본문개방_20260922\\observed_angle_r34\\03_reach_handle_handle.png",
+      "sha256": "17ed207c8c09c6280919136a39b1697e28cf2cec0683a4bdbe3cffcb9c200bdc",
+      "bytes": 35105,
+      "dimensions": [
+        960,
+        720
+      ]
+    },
+    {
+      "id": "O2",
+      "folder": "05_29_36p_접근과문개방",
+      "file": "05_29_36p_접근과문개방/03_레버누름_R34.png",
+      "title": "레버 누름",
+      "pages": [
+        33,
+        35,
+        36,
+        42
+      ],
+      "date": "2026-09-22",
+      "version": "R34 / robot-only observation / 단일문 PASS",
+      "kind": "Gazebo 원본",
+      "caption": "손잡이를 잡은 후 측정된 로봇 관절 회전으로 누름 상태를 추정한다.",
+      "caution": "기본 방향 단일문 한 번의 성공. 실제 로봇, 반대 힌지, 다문 접촉 통합 성공을 뜻하지 않음.",
+      "priority": "추천",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\22_로봇센서기반_기본문개방_20260922\\observed_angle_r34\\04_press_lever_handle.png",
+      "sha256": "cc76bc88f0acdad570da9a7e5c4797b62a9a815dee748bd765767474ef5a3099",
+      "bytes": 43597,
+      "dimensions": [
+        960,
+        720
+      ]
+    },
+    {
+      "id": "O3",
+      "folder": "05_29_36p_접근과문개방",
+      "file": "05_29_36p_접근과문개방/04_접촉유지_R34.png",
+      "title": "손잡이 유지",
+      "pages": [
+        33,
+        35,
+        36,
+        42
+      ],
+      "date": "2026-09-22",
+      "version": "R34 / robot-only observation / 단일문 PASS",
+      "kind": "Gazebo 원본",
+      "caption": "레버를 누른 자세를 유지하면서 문 움직임과 본체 회전에 맞춰 팔을 조정한다.",
+      "caution": "기본 방향 단일문 한 번의 성공. 실제 로봇, 반대 힌지, 다문 접촉 통합 성공을 뜻하지 않음.",
+      "priority": "추천",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\22_로봇센서기반_기본문개방_20260922\\observed_angle_r34\\05_base_open_handle.png",
+      "sha256": "4daccfbd0d3f0bf8bc2aaed8f5db5109278dc7a20cb857db4278be82f72104ae",
+      "bytes": 41754,
+      "dimensions": [
+        960,
+        720
+      ]
+    },
+    {
+      "id": "O4",
+      "folder": "05_29_36p_접근과문개방",
+      "file": "05_29_36p_접근과문개방/05_본체이동개방_R34.png",
+      "title": "본체 이동으로 개방",
+      "pages": [
+        33,
+        35,
+        36,
+        42
+      ],
+      "date": "2026-09-22",
+      "version": "R34 / robot-only observation / 단일문 PASS",
+      "kind": "Gazebo 원본",
+      "caption": "손잡이 접촉을 유지한 상태에서 본체가 이동해 문을 연다.",
+      "caution": "기본 방향 단일문 한 번의 성공. 실제 로봇, 반대 힌지, 다문 접촉 통합 성공을 뜻하지 않음.",
+      "priority": "추천",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\22_로봇센서기반_기본문개방_20260922\\observed_angle_r34\\05_base_open_overhead.png",
+      "sha256": "0a1d6a4e8fd51673ae4caa4961a35fbe334b752ba9fe56a6f5b4cdda700978dc",
+      "bytes": 16432,
+      "dimensions": [
+        1280,
+        720
+      ]
+    },
+    {
+      "id": "OV1",
+      "folder": "05_29_36p_접근과문개방",
+      "file": "05_29_36p_접근과문개방/06_문발견_정렬_개방_BBox_R34_4x.mp4",
+      "title": "발표용 최신 전체 데모",
+      "pages": [
+        29,
+        32,
+        33,
+        35,
+        36,
+        42
+      ],
+      "date": "2026-09-22",
+      "version": "R34 / robot-only observation / 단일문 PASS",
+      "kind": "같은 실행의 연속 다중시점 영상",
+      "caption": "문 발견과 bbox, 근접 정렬, 레버 누름, 약 118도 개방, 손잡이 해제와 팔 복귀를 같은 실행에서 보여준다.",
+      "caution": "기본 방향 단일문 한 번의 성공. 실제 로봇, 반대 힌지, 다문 접촉 통합 성공을 뜻하지 않음. 검출 원본 시각이 없어 엄밀한 센서 동기화 영상은 아니다. 검출이 없으면 박스를 추가하지 않는다.",
+      "priority": "추천",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\22_로봇센서기반_기본문개방_20260922\\observed_angle_r34\\10_observed_angle_opening_bbox_4x.mp4",
+      "sha256": "8a42f3359fe369f63cc284d6972bb6d641fd10a67850f3971aa9df98468c9332",
+      "bytes": 5979363,
+      "duration_sec": 50.166667,
+      "speed": "4x, Simulation time"
+    },
+    {
+      "id": "OV2",
+      "folder": "05_29_36p_접근과문개방",
+      "file": "05_29_36p_접근과문개방/07_외부시점_무자막_R34_1x.mp4",
+      "title": "외부 카메라 전체 원본",
+      "pages": [
+        36,
+        42
+      ],
+      "date": "2026-09-22",
+      "version": "R34 / robot-only observation / 단일문 PASS",
+      "kind": "무자막 원본 시점 영상",
+      "caption": "약 3분 20초의 전체 외부 시점 기록이다. 발표에는 bbox 포함 4배속 영상을 우선 사용한다.",
+      "caution": "기본 방향 단일문 한 번의 성공. 실제 로봇, 반대 힌지, 다문 접촉 통합 성공을 뜻하지 않음. 벽과 문틀에 일부 동작이 가려진다.",
+      "priority": "보조 원본",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\22_로봇센서기반_기본문개방_20260922\\observed_angle_r34\\09_gazebo_scene_original_1x.mp4",
+      "sha256": "a3d0ad2fcd17849bc56601582d7f5e6275d772f8aafe903655c9c48883c75784",
+      "bytes": 7785709,
+      "speed": "1x, Simulation time"
+    },
+    {
+      "id": "OP",
+      "folder": "05_29_36p_접근과문개방",
+      "file": "05_29_36p_접근과문개방/08_최신데모_미리보기.png",
+      "title": "최신 bbox 데모 미리보기",
+      "pages": [
+        35,
+        36
+      ],
+      "date": "2026-09-22",
+      "version": "R34 / robot-only observation / 단일문 PASS",
+      "kind": "영상 프레임 미리보기",
+      "caption": "영상 재생 전 표지 이미지로 사용할 수 있다.",
+      "caution": "기본 방향 단일문 한 번의 성공. 실제 로봇, 반대 힌지, 다문 접촉 통합 성공을 뜻하지 않음.",
+      "priority": "선택",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\22_로봇센서기반_기본문개방_20260922\\observed_angle_r34\\10_bbox_video_preview.png",
+      "sha256": "c26e48035100f461daae94e84704d075d19aa22fdd8297c7ada2cc168d95c248",
+      "bytes": 129538,
+      "dimensions": [
+        1920,
+        1080
+      ]
+    },
+    {
+      "id": "E1_prior",
+      "folder": "06_40p_손잡이모델성능",
+      "file": "06_40p_손잡이모델성능/01_V2_V3_Gazebo_holdout_20260913.png",
+      "title": "이전 평가: 레버와 둥근 손잡이 포함",
+      "pages": [
+        40
+      ],
+      "date": "2026-09-13",
+      "version": "V2/V3 고정 임계값 평가",
+      "kind": "평가 데이터 그래프",
+      "caption": "같은 Gazebo holdout 160장에서 v3는 TP 100, FP 54, FN 0으로 Recall 100%, Precision 64.9%였다.",
+      "caution": "오탐은 둥근 손잡이 음성 사진 60장 중 53장에서 나온 54개 박스다. 새 E1은 이 60장을 제외한 다른 평가 범위이며 모델을 고친 결과가 아니다.",
+      "priority": "이전 결과 보존",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\05_40_42페이지_성능과피드백\\01_handle_v2_v3_fixed_threshold.png",
+      "sha256": "944780573e30ead685862090da275fd5e8de8fa235992f78c6f49e1b33cc1f6e",
+      "bytes": 46450,
+      "archived": true,
+      "dimensions": [
+        1680,
+        940
+      ]
+    },
+    {
+      "id": "E1",
+      "folder": "06_40p_손잡이모델성능",
+      "file": "06_40p_손잡이모델성능/02_V3_레버만_Gazebo100장_재집계_20260922.png",
+      "title": "V3: 시뮬레이션 레버 100장만 평가",
+      "pages": [
+        40
+      ],
+      "date": "2026-09-22",
+      "version": "2026-09-13 예측 재집계 / 가중치 동일",
+      "kind": "레버 양성 부분집합 그래프",
+      "caption": "둥근 손잡이 60장을 제외하면 레버 100개 중 TP 100, FP 0, FN 0이다. Precision과 Recall은 모두 100%.",
+      "caution": "재추론·재학습 없이 기존 예측을 분리 집계했다. conf=0.25, IoU>=0.5, imgsz=640. 레버 외 물체 구별 능력이나 실제 사진 성능을 뜻하지 않는다. 비공개 holdout의 레버 외형은 1종이다.",
+      "priority": "추천",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\tmp\\ppt_bundle_revision2\\E1_sim_lever_only.png",
+      "sha256": "6e2f2285d209bef7b59d2d3d2d356e395549a971c83f0ade3bc128aff47c2fe8",
+      "bytes": 54722,
+      "dimensions": [
+        1720,
+        940
+      ]
+    },
+    {
+      "id": "W1_combined",
+      "folder": "07_41p_월드1_5_주행",
+      "file": "07_41p_월드1_5_주행/W1_배치와주행궤적_NAV_20260916.png",
+      "title": "World 1: 월드 배치 + 주행 궤적",
+      "pages": [
+        38,
+        39,
+        41
+      ],
+      "date": "2026-09-16",
+      "version": "보존 r8/r9 / 2026-09-22 통합 시각화",
+      "kind": "SDF 배치와 기록 경로 중첩",
+      "caption": "벽·문·장애물 크기와 로봇 중심 경로를 동일한 m 단위 좌표축에 겹쳤다. 별은 개방 이벤트, 원은 시작, 마름모는 종료 지점이다.",
+      "caution": "2026-09-16 보존 r8/r9 주행 집계. 저장맵·sim_odom·단순 힌지 개방 조건. R34 관측기반 접촉 개방을 붙인 월드 1~5 새 검증이 아님. 문은 초기 닫힌 위치로 그렸다. 경로를 보기 좋게 평활화하거나 좌표를 임의 보정하지 않았다. 이 그림만으로 본체 전체의 충돌 여부를 판정하지 않는다.",
+      "priority": "추천",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\tmp\\ppt_bundle_revision2\\W1_layout_path_NAV_20260916.png",
+      "sha256": "ff74f601eb5e64f1e555461d45d9778d2bfb088947acad030b0071c6f7b20829",
+      "bytes": 91453,
+      "world_counts": {
+        "world": 1,
+        "blue": 3,
+        "red": 3,
+        "green": 1,
+        "obstacles": 12
+      },
+      "wide": true,
+      "dimensions": [
+        2520,
+        720
+      ]
+    },
+    {
+      "id": "W1_layout",
+      "folder": "07_41p_월드1_5_주행",
+      "file": "07_41p_월드1_5_주행/W1_layout_NAV_20260916.png",
+      "title": "World 1: 실험 월드 배치",
+      "pages": [
+        38,
+        39,
+        41
+      ],
+      "date": "2026-09-16",
+      "version": "보존 r8/r9 NAV 집계",
+      "kind": "SDF 정답 배치도",
+      "caption": "벽·문·장애물의 실험 배치도이며 로봇이 관측한 지도가 아니다.",
+      "caution": "2026-09-16 보존 r8/r9 주행 집계. 저장맵·sim_odom·단순 힌지 개방 조건. R34 관측기반 접촉 개방을 붙인 월드 1~5 새 검증이 아님. 배치와 궤적을 합친 W1_combined를 우선 사용.",
+      "priority": "분리된 이전 그림",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\06_41페이지_보존된월드1_5_주행\\world1_layout.png",
+      "sha256": "30bfaaac15d195d88ff4674ded91a3bffb6e55401fc15364c8d2682a19ae5ab1",
+      "bytes": 38679,
+      "world_counts": {
+        "world": 1,
+        "blue": 3,
+        "red": 3,
+        "green": 1,
+        "obstacles": 12
+      },
+      "archived": true,
+      "dimensions": [
+        2200,
+        680
+      ]
+    },
+    {
+      "id": "W1_path",
+      "folder": "07_41p_월드1_5_주행",
+      "file": "07_41p_월드1_5_주행/W1_path_NAV_20260916.png",
+      "title": "World 1: 로봇 주행 궤적",
+      "pages": [
+        38,
+        39,
+        41
+      ],
+      "date": "2026-09-16",
+      "version": "보존 r8/r9 NAV 집계",
+      "kind": "주행 로그 그래프",
+      "caption": "기록된 로봇 경로와 문 처리 지점을 보여준다. 장애물 도형은 별도 배치도와 비교한다.",
+      "caution": "2026-09-16 보존 r8/r9 주행 집계. 저장맵·sim_odom·단순 힌지 개방 조건. R34 관측기반 접촉 개방을 붙인 월드 1~5 새 검증이 아님. 배치와 궤적을 합친 W1_combined를 우선 사용.",
+      "priority": "분리된 이전 그림",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\06_41페이지_보존된월드1_5_주행\\world1_path.png",
+      "sha256": "3bc223347f1d4c005f363cf62637bd9c1f62193ba4e220ca0d166f3b5427ad5b",
+      "bytes": 64911,
+      "world_counts": {
+        "world": 1,
+        "blue": 3,
+        "red": 3,
+        "green": 1,
+        "obstacles": 12
+      },
+      "archived": true,
+      "dimensions": [
+        2100,
+        800
+      ]
+    },
+    {
+      "id": "W1_front",
+      "folder": "07_41p_월드1_5_주행",
+      "file": "07_41p_월드1_5_주행/W1_front_NAV_20260916.png",
+      "title": "World 1: 시작 정면 카메라",
+      "pages": [
+        11,
+        38,
+        41
+      ],
+      "date": "2026-09-16",
+      "version": "보존 초기 IDLE",
+      "kind": "카메라 원본",
+      "caption": "각 월드의 시작 시야다. 초록문이 처음부터 보이지 않는 조건을 보여준다.",
+      "caution": "당시 카메라 far clip 10m, 출구까지 약 21m. 안 보이는 결과를 실제 카메라 탐지 성능으로 일반화하지 않는다.",
+      "priority": "선택",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\12_월드1_5_시작카메라_원본\\world1_front_initial.png",
+      "sha256": "1b5e504de231d24f428fa2703ebe31bffa52a36886a65c00beea15eef9256e7c",
+      "bytes": 27435,
+      "dimensions": [
+        320,
+        240
+      ]
+    },
+    {
+      "id": "W2_combined",
+      "folder": "07_41p_월드1_5_주행",
+      "file": "07_41p_월드1_5_주행/W2_배치와주행궤적_NAV_20260916.png",
+      "title": "World 2: 월드 배치 + 주행 궤적",
+      "pages": [
+        38,
+        39,
+        41
+      ],
+      "date": "2026-09-16",
+      "version": "보존 r8/r9 / 2026-09-22 통합 시각화",
+      "kind": "SDF 배치와 기록 경로 중첩",
+      "caption": "벽·문·장애물 크기와 로봇 중심 경로를 동일한 m 단위 좌표축에 겹쳤다. 별은 개방 이벤트, 원은 시작, 마름모는 종료 지점이다.",
+      "caution": "2026-09-16 보존 r8/r9 주행 집계. 저장맵·sim_odom·단순 힌지 개방 조건. R34 관측기반 접촉 개방을 붙인 월드 1~5 새 검증이 아님. 문은 초기 닫힌 위치로 그렸다. 경로를 보기 좋게 평활화하거나 좌표를 임의 보정하지 않았다. 이 그림만으로 본체 전체의 충돌 여부를 판정하지 않는다.",
+      "priority": "추천",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\tmp\\ppt_bundle_revision2\\W2_layout_path_NAV_20260916.png",
+      "sha256": "0c650a59ef535070b37293a707e34156603944a1d7ea63a7b24b940a04bb2330",
+      "bytes": 87793,
+      "world_counts": {
+        "world": 2,
+        "blue": 3,
+        "red": 3,
+        "green": 1,
+        "obstacles": 12
+      },
+      "wide": true,
+      "dimensions": [
+        2520,
+        720
+      ]
+    },
+    {
+      "id": "W2_layout",
+      "folder": "07_41p_월드1_5_주행",
+      "file": "07_41p_월드1_5_주행/W2_layout_NAV_20260916.png",
+      "title": "World 2: 실험 월드 배치",
+      "pages": [
+        38,
+        39,
+        41
+      ],
+      "date": "2026-09-16",
+      "version": "보존 r8/r9 NAV 집계",
+      "kind": "SDF 정답 배치도",
+      "caption": "벽·문·장애물의 실험 배치도이며 로봇이 관측한 지도가 아니다.",
+      "caution": "2026-09-16 보존 r8/r9 주행 집계. 저장맵·sim_odom·단순 힌지 개방 조건. R34 관측기반 접촉 개방을 붙인 월드 1~5 새 검증이 아님. 배치와 궤적을 합친 W2_combined를 우선 사용.",
+      "priority": "분리된 이전 그림",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\06_41페이지_보존된월드1_5_주행\\world2_layout.png",
+      "sha256": "42c947b35d618fa04a3ab428c6b598b041474492cb592d39c72a3bfca3186317",
+      "bytes": 38779,
+      "world_counts": {
+        "world": 2,
+        "blue": 3,
+        "red": 3,
+        "green": 1,
+        "obstacles": 12
+      },
+      "archived": true,
+      "dimensions": [
+        2200,
+        680
+      ]
+    },
+    {
+      "id": "W2_path",
+      "folder": "07_41p_월드1_5_주행",
+      "file": "07_41p_월드1_5_주행/W2_path_NAV_20260916.png",
+      "title": "World 2: 로봇 주행 궤적",
+      "pages": [
+        38,
+        39,
+        41
+      ],
+      "date": "2026-09-16",
+      "version": "보존 r8/r9 NAV 집계",
+      "kind": "주행 로그 그래프",
+      "caption": "기록된 로봇 경로와 문 처리 지점을 보여준다. 장애물 도형은 별도 배치도와 비교한다.",
+      "caution": "2026-09-16 보존 r8/r9 주행 집계. 저장맵·sim_odom·단순 힌지 개방 조건. R34 관측기반 접촉 개방을 붙인 월드 1~5 새 검증이 아님. 배치와 궤적을 합친 W2_combined를 우선 사용.",
+      "priority": "분리된 이전 그림",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\06_41페이지_보존된월드1_5_주행\\world2_path.png",
+      "sha256": "745e5f0305177125b2ab936a1bdbe1ba1ed3f678d0d56e999b697b15a951b448",
+      "bytes": 61075,
+      "world_counts": {
+        "world": 2,
+        "blue": 3,
+        "red": 3,
+        "green": 1,
+        "obstacles": 12
+      },
+      "archived": true,
+      "dimensions": [
+        2100,
+        800
+      ]
+    },
+    {
+      "id": "W2_front",
+      "folder": "07_41p_월드1_5_주행",
+      "file": "07_41p_월드1_5_주행/W2_front_NAV_20260916.png",
+      "title": "World 2: 시작 정면 카메라",
+      "pages": [
+        11,
+        38,
+        41
+      ],
+      "date": "2026-09-16",
+      "version": "보존 초기 IDLE",
+      "kind": "카메라 원본",
+      "caption": "각 월드의 시작 시야다. 초록문이 처음부터 보이지 않는 조건을 보여준다.",
+      "caution": "당시 카메라 far clip 10m, 출구까지 약 21m. 안 보이는 결과를 실제 카메라 탐지 성능으로 일반화하지 않는다.",
+      "priority": "선택",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\12_월드1_5_시작카메라_원본\\world2_front_initial.png",
+      "sha256": "87fc9ecc4309ff26c898bac848d65fb031fd682fff1f1367e6f54c72b4016cb6",
+      "bytes": 27633,
+      "dimensions": [
+        320,
+        240
+      ]
+    },
+    {
+      "id": "W3_combined",
+      "folder": "07_41p_월드1_5_주행",
+      "file": "07_41p_월드1_5_주행/W3_배치와주행궤적_NAV_20260916.png",
+      "title": "World 3: 월드 배치 + 주행 궤적",
+      "pages": [
+        38,
+        39,
+        41
+      ],
+      "date": "2026-09-16",
+      "version": "보존 r8/r9 / 2026-09-22 통합 시각화",
+      "kind": "SDF 배치와 기록 경로 중첩",
+      "caption": "벽·문·장애물 크기와 로봇 중심 경로를 동일한 m 단위 좌표축에 겹쳤다. 별은 개방 이벤트, 원은 시작, 마름모는 종료 지점이다.",
+      "caution": "2026-09-16 보존 r8/r9 주행 집계. 저장맵·sim_odom·단순 힌지 개방 조건. R34 관측기반 접촉 개방을 붙인 월드 1~5 새 검증이 아님. 문은 초기 닫힌 위치로 그렸다. 경로를 보기 좋게 평활화하거나 좌표를 임의 보정하지 않았다. 이 그림만으로 본체 전체의 충돌 여부를 판정하지 않는다.",
+      "priority": "추천",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\tmp\\ppt_bundle_revision2\\W3_layout_path_NAV_20260916.png",
+      "sha256": "1c4bb0671d0df6c9c65ec7d9f7d99cf749a2683a3888ed7ae75074580c5f1715",
+      "bytes": 91431,
+      "world_counts": {
+        "world": 3,
+        "blue": 4,
+        "red": 2,
+        "green": 1,
+        "obstacles": 7
+      },
+      "wide": true,
+      "dimensions": [
+        2520,
+        720
+      ]
+    },
+    {
+      "id": "W3_layout",
+      "folder": "07_41p_월드1_5_주행",
+      "file": "07_41p_월드1_5_주행/W3_layout_NAV_20260916.png",
+      "title": "World 3: 실험 월드 배치",
+      "pages": [
+        38,
+        39,
+        41
+      ],
+      "date": "2026-09-16",
+      "version": "보존 r8/r9 NAV 집계",
+      "kind": "SDF 정답 배치도",
+      "caption": "벽·문·장애물의 실험 배치도이며 로봇이 관측한 지도가 아니다.",
+      "caution": "2026-09-16 보존 r8/r9 주행 집계. 저장맵·sim_odom·단순 힌지 개방 조건. R34 관측기반 접촉 개방을 붙인 월드 1~5 새 검증이 아님. 배치와 궤적을 합친 W3_combined를 우선 사용.",
+      "priority": "분리된 이전 그림",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\06_41페이지_보존된월드1_5_주행\\world3_layout.png",
+      "sha256": "9032df86a94450d219ef263fd52c102f731681f3b49299bf3fef907543dc6a6f",
+      "bytes": 38337,
+      "world_counts": {
+        "world": 3,
+        "blue": 4,
+        "red": 2,
+        "green": 1,
+        "obstacles": 7
+      },
+      "archived": true,
+      "dimensions": [
+        2200,
+        680
+      ]
+    },
+    {
+      "id": "W3_path",
+      "folder": "07_41p_월드1_5_주행",
+      "file": "07_41p_월드1_5_주행/W3_path_NAV_20260916.png",
+      "title": "World 3: 로봇 주행 궤적",
+      "pages": [
+        38,
+        39,
+        41
+      ],
+      "date": "2026-09-16",
+      "version": "보존 r8/r9 NAV 집계",
+      "kind": "주행 로그 그래프",
+      "caption": "기록된 로봇 경로와 문 처리 지점을 보여준다. 장애물 도형은 별도 배치도와 비교한다.",
+      "caution": "2026-09-16 보존 r8/r9 주행 집계. 저장맵·sim_odom·단순 힌지 개방 조건. R34 관측기반 접촉 개방을 붙인 월드 1~5 새 검증이 아님. 배치와 궤적을 합친 W3_combined를 우선 사용.",
+      "priority": "분리된 이전 그림",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\06_41페이지_보존된월드1_5_주행\\world3_path.png",
+      "sha256": "b755dfd7d32e67179233788458b3896f267d23f69f70901ba2c3d04c3e66492c",
+      "bytes": 65835,
+      "world_counts": {
+        "world": 3,
+        "blue": 4,
+        "red": 2,
+        "green": 1,
+        "obstacles": 7
+      },
+      "archived": true,
+      "dimensions": [
+        2100,
+        800
+      ]
+    },
+    {
+      "id": "W3_front",
+      "folder": "07_41p_월드1_5_주행",
+      "file": "07_41p_월드1_5_주행/W3_front_NAV_20260916.png",
+      "title": "World 3: 시작 정면 카메라",
+      "pages": [
+        11,
+        38,
+        41
+      ],
+      "date": "2026-09-16",
+      "version": "보존 초기 IDLE",
+      "kind": "카메라 원본",
+      "caption": "각 월드의 시작 시야다. 초록문이 처음부터 보이지 않는 조건을 보여준다.",
+      "caution": "당시 카메라 far clip 10m, 출구까지 약 21m. 안 보이는 결과를 실제 카메라 탐지 성능으로 일반화하지 않는다.",
+      "priority": "선택",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\12_월드1_5_시작카메라_원본\\world3_front_initial.png",
+      "sha256": "894bad9e6579bc3ccdacdb59838d45e1b2a16883e1290d37b6fd68394f89688c",
+      "bytes": 26461,
+      "dimensions": [
+        320,
+        240
+      ]
+    },
+    {
+      "id": "W4_combined",
+      "folder": "07_41p_월드1_5_주행",
+      "file": "07_41p_월드1_5_주행/W4_배치와주행궤적_NAV_20260916.png",
+      "title": "World 4: 월드 배치 + 주행 궤적",
+      "pages": [
+        38,
+        39,
+        41
+      ],
+      "date": "2026-09-16",
+      "version": "보존 r8/r9 / 2026-09-22 통합 시각화",
+      "kind": "SDF 배치와 기록 경로 중첩",
+      "caption": "벽·문·장애물 크기와 로봇 중심 경로를 동일한 m 단위 좌표축에 겹쳤다. 별은 개방 이벤트, 원은 시작, 마름모는 종료 지점이다.",
+      "caution": "2026-09-16 보존 r8/r9 주행 집계. 저장맵·sim_odom·단순 힌지 개방 조건. R34 관측기반 접촉 개방을 붙인 월드 1~5 새 검증이 아님. 문은 초기 닫힌 위치로 그렸다. 경로를 보기 좋게 평활화하거나 좌표를 임의 보정하지 않았다. 이 그림만으로 본체 전체의 충돌 여부를 판정하지 않는다.",
+      "priority": "추천",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\tmp\\ppt_bundle_revision2\\W4_layout_path_NAV_20260916.png",
+      "sha256": "486513e7c7f4c2e9272746f6caa49f7a37ddd48d367bf2b27c7a414eb3f22763",
+      "bytes": 92368,
+      "world_counts": {
+        "world": 4,
+        "blue": 0,
+        "red": 4,
+        "green": 1,
+        "obstacles": 10
+      },
+      "wide": true,
+      "dimensions": [
+        2520,
+        720
+      ]
+    },
+    {
+      "id": "W4_layout",
+      "folder": "07_41p_월드1_5_주행",
+      "file": "07_41p_월드1_5_주행/W4_layout_NAV_20260916.png",
+      "title": "World 4: 실험 월드 배치",
+      "pages": [
+        38,
+        39,
+        41
+      ],
+      "date": "2026-09-16",
+      "version": "보존 r8/r9 NAV 집계",
+      "kind": "SDF 정답 배치도",
+      "caption": "벽·문·장애물의 실험 배치도이며 로봇이 관측한 지도가 아니다.",
+      "caution": "2026-09-16 보존 r8/r9 주행 집계. 저장맵·sim_odom·단순 힌지 개방 조건. R34 관측기반 접촉 개방을 붙인 월드 1~5 새 검증이 아님. 배치와 궤적을 합친 W4_combined를 우선 사용.",
+      "priority": "분리된 이전 그림",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\06_41페이지_보존된월드1_5_주행\\world4_layout.png",
+      "sha256": "e8e685b77c6d1cf57f25725851d8a943ebc845ca93cca6a76ffab35989c0827c",
+      "bytes": 38269,
+      "world_counts": {
+        "world": 4,
+        "blue": 0,
+        "red": 4,
+        "green": 1,
+        "obstacles": 10
+      },
+      "archived": true,
+      "dimensions": [
+        2200,
+        680
+      ]
+    },
+    {
+      "id": "W4_path",
+      "folder": "07_41p_월드1_5_주행",
+      "file": "07_41p_월드1_5_주행/W4_path_NAV_20260916.png",
+      "title": "World 4: 로봇 주행 궤적",
+      "pages": [
+        38,
+        39,
+        41
+      ],
+      "date": "2026-09-16",
+      "version": "보존 r8/r9 NAV 집계",
+      "kind": "주행 로그 그래프",
+      "caption": "기록된 로봇 경로와 문 처리 지점을 보여준다. 장애물 도형은 별도 배치도와 비교한다.",
+      "caution": "2026-09-16 보존 r8/r9 주행 집계. 저장맵·sim_odom·단순 힌지 개방 조건. R34 관측기반 접촉 개방을 붙인 월드 1~5 새 검증이 아님. 배치와 궤적을 합친 W4_combined를 우선 사용.",
+      "priority": "분리된 이전 그림",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\06_41페이지_보존된월드1_5_주행\\world4_path.png",
+      "sha256": "49263a6bbb7c5c9b40f2b4429d86704494d078565e845ca120bec297f0689fd4",
+      "bytes": 64219,
+      "world_counts": {
+        "world": 4,
+        "blue": 0,
+        "red": 4,
+        "green": 1,
+        "obstacles": 10
+      },
+      "archived": true,
+      "dimensions": [
+        2100,
+        800
+      ]
+    },
+    {
+      "id": "W4_front",
+      "folder": "07_41p_월드1_5_주행",
+      "file": "07_41p_월드1_5_주행/W4_front_NAV_20260916.png",
+      "title": "World 4: 시작 정면 카메라",
+      "pages": [
+        11,
+        38,
+        41
+      ],
+      "date": "2026-09-16",
+      "version": "보존 초기 IDLE",
+      "kind": "카메라 원본",
+      "caption": "각 월드의 시작 시야다. 초록문이 처음부터 보이지 않는 조건을 보여준다.",
+      "caution": "당시 카메라 far clip 10m, 출구까지 약 21m. 안 보이는 결과를 실제 카메라 탐지 성능으로 일반화하지 않는다.",
+      "priority": "선택",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\12_월드1_5_시작카메라_원본\\world4_front_initial.png",
+      "sha256": "5d3429cfda45337c5e9053136c37c2473e1009377e2c6fe51e4f694ecb92b8fe",
+      "bytes": 28384,
+      "dimensions": [
+        320,
+        240
+      ]
+    },
+    {
+      "id": "W5_combined",
+      "folder": "07_41p_월드1_5_주행",
+      "file": "07_41p_월드1_5_주행/W5_배치와주행궤적_NAV_20260916.png",
+      "title": "World 5: 월드 배치 + 주행 궤적",
+      "pages": [
+        38,
+        39,
+        41
+      ],
+      "date": "2026-09-16",
+      "version": "보존 r8/r9 / 2026-09-22 통합 시각화",
+      "kind": "SDF 배치와 기록 경로 중첩",
+      "caption": "벽·문·장애물 크기와 로봇 중심 경로를 동일한 m 단위 좌표축에 겹쳤다. 별은 개방 이벤트, 원은 시작, 마름모는 종료 지점이다.",
+      "caution": "2026-09-16 보존 r8/r9 주행 집계. 저장맵·sim_odom·단순 힌지 개방 조건. R34 관측기반 접촉 개방을 붙인 월드 1~5 새 검증이 아님. 문은 초기 닫힌 위치로 그렸다. 경로를 보기 좋게 평활화하거나 좌표를 임의 보정하지 않았다. 이 그림만으로 본체 전체의 충돌 여부를 판정하지 않는다.",
+      "priority": "추천",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\tmp\\ppt_bundle_revision2\\W5_layout_path_NAV_20260916.png",
+      "sha256": "0bc9d5c0c5e835b9ab0aa69572f7cc7888579290b75674353719695146c19f2e",
+      "bytes": 93074,
+      "world_counts": {
+        "world": 5,
+        "blue": 6,
+        "red": 0,
+        "green": 1,
+        "obstacles": 12
+      },
+      "wide": true,
+      "dimensions": [
+        2520,
+        720
+      ]
+    },
+    {
+      "id": "W5_layout",
+      "folder": "07_41p_월드1_5_주행",
+      "file": "07_41p_월드1_5_주행/W5_layout_NAV_20260916.png",
+      "title": "World 5: 실험 월드 배치",
+      "pages": [
+        38,
+        39,
+        41
+      ],
+      "date": "2026-09-16",
+      "version": "보존 r8/r9 NAV 집계",
+      "kind": "SDF 정답 배치도",
+      "caption": "벽·문·장애물의 실험 배치도이며 로봇이 관측한 지도가 아니다.",
+      "caution": "2026-09-16 보존 r8/r9 주행 집계. 저장맵·sim_odom·단순 힌지 개방 조건. R34 관측기반 접촉 개방을 붙인 월드 1~5 새 검증이 아님. 배치와 궤적을 합친 W5_combined를 우선 사용.",
+      "priority": "분리된 이전 그림",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\06_41페이지_보존된월드1_5_주행\\world5_layout.png",
+      "sha256": "f7b544b0d7fd685f6b6696a2e48653c02c02f1225d84310e88caecb424806613",
+      "bytes": 38704,
+      "world_counts": {
+        "world": 5,
+        "blue": 6,
+        "red": 0,
+        "green": 1,
+        "obstacles": 12
+      },
+      "archived": true,
+      "dimensions": [
+        2200,
+        680
+      ]
+    },
+    {
+      "id": "W5_path",
+      "folder": "07_41p_월드1_5_주행",
+      "file": "07_41p_월드1_5_주행/W5_path_NAV_20260916.png",
+      "title": "World 5: 로봇 주행 궤적",
+      "pages": [
+        38,
+        39,
+        41
+      ],
+      "date": "2026-09-16",
+      "version": "보존 r8/r9 NAV 집계",
+      "kind": "주행 로그 그래프",
+      "caption": "기록된 로봇 경로와 문 처리 지점을 보여준다. 장애물 도형은 별도 배치도와 비교한다.",
+      "caution": "2026-09-16 보존 r8/r9 주행 집계. 저장맵·sim_odom·단순 힌지 개방 조건. R34 관측기반 접촉 개방을 붙인 월드 1~5 새 검증이 아님. 배치와 궤적을 합친 W5_combined를 우선 사용.",
+      "priority": "분리된 이전 그림",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\06_41페이지_보존된월드1_5_주행\\world5_path.png",
+      "sha256": "33e23917faa736ff1eef927c65a990980f08342bbec19e017c6994d5e7a1efe0",
+      "bytes": 65970,
+      "world_counts": {
+        "world": 5,
+        "blue": 6,
+        "red": 0,
+        "green": 1,
+        "obstacles": 12
+      },
+      "archived": true,
+      "dimensions": [
+        2100,
+        800
+      ]
+    },
+    {
+      "id": "W5_front",
+      "folder": "07_41p_월드1_5_주행",
+      "file": "07_41p_월드1_5_주행/W5_front_NAV_20260916.png",
+      "title": "World 5: 시작 정면 카메라",
+      "pages": [
+        11,
+        38,
+        41
+      ],
+      "date": "2026-09-16",
+      "version": "보존 초기 IDLE",
+      "kind": "카메라 원본",
+      "caption": "각 월드의 시작 시야다. 초록문이 처음부터 보이지 않는 조건을 보여준다.",
+      "caution": "당시 카메라 far clip 10m, 출구까지 약 21m. 안 보이는 결과를 실제 카메라 탐지 성능으로 일반화하지 않는다.",
+      "priority": "선택",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\18_PPT_페이지별_이미지와영상_20260922\\12_월드1_5_시작카메라_원본\\world5_front_initial.png",
+      "sha256": "1c75abc6a93a1f9cd04c25944765d056de0b61b46c98482a23aac316316282a5",
+      "bytes": 25527,
+      "dimensions": [
+        320,
+        240
+      ]
+    },
+    {
+      "id": "E2",
+      "folder": "08_34_42p_관측각도검증",
+      "file": "08_34_42p_관측각도검증/01_로봇관측각도_Gazebo비교_R34.png",
+      "title": "관측 각도와 독립 평가 비교",
+      "pages": [
+        6,
+        8,
+        30,
+        31,
+        34,
+        42
+      ],
+      "date": "2026-09-22",
+      "version": "R34 / robot-only observation / 단일문 PASS",
+      "kind": "로봇 센서 추정·독립 평가 그래프",
+      "caption": "문 각도를 RGB-D와 LiDAR로 추정하고 Gazebo 정답 각도는 평가에만 사용한다. 이동 구간 RMSE는 0.34도다.",
+      "caution": "기본 방향 단일문 한 번의 성공. 실제 로봇, 반대 힌지, 다문 접촉 통합 성공을 뜻하지 않음. 레버 누름은 강체 파지 가정 아래 로봇 엔코더 FK로 추정한다. 직접 레버 센서나 토크 측정은 아니다.",
+      "priority": "추천",
+      "source": "C:\\Users\\황준영\\Documents\\졸업작품\\00_최종자료\\22_로봇센서기반_기본문개방_20260922\\observed_angle_r34\\01_angle_comparison.png",
+      "sha256": "4e5c9cdf638590d871299952f1b012729e078a0167cb30719d6729e32bf060ea",
+      "bytes": 153175,
+      "dimensions": [
+        2040,
+        1190
+      ]
+    }
+  ]
+}

@@ -1,0 +1,219 @@
+{
+  "scope": "Two-door navigation/memory excerpt; simplified hinge backend, not PIPER contact",
+  "pass_memory_excerpt": true,
+  "opened_count": 2,
+  "ignored_events": [
+    {
+      "stamp": 1790048132.783077,
+      "wall_elapsed": 365.459750247,
+      "node": "state_machine_node",
+      "text": "Blue candidate door_blue_97230b ignored: physical/opened door station already handled nearby at (-0.15, 1.52)."
+    },
+    {
+      "stamp": 1790048137.4462485,
+      "wall_elapsed": 370.123823614,
+      "node": "state_machine_node",
+      "text": "Blue candidate door_blue_aef4c2 ignored: physical/opened door station already handled nearby at (-0.23, 1.74)."
+    },
+    {
+      "stamp": 1790048141.2353103,
+      "wall_elapsed": 373.912016721,
+      "node": "state_machine_node",
+      "text": "Blue candidate door_blue_d94260 ignored: physical/opened door station already handled nearby at (-0.07, 1.66)."
+    },
+    {
+      "stamp": 1790048145.8784769,
+      "wall_elapsed": 378.554673169,
+      "node": "state_machine_node",
+      "text": "Blue candidate door_blue_406bdb ignored: physical/opened door station already handled nearby at (-0.33, 1.82)."
+    },
+    {
+      "stamp": 1790048149.6726315,
+      "wall_elapsed": 382.348717096,
+      "node": "state_machine_node",
+      "text": "Blue candidate door_blue_db390d ignored: physical/opened door station already handled nearby at (-0.12, 1.61)."
+    },
+    {
+      "stamp": 1790048188.7052538,
+      "wall_elapsed": 421.38204383699997,
+      "node": "state_machine_node",
+      "text": "Blue candidate door_blue_c8cee8 ignored: physical/opened door station already handled nearby at (0.29, 1.45)."
+    },
+    {
+      "stamp": 1790048193.107754,
+      "wall_elapsed": 425.7840452339999,
+      "node": "state_machine_node",
+      "text": "Blue candidate door_blue_ac2660 ignored: physical/opened door station already handled nearby at (-0.22, 1.96)."
+    },
+    {
+      "stamp": 1790048196.1179166,
+      "wall_elapsed": 428.79402818999995,
+      "node": "state_machine_node",
+      "text": "Blue candidate door_blue_53bc32 ignored: physical/opened door station already handled nearby at (-0.44, 2.02)."
+    },
+    {
+      "stamp": 1790048202.819867,
+      "wall_elapsed": 435.498297115,
+      "node": "state_machine_node",
+      "text": "Blue candidate door_blue_4f8356 ignored: physical/opened door station already handled nearby at (0.14, 1.66)."
+    },
+    {
+      "stamp": 1790048205.8544686,
+      "wall_elapsed": 438.53127240999993,
+      "node": "state_machine_node",
+      "text": "Blue candidate door_blue_4f8356 ignored: physical/opened door station already handled nearby at (-0.08, 1.76)."
+    },
+    {
+      "stamp": 1790048210.520461,
+      "wall_elapsed": 443.19653437,
+      "node": "state_machine_node",
+      "text": "Blue candidate door_blue_cd4202 ignored: physical/opened door station already handled nearby at (0.26, 1.58)."
+    },
+    {
+      "stamp": 1790048215.2575011,
+      "wall_elapsed": 447.934622926,
+      "node": "state_machine_node",
+      "text": "Blue candidate door_blue_53bc32 ignored: physical/opened door station already handled nearby at (-0.23, 1.89)."
+    },
+    {
+      "stamp": 1790048219.9855328,
+      "wall_elapsed": 452.66217953,
+      "node": "state_machine_node",
+      "text": "Blue candidate door_blue_ac2660 ignored: physical/opened door station already handled nearby at (-0.30, 2.01)."
+    },
+    {
+      "stamp": 1790048225.827343,
+      "wall_elapsed": 458.5079273629999,
+      "node": "state_machine_node",
+      "text": "Blue candidate door_blue_fcdde7 ignored: physical/opened door station already handled nearby at (-0.25, 2.00)."
+    },
+    {
+      "stamp": 1790048241.4574442,
+      "wall_elapsed": 474.1336491779999,
+      "node": "state_machine_node",
+      "text": "Blue candidate door_blue_90af23 ignored: physical/opened door station already handled nearby at (0.82, 1.17)."
+    },
+    {
+      "stamp": 1790048335.3940787,
+      "wall_elapsed": 568.07012946,
+      "node": "state_machine_node",
+      "text": "Blue candidate door_blue_97230b ignored: physical/opened door station already handled nearby at (-0.28, 1.66)."
+    },
+    {
+      "stamp": 1790048342.2619996,
+      "wall_elapsed": 574.938422267,
+      "node": "state_machine_node",
+      "text": "Blue candidate door_blue_aef4c2 ignored: physical/opened door station already handled nearby at (-0.26, 1.82)."
+    },
+    {
+      "stamp": 1790048347.6618245,
+      "wall_elapsed": 580.338103501,
+      "node": "state_machine_node",
+      "text": "Blue candidate door_blue_aef4c2 ignored: physical/opened door station already handled nearby at (-0.24, 1.85)."
+    },
+    {
+      "stamp": 1790048352.792854,
+      "wall_elapsed": 585.470709395,
+      "node": "state_machine_node",
+      "text": "Blue candidate door_blue_aef4c2 ignored: physical/opened door station already handled nearby at (-0.25, 1.85)."
+    },
+    {
+      "stamp": 1790048357.074617,
+      "wall_elapsed": 589.7511024419999,
+      "node": "state_machine_node",
+      "text": "Blue candidate door_blue_aef4c2 ignored: physical/opened door station already handled nearby at (-0.30, 1.87)."
+    },
+    {
+      "stamp": 1790048361.1930554,
+      "wall_elapsed": 593.8694022369999,
+      "node": "state_machine_node",
+      "text": "Blue candidate door_blue_aef4c2 ignored: physical/opened door station already handled nearby at (-0.36, 1.87)."
+    },
+    {
+      "stamp": 1790048368.2482178,
+      "wall_elapsed": 600.926458238,
+      "node": "state_machine_node",
+      "text": "Blue candidate door_blue_aef4c2 ignored: physical/opened door station already handled nearby at (-0.33, 1.84)."
+    },
+    {
+      "stamp": 1790048372.3397455,
+      "wall_elapsed": 605.016893551,
+      "node": "state_machine_node",
+      "text": "Blue candidate door_blue_aef4c2 ignored: physical/opened door station already handled nearby at (-0.37, 1.86)."
+    },
+    {
+      "stamp": 1790048377.1423485,
+      "wall_elapsed": 609.8209013,
+      "node": "state_machine_node",
+      "text": "Blue candidate door_blue_aef4c2 ignored: physical/opened door station already handled nearby at (-0.32, 1.85)."
+    },
+    {
+      "stamp": 1790048381.4276087,
+      "wall_elapsed": 614.1038358249999,
+      "node": "state_machine_node",
+      "text": "Blue candidate door_blue_aef4c2 ignored: physical/opened door station already handled nearby at (-0.32, 1.85)."
+    },
+    {
+      "stamp": 1790048385.637396,
+      "wall_elapsed": 618.3161881929999,
+      "node": "state_machine_node",
+      "text": "Blue candidate door_blue_aef4c2 ignored: physical/opened door station already handled nearby at (-0.32, 1.85)."
+    },
+    {
+      "stamp": 1790048389.287173,
+      "wall_elapsed": 621.963528263,
+      "node": "state_machine_node",
+      "text": "Blue candidate door_blue_aef4c2 ignored: physical/opened door station already handled nearby at (-0.37, 1.86)."
+    },
+    {
+      "stamp": 1790048397.580368,
+      "wall_elapsed": 630.256602814,
+      "node": "state_machine_node",
+      "text": "Blue candidate door_blue_aef4c2 ignored: physical/opened door station already handled nearby at (-0.33, 1.84)."
+    },
+    {
+      "stamp": 1790048400.955699,
+      "wall_elapsed": 633.6321864299999,
+      "node": "state_machine_node",
+      "text": "Blue candidate door_blue_aef4c2 ignored: physical/opened door station already handled nearby at (-0.36, 1.88)."
+    },
+    {
+      "stamp": 1790048406.1405704,
+      "wall_elapsed": 638.818963534,
+      "node": "state_machine_node",
+      "text": "Blue candidate door_blue_406bdb ignored: physical/opened door station already handled nearby at (-0.37, 1.86)."
+    },
+    {
+      "stamp": 1790048410.1621625,
+      "wall_elapsed": 642.838634458,
+      "node": "state_machine_node",
+      "text": "Blue candidate door_blue_97230b ignored: physical/opened door station already handled nearby at (-0.24, 1.71)."
+    },
+    {
+      "stamp": 1790048486.3085108,
+      "wall_elapsed": 718.985406434,
+      "node": "state_machine_node",
+      "text": "Blue candidate door_blue_ccb829 ignored: physical/opened door station already handled nearby at (2.16, -2.12)."
+    },
+    {
+      "stamp": 1790048496.7300498,
+      "wall_elapsed": 729.406153506,
+      "node": "state_machine_node",
+      "text": "Blue candidate door_blue_97230b ignored: physical/opened door station already handled nearby at (-0.00, 1.48)."
+    },
+    {
+      "stamp": 1790048502.6122096,
+      "wall_elapsed": 735.2925941889999,
+      "node": "state_machine_node",
+      "text": "Blue candidate door_blue_aef4c2 ignored: physical/opened door station already handled nearby at (-0.19, 1.80)."
+    }
+  ],
+  "target_sequence": [
+    "door_blue_985793",
+    "observed_blue_2p6_2p5",
+    "observed_blue_6p0_m2p0",
+    "observed_blue_6p4_m2p0"
+  ],
+  "frames": 554,
+  "wall_elapsed": 737.02425696
+}

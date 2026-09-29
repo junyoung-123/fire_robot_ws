@@ -11,3 +11,6 @@
 # Keep published evidence byte-identical to its SHA256 manifest.
 docs/reports/2026-09-17/** -text whitespace=cr-at-eol
 docs/reports/2026-09-17/**/*.log -diff
+docs/handoff/2026-09-29/** -text whitespace=cr-at-eol
+docs/handoff/2026-09-29/**/*.log -diff
+docs/handoff/2026-09-29/**/*.pdf binary

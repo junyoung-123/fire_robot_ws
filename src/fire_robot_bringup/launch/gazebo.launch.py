@@ -45,6 +45,7 @@ def generate_launch_description():
         'robot_xacro_file', default='fire_robot.urdf.xacro')
     front_stop_distance = LaunchConfiguration(
         'front_stop_distance_m', default='0.48')
+    app_overrides = LaunchConfiguration('app_overrides')
     gazebo_env = {
         'LIBGL_ALWAYS_SOFTWARE': '1',
         'MESA_GL_VERSION_OVERRIDE': '3.3',
@@ -72,6 +73,8 @@ def generate_launch_description():
 
     return LaunchDescription([
         DeclareLaunchArgument('use_sim_time', default_value='true'),
+        DeclareLaunchArgument('app_overrides', default_value=PathJoinSubstitution([
+            FindPackageShare('fire_robot_bringup'), 'config', 'empty_overrides.yaml'])),
         DeclareLaunchArgument('odometry_source', default_value='ground_truth',
                               choices=['ground_truth', 'wheel'],
                               description='Use wheel encoders for sensor-localization tests.'),
@@ -162,7 +165,7 @@ def generate_launch_description():
                 'rear_stop_distance_m': 0.0,
                 'rotation_stop_distance_m': 0.0,
                 'drive_stop_half_angle_deg': 35.0,
-            }],
+            }, app_overrides],
             output='screen',
         ),
 

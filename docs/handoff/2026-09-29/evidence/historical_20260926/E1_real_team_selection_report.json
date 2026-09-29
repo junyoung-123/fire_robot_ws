@@ -1,0 +1,104 @@
+{
+  "strategy": "handle_best_v2 initialization -> balanced mixed fine-tune -> mixed bbox stabilization",
+  "selection_priority": "65% simulation domain, 35% real domain",
+  "minimum_validation_recall": {
+    "simulation": 0.82,
+    "real": 0.72,
+    "confidence": 0.25
+  },
+  "requirements_met": false,
+  "selected": {
+    "name": "stage1",
+    "weight": "/home/user/fire_robot_ws_team/runs/handle_v3_mixed/stage1_balanced_mixed/weights/best.pt",
+    "sim_val": {
+      "precision": 0.9947517839261059,
+      "recall": 0.99,
+      "map50": 0.9948675496688743,
+      "map50_95": 0.8000592466173936
+    },
+    "real_val": {
+      "precision": 0.6822565812861394,
+      "recall": 0.4091273149880673,
+      "map50": 0.4948750515613767,
+      "map50_95": 0.21569033593020545
+    },
+    "sim_val_operational": {
+      "precision": 0.9947517839261059,
+      "recall": 0.99,
+      "map50": 0.9948675496688743,
+      "map50_95": 0.8000592466173936
+    },
+    "real_val_operational": {
+      "precision": 0.6822565812861394,
+      "recall": 0.4091273149880673,
+      "map50": 0.4601185874987602,
+      "map50_95": 0.1994291888791606
+    },
+    "score": 0.7999648062799942,
+    "eligible": false
+  },
+  "candidates": [
+    {
+      "name": "stage1",
+      "weight": "/home/user/fire_robot_ws_team/runs/handle_v3_mixed/stage1_balanced_mixed/weights/best.pt",
+      "sim_val": {
+        "precision": 0.9947517839261059,
+        "recall": 0.99,
+        "map50": 0.9948675496688743,
+        "map50_95": 0.8000592466173936
+      },
+      "real_val": {
+        "precision": 0.6822565812861394,
+        "recall": 0.4091273149880673,
+        "map50": 0.4948750515613767,
+        "map50_95": 0.21569033593020545
+      },
+      "sim_val_operational": {
+        "precision": 0.9947517839261059,
+        "recall": 0.99,
+        "map50": 0.9948675496688743,
+        "map50_95": 0.8000592466173936
+      },
+      "real_val_operational": {
+        "precision": 0.6822565812861394,
+        "recall": 0.4091273149880673,
+        "map50": 0.4601185874987602,
+        "map50_95": 0.1994291888791606
+      },
+      "score": 0.7999648062799942,
+      "eligible": false
+    },
+    {
+      "name": "stage2",
+      "weight": "/home/user/fire_robot_ws_team/runs/handle_v3_mixed/stage2_bbox_stabilization/weights/best.pt",
+      "sim_val": {
+        "precision": 0.9764651195586612,
+        "recall": 0.97,
+        "map50": 0.9922632774075792,
+        "map50_95": 0.8059195950188617
+      },
+      "real_val": {
+        "precision": 0.8302293778521938,
+        "recall": 0.40476190476190477,
+        "map50": 0.47828362323831575,
+        "map50_95": 0.22208355347835446
+      },
+      "sim_val_operational": {
+        "precision": 0.9764651195586612,
+        "recall": 0.97,
+        "map50": 0.9922632774075792,
+        "map50_95": 0.8059195950188617
+      },
+      "real_val_operational": {
+        "precision": 0.8302293778521938,
+        "recall": 0.40476190476190477,
+        "map50": 0.43814593301435406,
+        "map50_95": 0.20547499834354777
+      },
+      "score": 0.7882481593793348,
+      "eligible": false
+    }
+  ],
+  "final_weight": "/home/user/fire_robot_ws_team/runs/handle_v3_mixed/handle_best_v3_CANDIDATE.pt",
+  "test_policy": "No test data was read. Return the frozen final weight to the owner for one-time private holdout evaluation."
+}

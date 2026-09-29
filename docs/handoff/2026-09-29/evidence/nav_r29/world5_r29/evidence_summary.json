@@ -1,0 +1,11 @@
+{
+  "status": "MISSION_COMPLETE",
+  "visit_count": 6,
+  "snapshots": 23,
+  "forbidden_nodes_present": [],
+  "slam_node_present": true,
+  "visits_are_not_door_openings": true,
+  "max_position_error_m": 0.7260009019172882,
+  "max_abs_heading_error_deg": 6.195936052649677,
+  "max_estimated_pose_gap_sim_sec": 0.5020000000000095
+}

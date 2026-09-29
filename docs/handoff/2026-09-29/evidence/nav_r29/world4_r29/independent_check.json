@@ -1,0 +1,29 @@
+{
+  "status": "PASS_NAV_VISITS_EXIT",
+  "failures": [],
+  "expected_blue_count_evaluator_only": 0,
+  "unique_valid_visits": 0,
+  "matches": [],
+  "input_audit": {
+    "sim_time": 675.0,
+    "map_messages_recorded": 33,
+    "map_to_base_available": 1,
+    "navigate_action_server_present": true,
+    "map_publishers": [
+      "slam_toolbox"
+    ],
+    "odom_publishers": [
+      "gz_selected_odometry_bridge"
+    ],
+    "evaluation_truth_subscribers": [
+      "observed_navigation_recorder"
+    ]
+  },
+  "physical_opening_tested": false,
+  "physical_contact_collision_audit": "not instrumented",
+  "navigation_footprint_overlap_obstacles": [],
+  "navigation_footprint_overlap_events": {},
+  "retained_obstacles_evaluator_only": 10,
+  "exit_jambs_evaluated": 2,
+  "wall_panel_boxes_evaluated": 5
+}

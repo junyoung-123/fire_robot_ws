@@ -126,6 +126,7 @@ class DoorDetectionNode(Node):
         self.declare_parameter('use_depth_camera', False)
         self.declare_parameter('handle_require_registered_depth', False)
         self.declare_parameter('door_height_m', 2.0)
+        self.declare_parameter('visual_range_requires_complete_bbox', False)
         self.declare_parameter('max_detection_distance_m', 12.0)
         self.declare_parameter('door_approach_offset_m', 0.8)
         self.declare_parameter('nav_goal_max_abs_y_m', 0.0)
@@ -238,6 +239,8 @@ class DoorDetectionNode(Node):
         self._handle_registered_depth = bool(self.get_parameter(
             'handle_require_registered_depth').value)
         self._door_height_m = float(self.get_parameter('door_height_m').value)
+        self._visual_range_requires_complete_bbox = bool(
+            self.get_parameter('visual_range_requires_complete_bbox').value)
         self._max_detection_distance = float(
             self.get_parameter('max_detection_distance_m').value)
         self._door_approach_offset = float(
@@ -1476,6 +1479,13 @@ class DoorDetectionNode(Node):
                                 header=None) -> float | None:
         measured = self._range_distance_at_pixel(cx_pix, cy_pix, source, header)
         visual = self._visual_distance_from_bbox(bbox_height, source)
+        if self._visual_range_requires_complete_bbox:
+            top = cy_pix - bbox_height / 2.0
+            bottom = cy_pix + bbox_height / 2.0
+            if top <= 2 or bottom >= source.img_h - 2:
+                # A clipped panel gives a lower bound on image height, not a
+                # metric range. Do not replace a near scan with that estimate.
+                return measured
 
         # Side cameras see wall-mounted doors at an oblique angle. The apparent
         # bbox height is often too small, so visual range can jump several
