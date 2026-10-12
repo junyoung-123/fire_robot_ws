@@ -188,6 +188,7 @@ class StateMachineNode(Node):
         self.declare_parameter('post_open_side_retreat_enabled', True)
         self.declare_parameter('post_open_observed_clearance_enabled', False)
         self.declare_parameter('guarded_footprint_enabled', False)
+        self.declare_parameter('manual_cmd_vel_topic', '/cmd_vel')
         self.declare_parameter('post_open_guarded_cmd_vel_topic', '')
         self.declare_parameter('post_open_scan_turn_min_m', 0.32)
         self.declare_parameter('post_open_side_retreat_m', 1.60)
@@ -912,7 +913,8 @@ class StateMachineNode(Node):
         self.state_pub       = self.create_publisher(RobotState, '/robot_state', 10)
         self.memory_evidence_pub = self.create_publisher(String, '/mission/memory_evidence', 10)
         self.target_door_pub = self.create_publisher(DoorInfo,   '/target_door', 10)
-        self.cmd_vel_pub     = self.create_publisher(Twist,      '/cmd_vel',     10)
+        manual_topic = str(self.get_parameter('manual_cmd_vel_topic').value)
+        self.cmd_vel_pub = self.create_publisher(Twist, manual_topic, 10)
         post_open_topic = str(self.get_parameter('post_open_guarded_cmd_vel_topic').value)
         self._post_open_guarded_pub = (
             self.create_publisher(Twist, post_open_topic, 10) if post_open_topic else None)

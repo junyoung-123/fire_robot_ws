@@ -921,7 +921,7 @@ class RobotObservationManipulation(R34ReferenceMotion, MinimalObservedAngle):
         return self._feedback_stop('Held height reserve did not settle before base motion')
 
     def _feedback_settle_held_target_once(self):
-        if self._phase != 'HANDLE_HELD_BASE_OPEN':
+        if self._phase not in ('LATCH_CLEAR_PUSH', 'HANDLE_HELD_BASE_OPEN'):
             return super()._feedback_settle_held_target()
         self._publish_sim_cmd_vel(0.,0.)
         actual=self._feedback_tool()
@@ -933,6 +933,14 @@ class RobotObservationManipulation(R34ReferenceMotion, MinimalObservedAngle):
         alpha=self._sim_door_position-door0-self._feedback_base_yaw()+yaw0
         normal=np.array([math.cos(alpha),math.sin(alpha),0.])
         residual=actual-goal
+        if self._phase == 'LATCH_CLEAR_PUSH' and (
+                not np.isfinite(residual).all()
+                or np.linalg.norm(residual)>cfg['tracking_limit_m']
+                or abs(residual@normal)>cfg['tool_tolerance_m']
+                or abs(residual[2])>cfg['tool_tolerance_m']):
+            return self._feedback_stop('Latch preload exceeds original pose bounds')
+        # Relieve measured excess preload during latch probes as well, before
+        # it can exceed the unchanged 15 mm bound at the opening handoff.
         unloading_supported=(
             .5*cfg['tool_tolerance_m'] < residual[2] <= cfg['tool_tolerance_m']
             and abs(residual@normal)<=cfg['tool_tolerance_m']

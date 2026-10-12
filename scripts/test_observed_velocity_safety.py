@@ -168,6 +168,8 @@ class ObservedVelocitySafetyTests(unittest.TestCase):
         node._nav_swept_clearance_enabled = True
         node._footprint_guard = Mock()
         node._footprint_guard.snapshot.return_value.safe.return_value = allowed
+        node._footprint_guard.snapshot.return_value.clearance.return_value = .1
+        node._footprint_guard.snapshot.return_value.last_failure = None if allowed else 'UNKNOWN_OR_OCCUPIED_SWEEP'
         return node
 
     def test_nav_arc_uses_body_sweep_when_full_circle_is_blocked(self):
@@ -188,6 +190,43 @@ class ObservedVelocitySafetyTests(unittest.TestCase):
         node._on_nav_cmd_vel(command)
         safe = node._pub.publish.call_args.args[0]
         self.assertEqual((safe.linear.x, safe.angular.z), (0., -.5))
+
+    def test_nav_straight_also_requires_body_sweep(self):
+        node = self.swept_node(False)
+        command = Twist()
+        command.linear.x = .20
+        node._on_nav_cmd_vel(command)
+        safe = node._pub.publish.call_args.args[0]
+        self.assertEqual((safe.linear.x, safe.angular.z), (0., 0.))
+        node._footprint_guard.snapshot.return_value.safe.assert_called_once_with(.12, 0.)
+
+    def test_guarded_mission_motion_is_scaled_before_body_check(self):
+        node = self.swept_node()
+        command = Twist()
+        command.linear.x, command.angular.z = .24, .8
+        node._on_guarded_manual_cmd_vel(command)
+        safe = node._pub.publish.call_args.args[0]
+        self.assertAlmostEqual(safe.linear.x, .12)
+        self.assertAlmostEqual(safe.angular.z, .4)
+        node._footprint_guard.snapshot.return_value.safe.assert_called_once_with(.12, .4)
+
+    def test_guarded_mission_stops_despite_contact_channel_distance_exception(self):
+        node = self.swept_node(False)
+        node._lidar_stop_manual_commands = False
+        command = Twist()
+        command.linear.x = .12
+        node._on_guarded_manual_cmd_vel(command)
+        safe = node._pub.publish.call_args.args[0]
+        self.assertEqual((safe.linear.x, safe.angular.z), (0., 0.))
+
+    def test_straight_nav_missing_scene_does_not_assume_front_inf_is_clear(self):
+        node = self.swept_node()
+        node._footprint_guard.snapshot.return_value = None
+        node._latest_scan.ranges = [float('inf')]*361
+        command = Twist()
+        command.linear.x = .1
+        node._on_nav_cmd_vel(command)
+        self.assertEqual(node._pub.publish.call_args.args[0].linear.x, 0.)
 
     def test_nav_unknown_or_colliding_sweep_stops_both_components(self):
         for missing in (True, False):

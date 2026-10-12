@@ -113,16 +113,28 @@ class CmdVelSafetyNode(Node):
         self._manual_active_until_sec = self._now_sec() + self._manual_hold_sec
         guard = getattr(self, '_footprint_guard', None)
         if guard is not None:
+            command = self._bounded_sweep_twist(msg)
             scene = guard.snapshot(self._latest_scan, self._latest_scan_time_sec)
-            if scene is None or not scene.safe(msg.linear.x, msg.angular.z):
+            if scene is None or not scene.safe(command.linear.x, command.angular.z):
                 self._pub.publish(Twist())
                 detail = ('stale geometry' if scene is None else
                           f'{scene.last_failure}, gap={scene.clearance([0.,0.,0.]):.3f}m')
                 self._log_obstacle_clamp(f'guarded footprint sweep not observed clear: {detail}')
                 return
-            self._publish_safe(msg, apply_lidar_stop=False)
+            self._publish_safe(command, apply_lidar_stop=False)
             return
         self._publish_safe(msg, apply_lidar_stop=True)
+
+    @staticmethod
+    def _bounded_sweep_twist(msg):
+        command = Twist()
+        if not all(math.isfinite(v) for v in (msg.linear.x, msg.angular.z)):
+            return command
+        scale = min(1., .12/max(abs(msg.linear.x), 1.e-9),
+                    .5/max(abs(msg.angular.z), 1.e-9))
+        command.linear.x = msg.linear.x*scale
+        command.angular.z = msg.angular.z*scale
+        return command
 
     def _publish_safe(self, msg: Twist, *, apply_lidar_stop: bool, allow_nav_sweep=False):
         safe = Twist()
@@ -185,19 +197,24 @@ class CmdVelSafetyNode(Node):
         turn_blocked = (
                 abs(safe.angular.z) > 1e-3
                 and surround < self._rotation_stop_distance_m)
-        if (turn_blocked and not blocked and allow_nav_sweep
-                and getattr(self, '_nav_swept_clearance_enabled', False)):
+        if allow_nav_sweep and getattr(self, '_nav_swept_clearance_enabled', False):
+            if blocked:
+                safe.linear.x, safe.angular.z = 0., 0.
+                self._log_obstacle_clamp(', '.join(blocked))
+                return
             guard = getattr(self, '_footprint_guard', None)
             scene = (guard.snapshot(scan, self._latest_scan_time_sec)
                      if guard is not None else None)
-            # A full-circle bound need not fit for a short Nav2 arc. Keep its
-            # curvature, reduce speed, and verify the entire padded body sweep.
-            scale = min(1., .12/max(abs(safe.linear.x), 1.e-9),
-                        .5/max(abs(safe.angular.z), 1.e-9))
-            v, w = safe.linear.x*scale, safe.angular.z*scale
-            if scene is not None and scene.safe(v, w):
-                safe.linear.x, safe.angular.z = v, w
+            # Check straight motion too: front-sector ranges alone do not
+            # cover a chassis corner or the scanner's near-field blind area.
+            command = self._bounded_sweep_twist(safe)
+            if scene is not None and scene.safe(command.linear.x, command.angular.z):
+                safe.linear.x, safe.angular.z = command.linear.x, command.angular.z
                 return
+            safe.linear.x, safe.angular.z = 0., 0.
+            detail = 'stale geometry' if scene is None else scene.last_failure
+            self._log_obstacle_clamp(f'Nav2 footprint sweep not observed clear: {detail}')
+            return
         if turn_blocked:
             safe.angular.z = 0.0
             blocked.append(f'turn_clearance={surround:.2f}m')

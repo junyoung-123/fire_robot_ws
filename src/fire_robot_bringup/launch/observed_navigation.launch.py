@@ -87,6 +87,9 @@ def start(context):
             app[name]['ros__parameters'].update({
                 'guarded_footprint_enabled': True, 'guard_footprint_bounds_m': list(bounds)})
         app['state_machine_node']['ros__parameters'].update({
+            # All mission motions need body sweeps. Only the separately
+            # checked arm/contact controller uses the near-contact channel.
+            'manual_cmd_vel_topic': '/cmd_vel_manual_guarded',
             'post_open_observed_clearance_enabled': True,
             'post_open_guarded_cmd_vel_topic': '/cmd_vel_manual_guarded',
             'post_open_scan_turn_min_m': turn_clearance,
