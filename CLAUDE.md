@@ -1,5 +1,13 @@
 # Project and evidence entry point
 
+Latest: read `docs/RELEASE_20261012.md` and the dated README section first.
+R243 is one continuous World 1 navigation + physical contact opening + exit PASS.
+Worlds 2-5 are a frozen-code validation-only batch, not yet certified by this result.
+Do not tune robot policy after their failures unless the user explicitly changes that instruction.
+Preserve `src/`, R243 source/model hashes and all previous successes and failures.
+`scripts/frozen_worlds/` adapts only the simulator fixture and passive evaluation/recording.
+Never supply evaluation door counts or coordinates to controller nodes.
+
 Read the dated section at the top of `README.md` and `docs/RELEASE_20260926.md`.
 For report/PPT work, read `docs/handoff/2026-09-26/00_START_HERE.md`,
 `02_EVIDENCE_SCOPE.md` and `01_ASSET_INDEX.json` in that same folder.

@@ -95,6 +95,11 @@ def generate_launch_description():
             description='Bridge the simulated depth camera topics when enabled.',
         ),
         DeclareLaunchArgument('spawn_x', default_value='-3.0'),
+        DeclareLaunchArgument('lidar_tf_x', default_value='0.2'),
+        DeclareLaunchArgument('lidar_tf_z', default_value='0.07'),
+        DeclareLaunchArgument('raw_scan_topic', default_value='/scan'),
+        DeclareLaunchArgument('clock_output_topic', default_value='/clock'),
+        DeclareLaunchArgument('joint_states_output_topic', default_value='/joint_states'),
         DeclareLaunchArgument('spawn_y', default_value='0.0'),
         DeclareLaunchArgument('spawn_z', default_value='0.07'),
         DeclareLaunchArgument('spawn_yaw', default_value='0.0'),
@@ -136,7 +141,7 @@ def generate_launch_description():
             executable='static_transform_publisher',
             name='sim_lidar_sensor_tf',
             arguments=[
-                '0.2', '0.0', '0.07',
+                LaunchConfiguration('lidar_tf_x'), '0.0', LaunchConfiguration('lidar_tf_z'),
                 '0.0', '0.0', '0.0',
                 'base_link',
                 'fire_robot/base_footprint/lidar_sensor',
@@ -190,6 +195,7 @@ def generate_launch_description():
             package='ros_gz_bridge',
             executable='parameter_bridge',
             name='gz_clock_bridge',
+            remappings=[('/clock', LaunchConfiguration('clock_output_topic'))],
             arguments=[
                 '/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
             ],
@@ -207,6 +213,8 @@ def generate_launch_description():
             ],
             remappings=[
                 ('/cmd_vel', '/cmd_vel_safe'),
+                ('/scan', LaunchConfiguration('raw_scan_topic')),
+                ('/joint_states', LaunchConfiguration('joint_states_output_topic')),
             ],
             parameters=[{'use_sim_time': use_sim_time}],
             output='screen',

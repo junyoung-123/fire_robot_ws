@@ -45,7 +45,12 @@ from .contact_feedback import (
     fresh_sample, observed_clearance, next_press_depth, stable_lever_motion, bounded_press_step,
     bounded_contact_target, SimMotionDeadline, measured_wrist_rotation,
     swept_contact_reference, projected_contact_increment, coordinated_contact_endpoint,
-    contact_posture_command, released_grip_clearance)
+    contact_posture_command, released_grip_clearance, robust_heading_rate, measured_press_target,
+    predicted_contact_rotation, robust_contact_speed, chassis_supplied_opening_speed,
+    active_heading_rate, observed_contact_curvature, observed_probe_motion,
+    SceneObservationPending, ObservedSceneGate, ObservedContactProgress, measured_contact_endpoint,
+    measured_tangential_relaxation, bounded_wrist_yaw_lead,
+    conservative_contact_curvature, contact_steady_heading)
 
 try:
     from moveit.planning import MoveItPy
@@ -123,6 +128,7 @@ class ManipulationNode(Node):
             '/piper_gripper_controller/joint_trajectory')
         self.declare_parameter('piper_mount_x_m', 0.163)
         self.declare_parameter('piper_mount_y_m', 0.15)
+        self.declare_parameter('contact_reference_frame', 'odom')
         self.declare_parameter('piper_mount_z_m', 0.509)
         self.declare_parameter('piper_tool_contact_offset_m', 0.10)
         self.declare_parameter('handle_surface_inset_m', 0.025)
@@ -187,6 +193,8 @@ class ManipulationNode(Node):
         self.declare_parameter('feedback_follow_step_m', 0.008)
         self.declare_parameter('feedback_lever_hold_tolerance_rad', 0.01)
         self.declare_parameter('feedback_encoder_contact_follow', False)
+        self.declare_parameter('feedback_opening_speed_mps', 0.012)
+        self.declare_parameter('feedback_opening_priority_weight', 0.2)
 
         self._planning_group = self.get_parameter('planning_group').value
         self._gripper_group  = self.get_parameter('gripper_group').value
@@ -283,6 +291,7 @@ class ManipulationNode(Node):
             self.get_parameter('sim_arm_trajectory_topic').value)
         self._sim_gripper_trajectory_topic = str(
             self.get_parameter('sim_gripper_trajectory_topic').value)
+        self._contact_reference_frame = str(self.get_parameter('contact_reference_frame').value)
         self._piper_kinematics = PiperActualKinematics(
             mount_xyz=(
                 float(self.get_parameter('piper_mount_x_m').value),
@@ -390,7 +399,13 @@ class ManipulationNode(Node):
                 'press_max_travel_m', 'press_sign', 'press_roll_lead_rad', 'tracking_limit_m',
                 'handle_min_confidence', 'joint_bias_limit_rad',
                 'follow_max_age_sec', 'follow_max_shift_m', 'follow_step_m',
-                'lever_hold_tolerance_rad')}
+                'lever_hold_tolerance_rad', 'opening_speed_mps', 'opening_priority_weight')}
+        if not math.isfinite(self._feedback_config['opening_speed_mps']) or not (
+                0. < self._feedback_config['opening_speed_mps'] <= .06):
+            raise ValueError('Opening probe speed exceeds bounded contact velocity')
+        if (not math.isfinite(self._feedback_config['opening_priority_weight'])
+                or self._feedback_config['opening_priority_weight'] <= 0.):
+            raise ValueError('Opening priority weight must be positive and finite')
         if self._feedback_contact and not (
                 self._sim_mode and self._sim_door_contact_only
                 and self._sim_verify_door_feedback
@@ -460,8 +475,9 @@ class ManipulationNode(Node):
             tuple[int, PointStamped, float, str]] = []
         self.create_subscription(
             DoorInfo, '/detected_door', self._detected_door_callback, 20)
+        self._sim_door_state_subscription = None
         if self._sim_mode and self._sim_verify_door_feedback:
-            self.create_subscription(
+            self._sim_door_state_subscription = self.create_subscription(
                 JointState,
                 self._sim_door_feedback_topic,
                 self._sim_door_state_callback,
@@ -773,6 +789,9 @@ class ManipulationNode(Node):
             return False
 
         if held_open:
+            self._set_manip_phase('RETURN_LEVER', door_id)
+            if not self._feedback_restore_lever_before_release():
+                return False
             self._set_manip_phase('RELEASE_HANDLE', door_id)
             grip_span = (abs(self._sim_arm_joint_positions['gripper_left_joint'])
                          + abs(self._sim_arm_joint_positions['gripper_right_joint']))
@@ -899,7 +918,7 @@ class ManipulationNode(Node):
             handle_pos.point = refined.point
             try:
                 self._feedback_handle_anchor = self._tf_buffer.transform(
-                    refined, 'odom', timeout=Duration(seconds=.2))
+                    refined, self._contact_reference_frame, timeout=Duration(seconds=.2))
             except Exception:
                 return self._feedback_stop('Cannot anchor observed handle in odom')
             goal = center.copy()
@@ -913,17 +932,7 @@ class ManipulationNode(Node):
             start = self._feedback_tool()
             if start is None:
                 return self._feedback_stop('Missing feedback on pre-grasp path')
-            count = max(1, int(math.ceil(float(np.linalg.norm(goal-start))
-                                        / self._feedback_config['approach_step_m'])))
-            deadline = SimMotionDeadline(self._sim_time_sec(), time.monotonic(), 90.0)
-            for index in range(1, count+1):
-                failure = deadline.failure(self._sim_time_sec(), time.monotonic())
-                if not rclpy.ok() or failure:
-                    return self._feedback_stop('Pre-grasp path: ' + (failure or 'shutdown'))
-                if not self._feedback_move_tool(
-                        start + (goal-start) * index/count, 'observed_pre_grasp'):
-                    return False
-            return True
+            return self._feedback_joint_pregrasp(goal, center[0])
         if self._sim_mode:
             self.get_logger().info(
                 f'  [SIM] Pre-grasp at '
@@ -1685,6 +1694,10 @@ class ManipulationNode(Node):
             except (ValueError, IndexError):
                 continue
 
+    def _feedback_handle_is_confident(self, msg):
+        return (math.isfinite(msg.handle_confidence) and
+                msg.handle_confidence >= self._feedback_config['handle_min_confidence'])
+
     def _detected_door_callback(self, msg: DoorInfo):
         if not msg.handle_detected or not msg.handle_position.header.frame_id:
             return
@@ -1693,9 +1706,7 @@ class ManipulationNode(Node):
                 or not str(msg.handle_detection_method).startswith(
                     ('yolo:primary', 'track:primary_yolo'))
                 or not str(msg.handle_detection_method).endswith(':registered_depth')
-                or not math.isfinite(msg.handle_confidence)
-                or msg.handle_confidence
-                < self._feedback_config['handle_min_confidence']):
+                or not self._feedback_handle_is_confident(msg)):
             return
         point = PointStamped()
         point.header = msg.handle_position.header
@@ -1714,7 +1725,7 @@ class ManipulationNode(Node):
                 try:
                     # Transform at exposure time, not at the later callback time.
                     anchored = self._tf_buffer.transform(
-                        point, 'odom', timeout=Duration(seconds=.1))
+                        point, self._contact_reference_frame, timeout=Duration(seconds=.1))
                 except TransformException:
                     anchored = None
                 if anchored is not None:
@@ -1759,7 +1770,7 @@ class ManipulationNode(Node):
         start_seq = self._detected_handle_seq
         start_sim = self._sim_time_sec()
         wall_deadline = time.monotonic() + max(
-            10.0, 3.0 * self._sim_handle_refine_timeout)
+            90.0, 3.0 * self._sim_handle_refine_timeout)
         while (
                 rclpy.ok()
                 and time.monotonic() < wall_deadline
@@ -1873,8 +1884,14 @@ class ManipulationNode(Node):
             rotation = self._feedback_contact_rotation()
         except (TransformException, ValueError) as exc:
             return self._feedback_stop('Wrist following rejected: ' + str(exc))
+        # Released-hand servos require 2 mm convergence. Their IK residual must
+        # be smaller, otherwise a settled joint command can never finish.
+        released_step = stage in (
+            'unload_finger_release', 'released_wrist_unload', 'released_wrist_retreat',
+            'held_lever_return')
         solution = self._piper_kinematics.solve(
-            goal, seed=seed, position_tolerance_m=0.003,
+            goal, seed=seed, position_tolerance_m=0.001 if released_step else 0.003,
+            orientation_tolerance_rad=0.015 if stage == 'held_lever_return' else 0.10,
             target_rotation=rotation,
             prefer_seed_solution=getattr(self, '_feedback_full_handle_follow', False))
         if solution is None:
@@ -1950,6 +1967,38 @@ class ManipulationNode(Node):
                         and np.linalg.norm(actual-previous_sample) < .002
                         and (error > self._feedback_config['tool_tolerance_m']
                              or orientation_error > .10)):
+                    if stage == 'encoder_contact_follow' and getattr(self, '_feedback_full_handle_follow', False):
+                        if orientation_error > .10:
+                            return self._feedback_stop('Loaded wrist orientation cannot settle without further force')
+                        try:
+                            door0, yaw0, _ = self._feedback_contact_orientation_reference
+                            heading = self._sim_door_position-door0-self._feedback_base_yaw()+yaw0
+                            normal = np.array([math.cos(heading), math.sin(heading), 0.])
+                            relaxed = measured_tangential_relaxation(goal, actual, normal,
+                                self._feedback_config['tracking_limit_m'],
+                                self._feedback_config['follow_step_m'],
+                                self._feedback_config['tool_tolerance_m'])
+                            point = PointStamped(); point.header.frame_id = self._manipulation_frame
+                            point.point.x, point.point.y, point.point.z = map(float, relaxed)
+                            fixed = self._tf_buffer.transform(point, self._contact_reference_frame,
+                                                             timeout=Duration(seconds=.1)).point
+                        except (ValueError, TransformException) as exc:
+                            return self._feedback_stop(str(exc))
+                        old_goal = np.asarray(goal).copy()
+                        goal = relaxed
+                        if not self._feedback_command_point(goal, stage):
+                            return False
+                        _, previous_contact, previous_angle = self._feedback_sweep_state
+                        self._feedback_sweep_state = (np.array([fixed.x, fixed.y, fixed.z]),
+                                                       previous_contact, previous_angle)
+                        self._feedback_press_origin[:2] = goal[:2]
+                        self._feedback_event('stopped_tangential_contact_relaxation',
+                            previous_target_xyz=old_goal.tolist(), requested_xyz=goal.tolist(),
+                            actual_tool_xyz=actual.tolist(), normal_shift_m=float((goal-old_goal)@normal),
+                            joint_bias_rad=self._feedback_joint_bias.tolist())
+                        previous_sample = actual.copy()
+                        next_sample = self._sim_time_sec()+.5
+                        continue
                     measured = np.asarray([self._sim_arm_joint_positions[name]
                                            for name in PIPER_JOINT_NAMES])
                     candidate = self._feedback_joint_bias + .5 * (
@@ -1982,6 +2031,33 @@ class ManipulationNode(Node):
             time.sleep(0.025)
         return self._feedback_stop('Approach failed to converge; no blind advance')
 
+    def _feedback_joint_pregrasp(self, goal, observed_panel_x):
+        start=np.array([self._sim_arm_joint_positions[name] for name in PIPER_JOINT_NAMES])
+        try:
+            path=self._piper_kinematics.joint_approach_path(goal,start,observed_panel_x)
+        except ValueError as exc:
+            return self._feedback_stop(str(exc)+'; measured joints='+str(start.tolist()))
+        start=path[0].copy()
+        total=float(np.max(np.abs(path[-1]-start)))/.25
+        begin=self._sim_time_sec()
+        deadline=SimMotionDeadline(begin,time.monotonic(),total+10.,wall_limit=120.)
+        self._feedback_event('joint_pregrasp_plan', samples=len(path), duration_sec=total,
+                             observed_goal_xyz=np.asarray(goal).tolist(),
+                             panel_plane_x=observed_panel_x, collision_planner_used=False)
+        while rclpy.ok() and self._sim_time_sec()-begin < total:
+            failure=deadline.failure(self._sim_time_sec(),time.monotonic())
+            if failure or self._feedback_tool() is None:
+                return self._feedback_stop('Joint pre-grasp: '+(failure or 'stale encoders'))
+            fraction=min(1.,(self._sim_time_sec()-begin)/max(total,.001))
+            commanded=start+fraction*(path[-1]-start)
+            measured=np.array([self._sim_arm_joint_positions[name] for name in PIPER_JOINT_NAMES])
+            if np.max(np.abs(commanded-measured)) > .20:
+                return self._feedback_stop('Joint pre-grasp tracking exceeded: inspect contact')
+            self._publish_sim_arm_targets(dict(zip(PIPER_JOINT_NAMES,commanded.tolist())))
+            self._sim_last_arm_target=commanded.copy()
+            time.sleep(.025)
+        return self._feedback_move_tool(goal,'observed_pre_grasp')
+
     def _feedback_grasp(self, handle_pos):
         # The gripper occludes a forward camera at close range. Freeze the
         # measured, stationary-handle anchor in odom (not an old base frame),
@@ -1996,7 +2072,7 @@ class ManipulationNode(Node):
             if failure:
                 return self._feedback_stop('Contact approach: ' + failure)
             anchor = PointStamped()
-            anchor.header.frame_id = 'odom'
+            anchor.header.frame_id = self._contact_reference_frame
             anchor.point = self._feedback_handle_anchor.point
             refined = self._transform_handle_to_manipulation_frame(anchor)
             if refined is None:
@@ -2008,7 +2084,9 @@ class ManipulationNode(Node):
                 return self._feedback_stop('No fresh tool feedback during grasp')
             delta = goal - actual
             distance = float(np.linalg.norm(delta))
-            if distance <= self._feedback_config['tool_tolerance_m']:
+            # Closing at the looser loaded-servo tolerance contradicts the
+            # observed pre-contact alignment and lever-height checks.
+            if distance <= min(self._feedback_config['tool_tolerance_m'], .005):
                 if not self._feedback_close_gripper():
                     return False
                 self._feedback_event('grasp_candidate', distance_m=distance,
@@ -2060,6 +2138,10 @@ class ManipulationNode(Node):
                 next_sample = now + .05
             time.sleep(.02)
         return self._feedback_stop('Gripper closure interrupted')
+
+    def _feedback_press_increment(self, goal, actual, step):
+        return bounded_press_step(goal, actual, step,
+                                  self._feedback_config['tracking_limit_m'])
 
     def _feedback_press(self, handle_pos):
         actual = self._feedback_tool()
@@ -2119,11 +2201,17 @@ class ManipulationNode(Node):
             if float(np.linalg.norm(goal - actual)) > cfg['tracking_limit_m']:
                 return self._feedback_stop('Press tracking error: possible jam/contact loss')
             try:
-                depth += bounded_press_step(goal, actual, next_depth-depth, cfg['tracking_limit_m'])
+                increment = self._feedback_press_increment(goal, actual, next_depth-depth)
             except ValueError as exc:
                 return self._feedback_stop(str(exc))
-            goal = start.copy()
-            goal[2] -= depth
+            if increment == 0.:
+                time.sleep(.025)
+                continue
+            depth += increment
+            try:
+                goal = measured_press_target(start,actual,depth,cfg['press_max_travel_m'])
+            except ValueError as exc:
+                return self._feedback_stop(str(exc))
             if not self._feedback_command_point(goal, 'feedback_press'):
                 return False
             self._feedback_event('press_step', commanded_depth_m=depth,
@@ -2160,7 +2248,7 @@ class ManipulationNode(Node):
                 point.header.frame_id = self._manipulation_frame
                 point.point.x, point.point.y, point.point.z = map(float, actual)
                 try:
-                    tool = self._tf_buffer.transform(point, 'odom', timeout=Duration(seconds=.1))
+                    tool = self._tf_buffer.transform(point, self._contact_reference_frame, timeout=Duration(seconds=.1))
                 except TransformException:
                     return self._feedback_stop('Cannot anchor measured contact tool in odom')
                 observed = sample[1].point
@@ -2208,7 +2296,7 @@ class ManipulationNode(Node):
         point.header.frame_id = self._manipulation_frame
         point.point.x, point.point.y, point.point.z = map(float, actual)
         try:
-            fixed = self._tf_buffer.transform(point, 'odom', timeout=Duration(seconds=.1))
+            fixed = self._tf_buffer.transform(point, self._contact_reference_frame, timeout=Duration(seconds=.1))
         except TransformException as exc:
             return self._feedback_stop('Cannot anchor contact point: ' + str(exc))
         origin = np.asarray((fixed.point.x, fixed.point.y, fixed.point.z))
@@ -2224,18 +2312,47 @@ class ManipulationNode(Node):
                              force_sensor_used=False)
         return True
 
-    def _feedback_base_yaw(self):
+    def _feedback_base_heading_sample(self, rate_window=False):
         transform = self._tf_buffer.lookup_transform(
-            'odom', self._manipulation_frame, Time(), timeout=Duration(seconds=.1))
+            self._contact_reference_frame, self._manipulation_frame, Time(), timeout=Duration(seconds=.1))
         stamp = transform.header.stamp.sec + transform.header.stamp.nanosec * 1.e-9
-        if not fresh_sample(stamp, self._sim_time_sec(),
-                            self._feedback_config['max_age_sec']):
-            raise ValueError('Base orientation TF is stale')
+        now = self._sim_time_sec()
+        maximum = self._feedback_config['max_age_sec']
+        available = fresh_sample(stamp, now, maximum)
+        # ROS clock and TF callbacks can arrive in either order. Rate samples
+        # are buffered only; active_heading_rate discards stamps beyond the
+        # completed drive interval before any rate is used by the controller.
+        if rate_window and 0. < stamp-now <= maximum:
+            available = True
+        if not available:
+            raise ValueError(f'Base orientation TF is stale or future: age={now-stamp:.6f}s')
         q = transform.transform.rotation
         if not all(math.isfinite(v) for v in (q.x, q.y, q.z, q.w)):
             raise ValueError('Base orientation is not finite')
-        return math.atan2(2. * (q.w*q.z + q.x*q.y),
-                          1. - 2. * (q.y*q.y + q.z*q.z))
+        return stamp, math.atan2(2. * (q.w*q.z + q.x*q.y),
+                                1. - 2. * (q.y*q.y + q.z*q.z))
+
+    def _feedback_base_yaw(self):
+        return self._feedback_base_heading_sample()[1]
+
+    def _feedback_base_pose_sample(self):
+        now=self._sim_time_sec()
+        transform=self._tf_buffer.lookup_transform(self._contact_reference_frame,
+            self._manipulation_frame,Time(),timeout=Duration(seconds=.1))
+        stamp=transform.header.stamp.sec+transform.header.stamp.nanosec*1.e-9
+        if stamp>now:
+            transform=self._tf_buffer.lookup_transform(self._contact_reference_frame,
+                self._manipulation_frame,Time(nanoseconds=int(now*1.e9)),
+                timeout=Duration(seconds=.1))
+            stamp=transform.header.stamp.sec+transform.header.stamp.nanosec*1.e-9
+        if not fresh_sample(stamp,now,.15):
+            raise ValueError('Chassis progress needs fresh nonfuture wheel localization')
+        p,q=transform.transform.translation,transform.transform.rotation
+        pose=np.array([p.x,p.y,math.atan2(2.*(q.w*q.z+q.x*q.y),
+                                        1.-2.*(q.y*q.y+q.z*q.z))])
+        if not np.all(np.isfinite(pose)):
+            raise ValueError('Chassis progress pose is not finite')
+        return stamp,pose
 
     def _feedback_anchor_contact_wrist(self):
         if getattr(self, '_feedback_contact_orientation_reference', None) is not None:
@@ -2280,6 +2397,9 @@ class ManipulationNode(Node):
             # base probe. Keep the already measured pressed posture loaded.
             lever_delta = sign * (peak + lead)
         return measured_wrist_rotation(rotation, door_delta, base_delta, lever_delta)
+
+    def _feedback_restore_lever_before_release(self):
+        return self._feedback_stop('Observed neutral lever return is not configured')
 
     def _feedback_retract_released_handle(self, grip_span):
         self._publish_sim_cmd_vel(0.,0.)
@@ -2332,7 +2452,7 @@ class ManipulationNode(Node):
         measured.header.frame_id = self._manipulation_frame
         measured.point.x, measured.point.y, measured.point.z = map(float, actual)
         try:
-            fixed = self._tf_buffer.transform(measured, 'odom', timeout=Duration(seconds=.1))
+            fixed = self._tf_buffer.transform(measured, self._contact_reference_frame, timeout=Duration(seconds=.1))
             current = np.asarray((fixed.point.x, fixed.point.y, fixed.point.z))
             reference, previous, previous_angle = self._feedback_sweep_state
             angle = self._sim_door_position - self._feedback_sweep_initial_door
@@ -2340,9 +2460,9 @@ class ManipulationNode(Node):
                 door0, yaw0, _ = self._feedback_contact_orientation_reference
                 midpoint = yaw0 + self._feedback_sweep_initial_door - door0 + (previous_angle+angle)/2.
                 tangent = np.asarray((math.cos(midpoint), math.sin(midpoint), 0.))
-                # Validate measurement jumps, but do not chase motion induced by
-                # our own preload. Only bounded active base probes advance this
-                # command reference; stopped IK cannot make it creep forward.
+                # A measured pose is not a new command: rebasing on every FK
+                # sample integrates load/servo error and can close the door.
+                # Only an active chassis probe advances the world-frame target.
                 projected_contact_increment(reference, previous, current, tangent,
                                             self._feedback_config['follow_max_shift_m'])
                 target = reference.copy()
@@ -2351,7 +2471,7 @@ class ManipulationNode(Node):
                     reference, previous, current, self._feedback_sweep_normal,
                     previous_angle, angle, self._feedback_config['follow_max_shift_m'])
             point = PointStamped()
-            point.header.frame_id = 'odom'
+            point.header.frame_id = self._contact_reference_frame
             point.point.x, point.point.y, point.point.z = map(float, target)
             local = self._tf_buffer.transform(point, self._manipulation_frame,
                                               timeout=Duration(seconds=.1))
@@ -2361,6 +2481,9 @@ class ManipulationNode(Node):
         except (TransformException, ValueError) as exc:
             return self._feedback_stop('Contact sweep rejected: ' + str(exc))
         goal[2] -= self._feedback_press_depth
+        held_height = getattr(self, '_feedback_held_height', None)
+        if getattr(self, '_feedback_full_handle_follow', False) and held_height is not None:
+            goal[2] = held_height
         if np.linalg.norm(goal-actual) > self._feedback_config['tracking_limit_m']:
             return self._feedback_stop('Occluded following exceeded arm tracking limit')
         if not self._feedback_command_point(goal, 'encoder_contact_follow'):
@@ -2395,7 +2518,7 @@ class ManipulationNode(Node):
         measured.header.frame_id = self._manipulation_frame
         measured.point.x, measured.point.y, measured.point.z = map(float, actual)
         try:
-            tool = self._tf_buffer.transform(measured, 'odom', timeout=Duration(seconds=.1))
+            tool = self._tf_buffer.transform(measured, self._contact_reference_frame, timeout=Duration(seconds=.1))
             observed = sample[1].point
             reference, contact = self._feedback_follow_reference
             # Follow x/y scene displacement; lever feedback owns vertical press.
@@ -2406,7 +2529,7 @@ class ManipulationNode(Node):
                 self._feedback_config['follow_max_shift_m'],
                 self._feedback_config['follow_step_m'])
             point = PointStamped()
-            point.header.frame_id = 'odom'
+            point.header.frame_id = self._contact_reference_frame
             point.point.x, point.point.y, point.point.z = map(float, target)
             local = self._tf_buffer.transform(point, self._manipulation_frame,
                                               timeout=Duration(seconds=.1))
@@ -2442,18 +2565,23 @@ class ManipulationNode(Node):
             return True
         # Stop the base before correcting relaxation; never press after loss.
         self._publish_sim_cmd_vel(0.0, 0.0)
-        goal = self._feedback_press_origin.copy()
-        goal[2] -= self._feedback_press_depth
+        try:
+            goal = measured_press_target(self._feedback_press_origin,actual,
+                self._feedback_press_depth,cfg['press_max_travel_m'])
+        except ValueError as exc:
+            return self._feedback_stop(str(exc))
         if np.linalg.norm(goal - actual) > cfg['tracking_limit_m']:
             return self._feedback_stop('Lever hold tracking error: possible jam')
         # A loaded servo may sit below its old command. Lowering that command
         # alone can still request upward motion, so probe below the measured tip.
         goal[2] = min(goal[2], actual[2])
         try:
-            depth = self._feedback_press_origin[2] - goal[2] + bounded_press_step(
-                goal, actual, min(.005, cfg['press_step_m']), cfg['tracking_limit_m'])
+            increment = self._feedback_press_increment(goal, actual, min(.005, cfg['press_step_m']))
         except ValueError as exc:
             return self._feedback_stop(str(exc))
+        if increment == 0.:
+            return True
+        depth = self._feedback_press_origin[2] - goal[2] + increment
         if depth > cfg['press_max_travel_m']:
             return self._feedback_stop('Lever hold correction reached press travel limit')
         goal[2] = self._feedback_press_origin[2] - depth
@@ -2464,6 +2592,11 @@ class ManipulationNode(Node):
         lever_before = self._sim_lever_position
         door_before = abs(self._sim_door_position - self._sim_door_initial_position)
         self._feedback_press_depth = depth
+        if (getattr(self, '_feedback_full_handle_follow', False)
+                and getattr(self, '_feedback_held_height', None) is not None):
+            # Following must retain the accepted press command, not restore
+            # the older held height and then accumulate another correction.
+            self._feedback_held_height = float(goal[2])
         self._feedback_event('lever_hold_correction', commanded_depth_m=depth,
                              actual_tool_xyz=actual.tolist(), requested_tool_xyz=goal.tolist(),
                              lever_delta_rad=lever_delta,
@@ -2579,30 +2712,64 @@ class ManipulationNode(Node):
                              orientation_error_rad=orientation_error)
         return self._feedback_move_tool(goal, 'encoder_contact_follow')
 
+    def _feedback_wait_contact_chassis_rest(self):
+        return True
+
+    def _feedback_probe_pose_sample(self):
+        return self._feedback_base_pose_sample()
+
+    def _feedback_probe_pulse_scale(self,progress,duration,pulse_duration):
+        return 1.-progress
+
+    def _feedback_commit_probe_points(self,point,measured):
+        return (self._tf_buffer.transform(point,self._contact_reference_frame,
+                    timeout=Duration(seconds=.1)).point,
+                self._tf_buffer.transform(measured,self._contact_reference_frame,
+                    timeout=Duration(seconds=.1)).point)
+
+    def _feedback_qualify_probe_reference(self,stamp,goal):
+        return None
+
+    def _feedback_contact_ik_reobservation(self,goal,rotation,seed,solution):
+        return False
+
     def _feedback_probe_contact_motion(self, angular_z=0., speed=.02, opening_speed=None):
         # IK can take longer than a short probe. Plan while stopped, then
         # measure only the commanded motion interval, with live safety checks.
         self._publish_sim_cmd_vel(0., 0.)
+        if not self._feedback_wait_contact_chassis_rest():
+            return None
         if not self._feedback_retain_lever_press() or not self._feedback_follow_contact():
             return None
         if not self._feedback_settle_held_target():
             return None
+        scene=self._feedback_scene_command_safe(speed,angular_z)
+        if scene == 'replan':
+            return 'scene_wait'
+        if not scene:
+            return None
         cfg = self._feedback_config
-        duration = min(.35, cfg.get('follow_step_m', .008) / max(speed,.001))
+        duration = min(.35, cfg.get('follow_step_m', .008) / max(abs(speed),.001))
         coordinated = None
+        driven_opening_speed = opening_speed
         if getattr(self, '_feedback_full_handle_follow', False):
             try:
                 door0, yaw0, _ = self._feedback_contact_orientation_reference
                 alpha = self._sim_door_position-door0-self._feedback_base_yaw()+yaw0
                 normal = np.array([math.cos(alpha), math.sin(alpha), 0.])
                 origin = self._feedback_last_cartesian_target.copy()
+                # Only the chassis supplies normal opening travel. The arm
+                # can retract to absorb excess drive and reach its preferred
+                # posture, but must not advance beyond the chassis supply.
+                driven_opening_speed=chassis_supplied_opening_speed(
+                    origin,normal,speed,angular_z,opening_speed)
                 # Check the actual local step instead of overestimating it by
                 # summing base and tip speeds that mostly cancel one another.
                 for _ in range(8):
                     try:
                         endpoint, inverse_yaw = coordinated_contact_endpoint(
                             origin, normal, speed, angular_z, duration,
-                            cfg['follow_step_m'], opening_speed)
+                            .75*cfg['follow_step_m'], driven_opening_speed)
                         break
                     except ValueError as exc:
                         if 'exceeds bounded contact step' not in str(exc):
@@ -2625,6 +2792,10 @@ class ManipulationNode(Node):
                 coordinated = (origin, endpoint, seed, solution.positions)
                 world_angle = self._sim_door_position-door0+yaw0
                 world_normal = np.array([math.cos(world_angle), math.sin(world_angle), 0.])
+                initial_pose_stamp,initial_base_pose=self._feedback_probe_pose_sample()
+                last_target_stamp = initial_pose_stamp
+                self._feedback_qualified_probe_reference = self._feedback_qualify_probe_reference(
+                    initial_pose_stamp,self._feedback_last_cartesian_target)
             except (ValueError, TransformException) as exc:
                 self._feedback_stop(str(exc))
                 return None
@@ -2632,12 +2803,34 @@ class ManipulationNode(Node):
         deadline = SimMotionDeadline(start, time.monotonic(), duration + 1.,
                                      stall_limit=2., wall_limit=10.)
         interrupted = False
+        sensor_interrupted = False
+        scene_interrupted = False
         fraction = 0.
+        chassis_fraction = 0.
+        coordinated_pulses = 0
+        commanded_sim_sec = 0.
+        minimum_pulse_scale = 1.
+        active_door_samples, active_base_samples = [], []
+        active_sensor = getattr(self, '_door_input_source', None)
         try:
-            while rclpy.ok() and self._sim_time_sec() - start < duration:
+            # Sensor and IK work can consume a short probe's nominal duration.
+            # Coordinated motion ends at measured travel, with the same deadline.
+            while rclpy.ok() and (
+                    (coordinated is None and self._sim_time_sec() - start < duration)
+                    or (coordinated is not None and chassis_fraction < 1.)):
+                if coordinated is not None:
+                    # Never leave a short chassis command active during scan
+                    # processing or IK. Motion is bounded between these checks.
+                    self._publish_sim_cmd_vel(0., 0.)
+                generation=getattr(self,'_feedback_measurement_pause_generation',0)
                 if not self._feedback_fresh() or self._feedback_tool() is None:
                     self._feedback_stop('Latch probe lost live joint feedback')
                     return None
+                if getattr(self,'_feedback_measurement_pause_generation',0) != generation:
+                    # The base stopped during the wait. Never advance the arm
+                    # interpolation as though that paused motion had occurred.
+                    sensor_interrupted=True
+                    break
                 failure = deadline.failure(self._sim_time_sec(), time.monotonic())
                 if failure:
                     self._feedback_stop('Latch probe: ' + failure)
@@ -2647,38 +2840,219 @@ class ManipulationNode(Node):
                 if lever_delta < self._sim_lever_press_min_angle:
                     self._feedback_stop('Lever contact lost during chassis probe')
                     return None
+                scene=self._feedback_scene_command_safe(speed,angular_z,active=True)
+                if scene=='replan':
+                    scene_interrupted=True
+                    break
+                if not scene:
+                    return None
                 if self._feedback_lever_hold_delta - lever_delta > cfg['lever_hold_tolerance_rad']:
                     interrupted = True
                     break
                 if coordinated is not None:
-                    fraction = min(1., (self._sim_time_sec()-start)/duration)
+                    stamp = self._feedback_door_msg_stamp
+                    sensor = getattr(self, '_door_input_source', None)
+                    if sensor != active_sensor:
+                        active_door_samples.clear()
+                        active_sensor = sensor
+                    if stamp is not None:
+                        measured = stamp[0]+stamp[1]*1.e-9
+                        if not active_door_samples or measured != active_door_samples[-1][0]:
+                            active_door_samples.append((measured, self._sim_door_position))
+                    try:
+                        measured, heading = self._feedback_base_heading_sample(rate_window=True)
+                    except (ValueError, TransformException) as exc:
+                        self._feedback_stop('Active base orientation: '+str(exc))
+                        return None
+                    if not active_base_samples or measured != active_base_samples[-1][0]:
+                        if active_base_samples:
+                            previous = active_base_samples[-1][1]
+                            heading = previous+math.atan2(math.sin(heading-previous),math.cos(heading-previous))
+                        active_base_samples.append((measured, heading))
                     origin, endpoint, seed, end = coordinated
-                    ideal = seed + fraction*(end-seed)
-                    goal = origin + fraction*(endpoint-origin)
+                    tip_speed = abs(speed)+np.linalg.norm(origin[:2])*abs(angular_z)
+                    base_pose = None
+                    try:
+                        pose_stamp,base_pose=self._feedback_probe_pose_sample()
+                        if getattr(self,'_feedback_measurement_pause_generation',0)!=generation:
+                            sensor_interrupted=True
+                            break
+                        fraction,motion_residual,chassis_fraction=observed_probe_motion(
+                            initial_base_pose,base_pose,origin,normal,speed,angular_z,
+                            duration,cfg['follow_step_m'])
+                    except (ValueError,TransformException) as exc:
+                        self._feedback_event('measured_probe_rejected',
+                            initial_pose=initial_base_pose.tolist(),
+                            current_pose=base_pose.tolist() if base_pose is not None else None,
+                            linear_x=speed, angular_z=angular_z, planned_duration_sec=duration,
+                            elapsed_sim_sec=self._sim_time_sec()-start, reason=str(exc))
+                        self._feedback_stop('Measured chassis progress: '+str(exc))
+                        return None
+                    try:
+                        goal, measured_advance = measured_contact_endpoint(initial_base_pose,base_pose,
+                            origin,normal,driven_opening_speed*duration*fraction,cfg['follow_step_m'])
+                        reference = self._feedback_qualify_probe_reference(pose_stamp,goal)
+                        # Compensate the accepted turning command's small
+                        # remaining rotation without inventing base translation.
+                        requested_rotation,wrist_lead=bounded_wrist_yaw_lead(
+                            self._feedback_contact_rotation(),angular_z,
+                            max(0.,duration-(self._sim_time_sec()-start)),
+                            .25*cfg['follow_step_m'],self._piper_kinematics.tool_front_extent_m)
+                        orientation_tolerance=(min(.03,max(.003,.5*abs(wrist_lead)))
+                                               if abs(wrist_lead)>.003 else .03)
+                        local_seed=self._feedback_ideal_arm_target.copy()
+                        live = self._piper_kinematics.solve(goal,
+                            seed=local_seed, max_iterations=25,
+                            position_tolerance_m=.001, orientation_tolerance_rad=orientation_tolerance,
+                            target_rotation=requested_rotation, prefer_seed_solution=True,
+                            maximum_seed_step_rad=.14)
+                        if live is None:
+                            if self._feedback_contact_ik_reobservation(goal,requested_rotation,local_seed,None):
+                                sensor_interrupted=True
+                                break
+                            raise ValueError('Measured contact compensation is outside PIPER workspace')
+                        ideal = live.positions
+                        if np.any(ideal<local_seed-.14) or np.any(ideal>local_seed+.14):
+                            if self._feedback_contact_ik_reobservation(goal,requested_rotation,local_seed,live):
+                                sensor_interrupted=True
+                                break
+                            raise ValueError('Measured contact compensation exceeds bounded joint step')
+                        self._feedback_contact_ik_pending_since=None
+                    except (ValueError,TransformException) as exc:
+                        self._feedback_stop(str(exc))
+                        return None
                     if np.linalg.norm(goal-self._feedback_tool()) > cfg['tracking_limit_m']:
                         self._feedback_stop('Coordinated arm/base probe tracking exceeded')
                         return None
                     joints = ideal + self._feedback_joint_bias
+                    if (np.any(joints<PIPER_JOINT_LIMITS[:,0])
+                            or np.any(joints>PIPER_JOINT_LIMITS[:,1])):
+                        self._feedback_stop('Measured compensation would exceed PIPER joint limits')
+                        return None
                     self._publish_sim_arm_targets(dict(zip(PIPER_JOINT_NAMES, joints.tolist())))
                     self._sim_last_arm_target = joints.copy()
                     self._feedback_ideal_arm_target = ideal.copy()
                     self._feedback_last_cartesian_target = goal.copy()
+                    last_target_stamp = pose_stamp
+                    self._feedback_qualified_probe_reference = reference
                     self._feedback_press_origin[:2] = goal[:2]
-                self._publish_sim_cmd_vel(speed, angular_z)
-                time.sleep(.025)
+                    # Leave headroom for sensor/solver latency and wheel
+                    # deceleration. The original 8 mm hard limit still applies.
+                    if (chassis_fraction >= 1.
+                            or (1.-chassis_fraction)*duration*tip_speed <= .05*cfg['follow_step_m']
+                            or np.linalg.norm(goal-origin)>=.75*cfg['follow_step_m']):
+                        break
+                if coordinated is None:
+                    self._publish_sim_cmd_vel(speed, angular_z)
+                    time.sleep(.025)
+                else:
+                    # Time limits this pulse only; it never supplies arm travel.
+                    # Compensation and completion still use measured SE2 motion.
+                    pulse_start = self._sim_time_sec()
+                    # Taper both components together, preserving the checked
+                    # turning radius while leaving headroom for wheel stopping.
+                    pulse_scale = 1.-chassis_fraction
+                    minimum_pulse_scale = min(minimum_pulse_scale, pulse_scale)
+                    pulse_duration = min(.05, duration,
+                        .25*cfg['follow_step_m']/max(tip_speed*pulse_scale, .001))
+                    try:
+                        pulse_scale=self._feedback_probe_pulse_scale(
+                            chassis_fraction,duration,pulse_duration)
+                    except ValueError as exc:
+                        self._feedback_stop('Measured contact pulse timing: '+str(exc))
+                        return None
+                    if getattr(self,'_feedback_measurement_pause_generation',0)!=generation:
+                        sensor_interrupted=True
+                        break
+                    self._publish_sim_cmd_vel(speed*pulse_scale, angular_z*pulse_scale)
+                    try:
+                        while rclpy.ok() and self._sim_time_sec()-pulse_start < pulse_duration:
+                            failure = deadline.failure(self._sim_time_sec(), time.monotonic())
+                            if failure:
+                                self._feedback_stop('Latch probe pulse: '+failure)
+                                return None
+                            time.sleep(.005)
+                    finally:
+                        self._publish_sim_cmd_vel(0., 0.)
+                        coordinated_pulses += 1
+                        commanded_sim_sec += self._sim_time_sec()-pulse_start
         finally:
             self._publish_sim_cmd_vel(0., 0.)
-        if coordinated is not None and opening_speed is not None:
-            reference, previous, angle = self._feedback_sweep_state
+        if coordinated is not None:
+            try:
+                active_door_rate = active_heading_rate(active_door_samples, start, self._sim_time_sec())
+                active_base_rate = active_heading_rate(active_base_samples, start, self._sim_time_sec())
+            except ValueError as exc:
+                self._feedback_stop('Active heading rate rejected: '+str(exc))
+                return None
+            for name, rate in (('door',active_door_rate),('base',active_base_rate)):
+                if rate is not None:
+                    history = getattr(self, '_feedback_active_'+name+'_rate_history', [])
+                    history = (history+[rate])[-3:]
+                    setattr(self, '_feedback_active_'+name+'_rate_history', history)
+                    setattr(self, '_feedback_active_'+name+'_yaw_rate', float(np.median(history)))
+            # Commit the bounded target actually dispatched before a pause,
+            # not the unexecuted endpoint and not the loaded encoder residual.
+            point = PointStamped()
+            point.header.frame_id = self._manipulation_frame
+            # The local target belongs to the pose used to calculate it,
+            # not a newer pose received after the chassis command stopped.
+            point.header.stamp = Time(seconds=last_target_stamp).to_msg()
+            point.point.x, point.point.y, point.point.z = map(
+                float, self._feedback_last_cartesian_target)
+            measured = PointStamped()
+            measured.header.frame_id = self._manipulation_frame
+            actual = self._feedback_tool()
+            if actual is None:
+                self._feedback_stop('Lost encoders while committing contact probe')
+                return None
+            measured.point.x, measured.point.y, measured.point.z = map(float, actual)
+            try:
+                target,current=self._feedback_commit_probe_points(point,measured)
+            except (TransformException,ValueError) as exc:
+                self._feedback_stop('Cannot commit observed contact probe: ' + str(exc))
+                return None
             self._feedback_sweep_state = (
-                reference + world_normal*opening_speed*duration*fraction, previous, angle)
+                np.array([target.x, target.y, target.z]),
+                np.array([current.x, current.y, current.z]),
+                getattr(self,'_feedback_commit_panel_angle',self._sim_door_position)
+                -self._feedback_sweep_initial_door)
         self._feedback_event('contact_probe_motion', started_sim_sec=start,
                              driven_sim_sec=self._sim_time_sec()-start,
                              planned_duration_sec=duration,
                              interrupted_for_press=interrupted,
+                             interrupted_for_sensor_wait=sensor_interrupted,
+                             interrupted_for_scene_recheck=scene_interrupted,
                              linear_x=speed, angular_z=angular_z,
-                             opening_speed_mps=opening_speed)
-        return 'relaxed' if interrupted else 'complete'
+                             opening_speed_mps=driven_opening_speed,
+                             measured_arm_fraction=fraction if coordinated is not None else None,
+                             measured_chassis_fraction=chassis_fraction if coordinated is not None else None,
+                             arm_progress_basis='wheel_localization' if coordinated is not None else None,
+                             termination_basis=('measured_chassis_progress' if coordinated is not None
+                                                else 'elapsed_command_duration'),
+                             coordinated_pulses=coordinated_pulses,
+                             commanded_sim_sec=commanded_sim_sec if coordinated is not None else None,
+                             minimum_pulse_scale=minimum_pulse_scale if coordinated is not None else None,
+                             completion_travel_tolerance_m=.05*cfg['follow_step_m'],
+                             active_door_yaw_rate=getattr(self,'_feedback_active_door_yaw_rate',None),
+                             active_base_yaw_rate=getattr(self,'_feedback_active_base_yaw_rate',None))
+        return ('scene_wait' if scene_interrupted else
+                'sensor_wait' if sensor_interrupted else ('relaxed' if interrupted else 'complete'))
+
+    def _feedback_opening_complete(self, delta, min_delta):
+        return delta >= min_delta
+
+    def _feedback_panel_clearance_margin(self, actual):
+        return .03
+
+    def _feedback_panel_barrier_geometry(self, actual, normal):
+        return None, None, self._feedback_panel_clearance_margin(actual)
+
+    def _feedback_scene_constraints(self):
+        return None
+
+    def _feedback_scene_command_safe(self, speed, angular, active=False):
+        return True
 
     def _feedback_handle_held_open(self, min_delta):
         """The hand is the load path; the chassis moves without touching the panel."""
@@ -2689,9 +3063,15 @@ class ManipulationNode(Node):
                 and .002 < -fingers.get('gripper_right_joint',0.) <= .036):
             self._publish_sim_cmd_vel(0.,0.)
             return self._feedback_stop('Opposed finger contact lost before posture selection')
-        if self._feedback_follow_mode != 'encoder_lever_contact':
-            if not self._feedback_begin_encoder_follow():
-                return False
+        # Latch-clear probes used a different following law. Anchor the held
+        # opening once at its measured starting pose before advancing it.
+        if not self._feedback_begin_encoder_follow():
+            return False
+        for name in ('door', 'base'):
+            setattr(self, '_feedback_active_'+name+'_rate_history', [])
+            attribute = '_feedback_active_'+name+'_yaw_rate'
+            if hasattr(self, attribute):
+                delattr(self, attribute)
         self._feedback_full_handle_follow = True
         preferred = getattr(self, '_feedback_preferred_contact_posture',
                             self._feedback_encoder_follow_origin).copy()
@@ -2699,22 +3079,47 @@ class ManipulationNode(Node):
         if actual is None:
             return self._feedback_stop('No measured grip posture for base following')
         preferred[2] = actual[2]
+        # Search from measured reach, not a previous near-body goal that can
+        # truncate every future-orientation candidate before IK is evaluated.
+        observed_posture = actual.copy()
+        minimum_reach = (float(PIPER_BODY_OUTLINE[:,0].max())
+                         + self._piper_kinematics.tool_front_extent_m
+                         + self._feedback_config['tool_tolerance_m'])
         try:
             preferred, condition = self._piper_kinematics.preferred_contact_posture(
-                preferred, self._feedback_contact_rotation(),
+                observed_posture, self._feedback_contact_rotation(),
                 [self._sim_arm_joint_positions[name] for name in PIPER_JOINT_NAMES],
-                float(PIPER_BODY_OUTLINE[:,0].max())
-                + self._piper_kinematics.tool_front_extent_m
-                + self._feedback_config['tool_tolerance_m'])
+                minimum_reach)
         except (ValueError, TransformException) as exc:
             return self._feedback_stop(str(exc))
         self._feedback_event('preferred_contact_posture', preferred_tool_xyz=preferred.tolist(),
                              translation_condition_ratio=condition,
                              basis='observed_grip_height_and_calibrated_robot_workspace')
-        deadline = SimMotionDeadline(self._sim_time_sec(), time.monotonic(), 180.,
-                                     stall_limit=3., wall_limit=600.)
+        deadline = SimMotionDeadline(self._sim_time_sec(), time.monotonic(), 360.,
+                                     stall_limit=3., wall_limit=3000.)
         last_progress = self._sim_time_sec()
+        heading_samples = [(last_progress, self._sim_door_position)]
+        base_heading_samples = [(last_progress,self._feedback_base_yaw())]
+        observed_yaw_rate = 0.
+        observed_base_yaw_rate = 0.
+        observed_advance_speed = .012
+        contact_samples = []
+        contact_geometry_samples = list(getattr(self, '_observed_latch_geometry', []))
+        geometry_fit = (observed_contact_curvature(contact_geometry_samples)
+                        if len(contact_geometry_samples)>=12 else None)
+        geometry_fit_angle = None
+        prepare_stance = bool(getattr(self, '_feedback_prepare_contact_stance', False))
+        stance_ready = not prepare_stance
+        measured_stance_adopted = False
+        if prepare_stance and geometry_fit is None:
+            return self._feedback_stop('No independently observed latch trajectory for safe opening stance')
+        posture_heading = None
+        posture_curvature = None
+        posture_margin = None
         progress_angle = abs(self._sim_door_position-self._sim_door_initial_position)
+        reversal_peak_lower = 0.
+        progress_watch = ObservedContactProgress(last_progress, progress_angle)
+        reversal_gate = ObservedSceneGate()
         try:
             while rclpy.ok():
                 failure = deadline.failure(self._sim_time_sec(), time.monotonic())
@@ -2732,11 +3137,54 @@ class ManipulationNode(Node):
                 if lever < self._sim_lever_press_min_angle:
                     return self._feedback_stop('Lever released before full opening')
                 delta = abs(self._sim_door_position-self._sim_door_initial_position)
-                if delta > progress_angle + .003:
-                    last_progress, progress_angle = self._sim_time_sec(), delta
-                elif self._sim_time_sec()-last_progress > 20.:
-                    return self._feedback_stop('Held opening stalled despite base probes; inspect contact and motion')
-                if delta >= min_delta:
+                progress_delta = (self._feedback_progress_angle() if
+                                  hasattr(self, '_feedback_progress_angle') else delta)
+                if progress_delta is None:
+                    self._publish_sim_cmd_vel(0., 0.)
+                    time.sleep(.025)
+                    continue
+                try:
+                    if not hasattr(self, '_feedback_progress_angle'):
+                        if progress_angle-delta > .08:
+                            return self._feedback_stop('Observed door reversed during held opening')
+                    else:
+                        stamp = self._feedback_door_msg_stamp
+                        if stamp is None:
+                            return self._feedback_stop('No stamped panel observation for reversal check')
+                        measured_time = stamp[0]+stamp[1]*1.e-9
+                        if not fresh_sample(measured_time, self._sim_time_sec(), .25):
+                            self._publish_sim_cmd_vel(0., 0.)
+                            time.sleep(.025)
+                            continue
+                        interval = (self._feedback_progress_interval() if
+                                    hasattr(self, '_feedback_progress_interval') else
+                                    (progress_delta, progress_delta))
+                        if interval is None:
+                            self._publish_sim_cmd_vel(0., 0.)
+                            time.sleep(.025)
+                            continue
+                        # Acquiring the interval can advance /clock. Use one
+                        # current snapshot for qualification and its gate.
+                        # An expired sample requests stopped reobservation,
+                        # never a motion certificate or a reversal diagnosis.
+                        checked_now=self._sim_time_sec()
+                        if not fresh_sample(measured_time,checked_now,.25):
+                            self._publish_sim_cmd_vel(0.,0.)
+                            time.sleep(.025)
+                            continue
+                        lower, upper = interval
+                        reversal_gate.observe(measured_time,
+                            checked_now, time.monotonic(), reversal_peak_lower-upper <= .08)
+                        reversal_peak_lower = max(reversal_peak_lower, lower)
+                except SceneObservationPending:
+                    self._publish_sim_cmd_vel(0., 0.)
+                    time.sleep(.025)
+                    continue
+                except ValueError as exc:
+                    return self._feedback_stop('Observed door reversal recheck: '+str(exc))
+                if progress_delta > progress_angle + .003:
+                    last_progress, progress_angle = self._sim_time_sec(), progress_delta
+                if delta >= min_delta and self._feedback_opening_complete(delta,min_delta):
                     self._feedback_event('handle_held_open_verified', door_delta_rad=delta,
                                          lever_delta_rad=lever, actual_tool_xyz=actual.tolist())
                     return True
@@ -2746,20 +3194,256 @@ class ManipulationNode(Node):
                                           math.cos(self._sim_door_position-door0-yaw+yaw0))
                 normal = np.array([math.cos(normal_error),math.sin(normal_error),0.])
                 try:
-                    speed, angular, posture, clearance = contact_posture_command(
-                        actual, normal, preferred, PIPER_BODY_OUTLINE)
-                except ValueError as exc:
+                    measured = PointStamped()
+                    measured.header.frame_id = self._manipulation_frame
+                    measured.point.x, measured.point.y, measured.point.z = map(float, actual)
+                    fixed = self._tf_buffer.transform(measured, self._contact_reference_frame,
+                                                     timeout=Duration(seconds=.1))
+                    contact = np.array([fixed.point.x,fixed.point.y,fixed.point.z])
+                    sample_now = self._sim_time_sec()
+                    heading = yaw0+self._sim_door_position-door0
+                    axis = np.array([math.cos(heading),math.sin(heading),0.])
+                    if not contact_samples or sample_now-contact_samples[-1][0] >= .1:
+                        contact_samples.append((sample_now,*contact.tolist()))
+                        contact_samples=[sample for sample in contact_samples if sample_now-sample[0] <= .75]
+                        advance=robust_contact_speed(contact_samples,axis)
+                        if advance is not None:
+                            observed_advance_speed=.5*observed_advance_speed+.5*max(0.,advance)
+                    stamp = self._feedback_door_msg_stamp
+                    joint_stamp = self._feedback_joint_msg_stamp
+                    if stamp is not None and joint_stamp is not None:
+                        measured_stamp = stamp[0]+stamp[1]*1.e-9
+                        measured_panel_angle=self._sim_door_position
+                        raw_panel=getattr(self,'_raw_contact_panel',None)
+                        if prepare_stance and raw_panel is not None:
+                            measured_stamp,measured_panel_angle=raw_panel
+                        joint_time = joint_stamp[0]+joint_stamp[1]*1.e-9
+                        if (0. <= sample_now-measured_stamp <= .1
+                                and abs(measured_stamp-joint_time) <= .1
+                                and (not contact_geometry_samples
+                                     or measured_stamp > contact_geometry_samples[-1][0])):
+                            contact_geometry_samples.append((measured_stamp,
+                                measured_panel_angle, contact[0], contact[1]))
+                    if (len(contact_geometry_samples) >= 12
+                            and (geometry_fit_angle is None
+                                 or abs(self._sim_door_position-geometry_fit_angle) >= .1)):
+                        fit = observed_contact_curvature(contact_geometry_samples)
+                        if fit is not None:
+                            geometry_fit = fit
+                            geometry_fit_angle = self._sim_door_position
+                            self._feedback_event('observed_contact_geometry', **fit,
+                                basis='sensor_panel_headings_and_encoder_tcp_in_robot_localization_frame')
+                except (ValueError, TransformException) as exc:
+                    return self._feedback_stop('Measured contact velocity: '+str(exc))
+                # The measured average includes deliberately stopped IK time.
+                # Do not feed it back as the active request and cause self-decay.
+                # Measurements still gate freshness, progress and safety.
+                advance_speed = self._feedback_config['opening_speed_mps']
+                now = self._sim_time_sec()
+                if now-heading_samples[-1][0] >= .1:
+                    heading_samples.append((now,self._sim_door_position))
+                    previous_yaw=base_heading_samples[-1][1]
+                    unwrapped_yaw=previous_yaw+math.atan2(math.sin(yaw-previous_yaw),math.cos(yaw-previous_yaw))
+                    base_heading_samples.append((now,unwrapped_yaw))
+                    heading_samples=[sample for sample in heading_samples if now-sample[0] <= .75]
+                    base_heading_samples=[sample for sample in base_heading_samples if now-sample[0] <= .75]
+                    try:
+                        rate=robust_heading_rate(heading_samples)
+                        base_rate=robust_heading_rate(base_heading_samples)
+                    except ValueError as exc:
+                        return self._feedback_stop(str(exc))
+                    if rate is not None:
+                        observed_yaw_rate=.5*observed_yaw_rate+.5*rate
+                    if base_rate is not None:
+                        observed_base_yaw_rate=.5*observed_base_yaw_rate+.5*base_rate
+                measured_curvature = None if geometry_fit is None else geometry_fit['curvature_per_m']
+                self._feedback_observed_contact_curvature=measured_curvature
+                radius=None if geometry_fit is None else geometry_fit.get('radius_m')
+                radius_uncertainty=None if geometry_fit is None else geometry_fit.get('radius_uncertainty_m')
+                self._feedback_contact_curvature_uncertainty=(None if radius is None or
+                    radius_uncertainty is None else abs(measured_curvature)*radius_uncertainty/radius)
+                planning_curvature=(conservative_contact_curvature(geometry_fit)
+                    if radius is not None and radius_uncertainty is not None else measured_curvature)
+                try:
+                    current_margin = self._feedback_panel_clearance_margin(actual)
+                except (ValueError, TransformException) as exc:
+                    return self._feedback_stop('Held clearance observation: '+str(exc))
+                if not measured_stance_adopted and (posture_heading is None or (not prepare_stance and abs(normal_error-posture_heading) > .025)
+                        or (measured_curvature is not None and posture_curvature is None)
+                        or (prepare_stance and planning_curvature is not None and posture_curvature is not None
+                            and (not math.isclose(planning_curvature,posture_curvature,rel_tol=.01)
+                                 or abs(measured_curvature*preferred[0])>=1.))
+                        or (posture_margin is not None and current_margin > posture_margin+.005)):
+                    try:
+                        rotation = self._feedback_contact_rotation()
+                        future_rotation = predicted_contact_rotation(rotation,
+                            getattr(self,'_feedback_active_door_yaw_rate',observed_yaw_rate),
+                            getattr(self,'_feedback_active_base_yaw_rate',observed_base_yaw_rate))
+                        preferred, condition = self._piper_kinematics.preferred_contact_posture(
+                            observed_posture, rotation,
+                            [self._sim_arm_joint_positions[name] for name in PIPER_JOINT_NAMES],
+                            minimum_reach, future_rotation=future_rotation,
+                            # This is a soft future stance, never an arm goal.
+                            # Live IK and joint/scene barriers guard every
+                            # reachable intermediate measured posture.
+                            observed_curvature=planning_curvature,
+                            minimum_panel_clearance=current_margin,
+                            steady_orientation_only=prepare_stance and measured_curvature is not None,
+                            minimum_displacement=prepare_stance)
+                    except TransformException as exc:
+                        return self._feedback_stop('Held posture update: ' + str(exc))
+                    except ValueError as exc:
+                        if 'No reachable contact posture' not in str(exc):
+                            return self._feedback_stop('Held posture update: ' + str(exc))
+                        if measured_curvature is not None and abs(measured_curvature*preferred[0])>=1.:
+                            return self._feedback_stop('Observed geometry invalidated the previous contact stance')
+                        # Keep the last verified goal; live encoder barriers below
+                        # may recover the chassis without a normal arm push.
+                        self._feedback_event('held_workspace_recovery_required', reason=str(exc),
+                            actual_tool_xyz=actual.tolist(), preferred_tool_xyz=preferred.tolist())
+                    posture_heading = normal_error
+                    posture_curvature = planning_curvature
+                    posture_margin = current_margin
+                    self._feedback_event('held_workspace_posture_updated',
+                        preferred_tool_xyz=preferred.tolist(),
+                        translation_condition_ratio=condition,
+                        relative_panel_heading_rad=normal_error,
+                        predicted_relative_rate_rad_sec=observed_yaw_rate-observed_base_yaw_rate,
+                        observed_contact_curvature_per_m=measured_curvature,
+                        planned_contact_curvature_per_m=planning_curvature,
+                        planned_panel_clearance_margin_m=current_margin,
+                        joint_margin_rad=.20)
+                if prepare_stance and measured_curvature is not None:
+                    stance_error=float(np.linalg.norm(actual[:2]-preferred[:2]))
+                    reach_error=abs(float(actual[0]-preferred[0]))
+                    stance_tolerance=self._feedback_config['tool_tolerance_m']
+                    near_selected=(stance_error<=2.*stance_tolerance
+                                   and reach_error<=stance_tolerance)
+                    # The selected point is a soft preparation goal. An
+                    # attained, independently safe steady stance may keep
+                    # more reach, but cannot shorten the selected clearance.
+                    reach_preserved=actual[0]>=preferred[0]-stance_tolerance
+                    if not stance_ready and not measured_stance_adopted and reach_preserved:
+                        try:
+                            anchor,plane,independent_margin=self._feedback_panel_barrier_geometry(actual,normal)
+                            uncertainty=getattr(self,'_feedback_contact_curvature_uncertainty',None)
+                            curvatures=[measured_curvature]
+                            if uncertainty is not None:
+                                curvatures.extend([measured_curvature-2.*uncertainty,
+                                                   measured_curvature+2.*uncertainty])
+                            checked=[self._piper_kinematics.measured_steady_contact_posture(
+                                [self._sim_arm_joint_positions[name] for name in PIPER_JOINT_NAMES],
+                                self._feedback_contact_rotation(),curve,
+                                max(current_margin,independent_margin),
+                                panel_anchor=anchor,panel_normal=plane) for curve in curvatures]
+                            attained=checked[0][0]
+                            attained_condition=min(item[1] for item in checked)
+                        except (ValueError,SceneObservationPending):
+                            pass
+                        else:
+                            condition=min(condition,attained_condition)
+                            measured_stance_adopted=True
+                            selected=preferred.copy()
+                            preferred=attained.copy()
+                            stance_error=reach_error=0.
+                            near_selected=True
+                            self._contact_lookahead_cache=None
+                            self._contact_lookahead_arc_pose=None
+                            self._feedback_event('measured_steady_stance_adopted',
+                                actual_tool_xyz=attained.tolist(),translation_condition_ratio=condition,
+                                selected_tool_xyz=selected.tolist(),
+                                observed_contact_curvature_per_m=measured_curvature,
+                                panel_clearance_margin_m=max(current_margin,independent_margin),
+                                curvature_uncertainty_per_m=uncertainty,
+                                basis='own_encoders_and_independent_plane_validate_preserved_reach_and_steady_IK')
+                    desired_heading=contact_steady_heading(measured_curvature,preferred[0])
+                    heading_error=abs(normal_error-desired_heading)
+                    if stance_ready and (stance_error>3.*stance_tolerance
+                                         or reach_error>2.*stance_tolerance or heading_error>.20):
+                        stance_ready=False
+                    if not stance_ready:
+                        stance_ready=bool(near_selected and measured_stance_adopted and heading_error<=.12)
+                    # A differential-drive base cannot generally reach a
+                    # lateral steady stance while keeping the held door fixed.
+                    # Let chassis-supplied opening and posture tracking converge
+                    # together, under the same arm/panel/scene barriers below.
+                    self._feedback_event('observed_contact_stance',ready=stance_ready,
+                        tool_error_m=stance_error,heading_error_rad=heading_error,
+                        requested_opening_speed_mps=advance_speed,
+                        basis='observed_latch_path_and_actual_robot_workspace',
+                        strategy='joint_constrained_simultaneous_stance_and_opening')
+                try:
+                    progress_heading = (contact_steady_heading(measured_curvature,preferred[0])
+                        if prepare_stance and measured_curvature is not None else None)
+                    opened, corrected = progress_watch.observe(
+                        self._sim_time_sec(), progress_delta, actual, preferred,
+                        actual_heading=normal_error if progress_heading is not None else None,
+                        preferred_heading=progress_heading)
+                    if corrected and not opened:
+                        self._feedback_event('measured_posture_correction_progress',
+                            actual_tool_xyz=actual.tolist(), preferred_tool_xyz=preferred.tolist(),
+                            posture_error_m=progress_watch.best_error,
+                            heading_error_rad=progress_watch.best_heading_error,
+                            seconds_without_opening=self._sim_time_sec()-progress_watch.last_opening)
+                    panel_anchor, panel_normal, clearance_margin = self._feedback_panel_barrier_geometry(actual, normal)
+                    active_door_rate = getattr(self,'_feedback_active_door_yaw_rate',observed_yaw_rate)
+                    modeled_panel_drift = active_door_rate if measured_curvature is None else 0.
+                    arm_rows, arm_bounds, measured_condition = self._piper_kinematics.contact_velocity_barriers(
+                        [self._sim_arm_joint_positions[name] for name in PIPER_JOINT_NAMES],
+                        normal, modeled_panel_drift, contact_curvature=measured_curvature)
+                    speed, angular, posture, clearance = self._feedback_contact_velocity(
+                        actual, normal, preferred, PIPER_BODY_OUTLINE,
+                        margin=clearance_margin, door_yaw_rate=modeled_panel_drift,
+                        panel_anchor=panel_anchor, panel_normal=panel_normal,
+                        observed_curvature=measured_curvature,
+                        # Preparing the measured opening stance must not trade
+                        # continuing arm extension for a little more opening.
+                        # Heading remains soft until the stance is attained.
+                        opening_speed=advance_speed, limit_posture_drift=prepare_stance,
+                        opening_priority_weight=self._feedback_config.get('opening_priority_weight', .2),
+                        # Convert angular-rate error to measured arc-speed error;
+                        # a fixed weight of 20 implied a fictitious 4.47m lever.
+                        heading_priority_weight=1./measured_curvature**2 if prepare_stance and measured_curvature is not None else 0.,
+                        heading_tolerance_rad=.15 if prepare_stance and stance_ready else None,
+                        measured_heading_reference=prepare_stance and not stance_ready,
+                        allow_posture_recovery=self._sim_time_sec()-last_progress>1.,
+                        arm_constraints=(arm_rows, arm_bounds),
+                        scene_constraints=self._feedback_scene_constraints())
+                except SceneObservationPending:
+                    self._publish_sim_cmd_vel(0.,0.)
+                    time.sleep(.025)
+                    continue
+                except (ValueError, TransformException) as exc:
                     return self._feedback_stop(str(exc))
-                if self._feedback_probe_contact_motion(angular, speed, .012) is None:
+                probe=self._feedback_probe_contact_motion(angular, speed, advance_speed)
+                if probe is None:
                     return False
+                if probe == 'scene_wait':
+                    continue
                 self._feedback_event('handle_held_base_sample', door_delta_rad=delta,
                                      lever_delta_rad=lever, angular_z=angular,
                                      linear_x=speed, preferred_tool_xyz=posture.tolist(),
+                                     relative_panel_heading_rad=normal_error,
+                                     observed_door_yaw_rate=active_door_rate,
+                                     average_door_yaw_rate=observed_yaw_rate,
+                                     observed_base_yaw_rate=observed_base_yaw_rate,
+                                     observed_contact_advance_mps=observed_advance_speed,
                                      measured_body_plane_clearance_m=clearance,
+                                     clearance_margin_m=clearance_margin,
+                                     measured_arm_condition_ratio=measured_condition,
                                      actual_tool_xyz=actual.tolist(), force_sensor_used=False)
+                if speed < 0.:
+                    self._feedback_event('bounded_chassis_posture_recovery', linear_x=speed,
+                                         angular_z=angular, actual_tool_xyz=actual.tolist())
         finally:
             self._publish_sim_cmd_vel(0., 0.)
         return self._feedback_stop('Handle-held opening interrupted')
+
+    def _feedback_contact_velocity(self, *args, **kwargs):
+        return contact_posture_command(*args, **kwargs)
+
+    def _feedback_latch_motion(self):
+        return .02, 0., None
 
     def _feedback_latch_clear_push(self):
         # Lever motion proves contact, not latch release. Briefly probe door
@@ -2768,7 +3452,8 @@ class ManipulationNode(Node):
         if initial is None or not self._feedback_fresh():
             return self._feedback_stop('Missing feedback before latch-clear push')
         cfg = self._feedback_config
-        deadline = time.monotonic() + 90.0
+        deadline = SimMotionDeadline(self._sim_time_sec(), time.monotonic(), 30.,
+                                     stall_limit=12., wall_limit=360.)
         previous = abs(self._sim_door_position - initial)
         self._feedback_lever_hold_delta = cfg['press_sign'] * (
             self._sim_lever_position - self._sim_lever_initial_position)
@@ -2781,7 +3466,12 @@ class ManipulationNode(Node):
                     'Lever contact lost as door rotated; reobservation required')
             if not self._feedback_begin_contact_follow():
                 return False
-            while rclpy.ok() and time.monotonic() < deadline:
+            while rclpy.ok():
+                failure = deadline.failure(self._sim_time_sec(), time.monotonic())
+                if failure:
+                    return self._feedback_stop('Latch release feedback: '+failure)
+                if not self._feedback_fresh():
+                    return self._feedback_stop('Lost fresh latch release observation')
                 actual = self._feedback_tool()
                 if actual is None:
                     return self._feedback_stop('Lost feedback during latch-clear push')
@@ -2792,11 +3482,27 @@ class ManipulationNode(Node):
                         and lever_delta < self._sim_lever_press_min_angle):
                     return self._feedback_stop(
                         'Lever contact lost as door rotated; reobservation required')
+                # A partial pulse can already release the latch. Recheck the
+                # fresh measured state before driving again, not only after a
+                # pulse finishes without a sensor or scene pause.
+                if current >= self._sim_latch_clear_min_angle:
+                    self._publish_sim_cmd_vel(0., 0.)
+                    self._feedback_event('latch_released', door_delta_rad=current)
+                    return True
                 if lever_delta >= self._sim_lever_press_min_angle:
-                    probe = self._feedback_probe_contact_motion()
+                    try:
+                        speed, angular, advance = self._feedback_latch_motion()
+                    except SceneObservationPending:
+                        self._publish_sim_cmd_vel(0., 0.)
+                        time.sleep(.025)
+                        continue
+                    except (ValueError, TransformException) as exc:
+                        return self._feedback_stop('Observed latch motion: '+str(exc))
+                    probe = self._feedback_probe_contact_motion(angular, speed, advance)
                     if probe is None:
                         return False
-                    if probe == 'relaxed':
+                    if probe in ('relaxed','sensor_wait','scene_wait'):
+                        time.sleep(.025)
                         continue
                 current = abs(self._sim_door_position - initial)
                 self._feedback_event('latch_probe', door_delta_rad=current,
@@ -2810,21 +3516,30 @@ class ManipulationNode(Node):
                     continue
                 # A stationary door is never permission to keep driving.
                 self._publish_sim_cmd_vel(0.0, 0.0)
-                goal = self._feedback_press_origin.copy()
-                goal[2] -= self._feedback_press_depth
                 actual = self._feedback_tool()
-                if actual is None or np.linalg.norm(goal-actual) > cfg['tracking_limit_m']:
-                    return self._feedback_stop('Latch press tracking error: possible jam')
+                if actual is None:
+                    return self._feedback_stop('Latch correction lost measured tool')
                 try:
-                    depth = self._feedback_press_depth + bounded_press_step(
-                        goal, actual, min(.005, cfg['press_step_m']), cfg['tracking_limit_m'])
+                    goal = measured_press_target(self._feedback_press_origin,actual,
+                        self._feedback_press_depth,cfg['press_max_travel_m'])
                 except ValueError as exc:
                     return self._feedback_stop(str(exc))
+                if np.linalg.norm(goal-actual) > cfg['tracking_limit_m']:
+                    return self._feedback_stop('Latch press tracking error: possible jam')
+                try:
+                    increment = self._feedback_press_increment(goal, actual, min(.005, cfg['press_step_m']))
+                except ValueError as exc:
+                    return self._feedback_stop(str(exc))
+                if increment == 0.:
+                    time.sleep(.025)
+                    continue
+                depth = self._feedback_press_depth + increment
                 if depth > cfg['press_max_travel_m']:
                     return self._feedback_stop('Latch not released within press travel limit')
                 goal[2] = self._feedback_press_origin[2] - depth
                 if not self._feedback_command_point(goal, 'feedback_latch_press'):
                     return False
+                self._feedback_press_origin[:2] = goal[:2]
                 lever_before = self._sim_lever_position
                 door_before = abs(self._sim_door_position - initial)
                 self._feedback_press_depth = depth

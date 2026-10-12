@@ -4,7 +4,7 @@ import numpy as np
 from .piper_actual_kinematics import PIPER_JOINT_LIMITS
 
 
-def plan_released_retreat(model, joints, clearance, step=.006):
+def plan_released_retreat(model, joints, clearance, step=.006,*,allow_rotation=True):
     seed=np.asarray(joints,float)
     if seed.shape!=(6,) or not np.all(np.isfinite(seed)) or not 0.<clearance<.30:
         raise ValueError('Invalid measured released posture or clearance')
@@ -21,7 +21,8 @@ def plan_released_retreat(model, joints, clearance, step=.006):
         # Rotate only toward the base forward axis, by at most 0.06 rad per
         # step. The gripper is already open; fixed contact orientation is no
         # longer a constraint, but joint continuity and limits still are.
-        for turn in np.linspace(chosen_turn,min(maximum,chosen_turn+.06),4):
+        turns=np.linspace(chosen_turn,min(maximum,chosen_turn+.06),4) if allow_rotation else [0.]
+        for turn in turns:
             angle=direction*turn
             c,s=math.cos(angle),math.sin(angle)
             rotation=np.array([[c,-s,0.],[s,c,0.],[0.,0.,1.]])@initial

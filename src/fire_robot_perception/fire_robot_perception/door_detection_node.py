@@ -19,6 +19,7 @@ RGB 카메라 + Radar(+ 선택적 Depth 카메라)를 이용한 문 탐지 노�
 """
 
 import math
+import json
 import os
 import time
 import uuid
@@ -39,6 +40,7 @@ from rclpy.executors import MultiThreadedExecutor
 from rclpy.qos import qos_profile_sensor_data, QoSProfile, ReliabilityPolicy
 from rclpy.time import Time
 from sensor_msgs.msg import Image, CameraInfo, LaserScan
+from std_msgs.msg import String
 from geometry_msgs.msg import PointStamped, PoseStamped
 
 from fire_robot_interfaces.msg import DoorInfo, FireInfo
@@ -387,7 +389,7 @@ class DoorDetectionNode(Node):
         self._latest_depth: np.ndarray | None = None   # (H, W) float32 [m]
         self._handle_depth_sample = None
         self._handle_depth_samples = []
-        self._feedback_handle_tracker = HandleImageTracker()
+        self._feedback_handle_trackers = {}
         self._door_id_map:  dict[str, str]    = {}
         self._yolo_cache: dict[str, tuple[float, list[tuple[int, int, int, int, float]]]] = {}
         self._handle_yolo_class_ids: set[int] = set()
@@ -400,6 +402,9 @@ class DoorDetectionNode(Node):
 
         cb = ReentrantCallbackGroup()
         self._image_processing_lock = Lock()
+        self._pending_image_lock = Lock()
+        self._pending_images = {}
+        self.create_timer(.04, self.process_pending_image, callback_group=cb)
         image_qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)
 
         # Subscribers
@@ -426,6 +431,10 @@ class DoorDetectionNode(Node):
         self.door_pub  = self.create_publisher(DoorInfo, '/detected_door', 10)
         self.fire_pub  = self.create_publisher(FireInfo, '/fire_info', 10)
         self.debug_pub = self.create_publisher(Image,    '/door_detection/debug', 10)
+        self.front_debug_pub = self.create_publisher(Image, '/door_detection/debug_front', 10)
+        self.handle_geometry_pub = self.create_publisher(String, '/contact/handle_geometry', 10)
+        self.contact_handle_pub = self.create_publisher(
+            DoorInfo, '/contact/handle_observation', 10)
 
         # YOLOv8 로드
         self._configure_inference_threads()
@@ -623,18 +632,26 @@ class DoorDetectionNode(Node):
             self.get_logger().warn(f'depth decode error: {e}')
 
     def image_callback(self, msg: Image, source: CameraSource):
-        # Keep TF/depth callbacks live during inference, without concurrent
-        # mutation of detector/tracker state or a queue of stale RGB frames.
+        with self._pending_image_lock:
+            self._pending_images[source.name] = (msg, source)
+
+    def process_pending_image(self):
+        # Simultaneous camera callbacks must not starve the frontal contact
+        # view. Keep only each camera's newest frame; TF/depth remain live.
         if not self._image_processing_lock.acquire(blocking=False):
             return
         try:
             now = time.monotonic()
-            process_interval = self._image_interval_for_source(source.name)
-            if process_interval > 0.0:
-                last = self._last_image_process_time.get(source.name)
-                if last is not None and now - last < process_interval:
+            with self._pending_image_lock:
+                eligible = [(name, value) for name, value in self._pending_images.items()
+                    if now-self._last_image_process_time.get(name, -math.inf)
+                    >= self._image_interval_for_source(name)]
+                if not eligible:
                     return
-                self._last_image_process_time[source.name] = now
+                name, (msg, source) = min(eligible, key=lambda item:
+                    (item[0] != 'front', self._last_image_process_time.get(item[0], -math.inf)))
+                del self._pending_images[name]
+            self._last_image_process_time[source.name] = now
             image = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
             self._process(image, msg.header, source)
         finally:
@@ -671,6 +688,10 @@ class DoorDetectionNode(Node):
     def _process(self, image: np.ndarray, header, source: CameraSource):
         debug = image.copy() if self._publish_debug_image else None
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+        # Publish measured contact geometry before slower map/door projection.
+        # Association with the active task is enforced by the contact adapter.
+        if source.name == 'front':
+            self._publish_contact_handle(image, hsv, header, source, debug)
 
         detections = self._detect_doors(image, source.name)  # list of (x1,y1,x2,y2,conf)
         red_positions: list[PointStamped] = []
@@ -707,7 +728,7 @@ class DoorDetectionNode(Node):
             door_id  = self._get_door_id(
                 source.name, color, cx_pix, image.shape[1], dist)
             handle_obs = self._detect_handle_observation(
-                image, hsv, x1, y1, x2, y2, color, image.shape)
+                image, hsv, x1, y1, x2, y2, color, image.shape, source_name=source.name)
             door_msg = self._build_door_info(
                 header, source, door_id, color, cx_pix, dist,
                 bbox_height=(y2 - y1), det_conf=det_conf,
@@ -739,6 +760,9 @@ class DoorDetectionNode(Node):
                     f'handle_conf={door_msg.handle_confidence:.2f}',
                     throttle_duration_sec=1.5)
             self.door_pub.publish(door_msg)
+            if source.name == 'front' and door_msg.handle_detected and door_msg.handle_detection_method.startswith(
+                    ('yolo:primary', 'track:primary_yolo')):
+                self.contact_handle_pub.publish(door_msg)
 
             if color == 'red':
                 red_point = PointStamped()
@@ -778,7 +802,60 @@ class DoorDetectionNode(Node):
 
         self._publish_fire_info(header, red_positions)
         if debug is not None:
-            self.debug_pub.publish(self.bridge.cv2_to_imgmsg(debug, 'bgr8'))
+            debug_message = self.bridge.cv2_to_imgmsg(debug, 'bgr8')
+            debug_message.header = header
+            self.debug_pub.publish(debug_message)
+            if source.name == 'front':
+                self.front_debug_pub.publish(debug_message)
+
+    def _publish_contact_handle(self, image, hsv, header, source, debug):
+        # At contact range the panel can fill the frame. Track the already
+        # selected handle independently, without adding a new semantic door.
+        h, w = image.shape[:2]
+        observation = self._detect_handle_observation(
+            image, hsv, 0, 0, w, h, 'blue', image.shape, source_name=source.name)
+        if (observation is None or not observation.method.startswith(
+                ('yolo:primary', 'track:primary_yolo'))):
+            self.get_logger().info('Close handle stream: primary YOLO not found',
+                                   throttle_duration_sec=3.)
+            return
+        xyz = self._registered_handle_point(observation, source, header)
+        if xyz is None:
+            return
+        msg = DoorInfo()
+        msg.door_id = 'front_handle_observation'
+        msg.door_color = 'unknown'
+        msg.handle_detected = True
+        msg.handle_detection_method = observation.method + ':registered_depth'
+        msg.handle_confidence = float(observation.confidence)
+        msg.handle_position.header.stamp = header.stamp
+        msg.handle_position.header.frame_id = self._frame
+        msg.handle_position.point.x, msg.handle_position.point.y, msg.handle_position.point.z = xyz
+        self.contact_handle_pub.publish(msg)
+        if observation.bbox is not None:
+            x1,y1,x2,y2=observation.bbox
+            if 2 < x1 < x2 < w-2 and source.fx > 0.:
+                try:
+                    optical=self._tf_buffer.transform(
+                        msg.handle_position, header.frame_id,
+                        timeout=rclpy.duration.Duration(seconds=.03))
+                    span=(x2-x1)*optical.point.z/source.fx
+                    self.handle_geometry_pub.publish(String(data=json.dumps({
+                        'stamp': header.stamp.sec+header.stamp.nanosec*1.e-9,
+                        'frame': self._frame, 'point': xyz, 'span_m': span,
+                        'method': msg.handle_detection_method})))
+                except Exception:
+                    pass
+        self.get_logger().info(
+            f'Close handle stream: {msg.handle_detection_method}, '
+            f'base=({xyz[0]:.3f},{xyz[1]:.3f},{xyz[2]:.3f})',
+            throttle_duration_sec=3.)
+        if debug is not None and observation.bbox is not None:
+            x1, y1, x2, y2 = observation.bbox
+            cv2.rectangle(debug, (x1, y1), (x2, y2), (0, 220, 255), 2)
+            cv2.putText(debug, f'YOLO handle {observation.confidence:.2f}',
+                        (max(3, x1), max(16, y1-6)),
+                        cv2.FONT_HERSHEY_SIMPLEX, .42, (0, 220, 255), 1)
 
     # ── 문 탐지 ───────────────────────────────────────────
     def _detect_doors(self, image: np.ndarray, source_name: str) -> list:
@@ -1173,7 +1250,7 @@ class DoorDetectionNode(Node):
             x2: int,
             y2: int,
             color: str,
-            image_shape: tuple[int, ...]) -> HandleObservation | None:
+            image_shape: tuple[int, ...], source_name='front') -> HandleObservation | None:
         """Detect a handle inside an expanded door ROI."""
         if not self._detect_handle_enabled:
             return None
@@ -1184,19 +1261,30 @@ class DoorDetectionNode(Node):
             image, x1, y1, x2, y2, image_shape)
         if self._handle_registered_depth:
             now = time.monotonic()
+            tracker = self._feedback_handle_trackers.setdefault(source_name, HandleImageTracker())
+            tracked=tracker.advance(image,now)
             if (yolo_obs is not None and yolo_obs.method.startswith('yolo:primary')
                     and yolo_obs.confidence >= .45):
-                self._feedback_handle_tracker.seed(
-                    image, yolo_obs.bbox, yolo_obs.confidence, now)
-            else:
-                tracked = self._feedback_handle_tracker.advance(image, now)
-                if tracked is not None:
-                    (tx1, ty1, tx2, ty2), quality = tracked
-                    cx, cy = (tx1+tx2)//2, (ty1+ty2)//2
-                    if x1-40 <= cx <= x2+40 and y1-28 <= cy <= y2+28:
-                        return HandleObservation(
-                            x=cx, y=cy, confidence=quality,
-                            method='track:primary_yolo:lk', bbox=(tx1, ty1, tx2, ty2))
+                bx1,by1,bx2,by2=yolo_obs.bbox
+                h,w=image_shape[:2]
+                clipped=bx1<=2 or by1<=2 or bx2>=w-2 or by2>=h-2
+                if clipped:
+                    # A clipped box centre can jump from the lever to its
+                    # mounting plate. Keep the image-measured original point.
+                    if tracked is None or not tracker.confirm_partial_primary(
+                            yolo_obs.bbox,yolo_obs.confidence,now):
+                        return None
+                    tracked=(tracked[0],min(tracked[1],yolo_obs.confidence))
+                else:
+                    tracker.seed(image,yolo_obs.bbox,yolo_obs.confidence,now)
+                    return yolo_obs
+            if tracked is not None:
+                (tx1, ty1, tx2, ty2), quality = tracked
+                cx, cy = (tx1+tx2)//2, (ty1+ty2)//2
+                if x1-40 <= cx <= x2+40 and y1-28 <= cy <= y2+28:
+                    return HandleObservation(
+                        x=cx, y=cy, confidence=quality,
+                        method='track:primary_yolo:lk', bbox=(tx1, ty1, tx2, ty2))
         if yolo_obs is not None:
             return yolo_obs
         if not self._handle_yolo_fallback_hsv:
@@ -1252,55 +1340,53 @@ class DoorDetectionNode(Node):
         max_area = max(self._handle_yolo_min_area_px * 4,
                        door_area * self._handle_yolo_max_area_ratio)
         for handle_model, class_ids, role in model_chain:
-            with self._yolo_lock:
-                results = bounded_yolo_inference(
-                    handle_model, crop, self._torch_num_threads, **yolo_kwargs)
-
-            best: HandleObservation | None = None
-            best_score = -1.0
-            for result in results:
-                for box in result.boxes:
-                    class_id = int(box.cls)
-                    if class_ids and class_id not in class_ids:
-                        continue
-                    lx1, ly1, lx2, ly2 = map(int, box.xyxy[0])
-                    lx1 = max(0, min(crop.shape[1] - 1, lx1))
-                    lx2 = max(0, min(crop.shape[1], lx2))
-                    ly1 = max(0, min(crop.shape[0] - 1, ly1))
-                    ly2 = max(0, min(crop.shape[0], ly2))
-                    if lx2 <= lx1 or ly2 <= ly1:
-                        continue
-
-                    area = (lx2 - lx1) * (ly2 - ly1)
-                    if area < self._handle_yolo_min_area_px or area > max_area:
-                        continue
-                    conf = float(box.conf[0])
-                    cx = sx1 + (lx1 + lx2) / 2.0
-                    cy = sy1 + (ly1 + ly2) / 2.0
-                    if not (x1 - ex <= cx <= x2 + ex
-                            and y1 - ey <= cy <= y2 + ey):
-                        continue
-
-                    label = self._model_class_name(handle_model, class_id)
-                    score = conf * (1.0 + min(1.0, area / max(1.0, max_area)))
-                    if score > best_score:
-                        best_score = score
-                        best = HandleObservation(
-                            x=int(round(cx)),
-                            y=int(round(cy)),
-                            confidence=conf,
-                            method=f'yolo:{role}:{label}',
-                            bbox=(sx1 + lx1, sy1 + ly1, sx1 + lx2, sy1 + ly2),
-                        )
-
-            if best is not None:
-                if self._log_handle_detections:
-                    self.get_logger().info(
-                        f'YOLO handle observed ({role}): '
-                        f'pixel=({best.x},{best.y}), '
-                        f'conf={best.confidence:.2f}, bbox={best.bbox}',
-                        throttle_duration_sec=1.0)
-                return best
+            near_stream = (role == 'primary' and self._handle_registered_depth
+                           and self._handle_yolo_full_frame)
+            borders = (0,max(crop.shape[:2])//4,max(crop.shape[:2])//2) if near_stream else (0,)
+            area_limit = .8*crop.shape[0]*crop.shape[1] if near_stream else max_area
+            for padding in borders:
+                sample = (crop if padding == 0 else cv2.copyMakeBorder(
+                    crop,padding,padding,padding,padding,
+                    cv2.BORDER_CONSTANT,value=(114,114,114)))
+                with self._yolo_lock:
+                    results = bounded_yolo_inference(
+                        handle_model, sample, self._torch_num_threads, **yolo_kwargs)
+                best: HandleObservation | None = None
+                best_score = -1.0
+                for result in results:
+                    for box in result.boxes:
+                        class_id = int(box.cls)
+                        if class_ids and class_id not in class_ids:
+                            continue
+                        lx1, ly1, lx2, ly2 = (int(value)-padding for value in box.xyxy[0])
+                        lx1 = max(0, min(crop.shape[1]-1,lx1))
+                        lx2 = max(0, min(crop.shape[1],lx2))
+                        ly1 = max(0, min(crop.shape[0]-1,ly1))
+                        ly2 = max(0, min(crop.shape[0],ly2))
+                        if lx2 <= lx1 or ly2 <= ly1:
+                            continue
+                        area = (lx2-lx1)*(ly2-ly1)
+                        if area < self._handle_yolo_min_area_px or area > area_limit:
+                            continue
+                        conf = float(box.conf[0])
+                        cx,cy = sx1+(lx1+lx2)/2., sy1+(ly1+ly2)/2.
+                        if not (x1-ex <= cx <= x2+ex and y1-ey <= cy <= y2+ey):
+                            continue
+                        label = self._model_class_name(handle_model,class_id)
+                        score = conf*(1.+min(1.,area/max(1.,area_limit)))
+                        if score > best_score:
+                            best_score = score
+                            best = HandleObservation(
+                                x=int(round(cx)),y=int(round(cy)),confidence=conf,
+                                method=f'yolo:{role}:{label}',
+                                bbox=(sx1+lx1,sy1+ly1,sx1+lx2,sy1+ly2))
+                if best is not None:
+                    if self._log_handle_detections:
+                        self.get_logger().info(
+                            f'YOLO handle observed ({role}, padding={padding}): '
+                            f'pixel=({best.x},{best.y}), conf={best.confidence:.2f}, bbox={best.bbox}',
+                            throttle_duration_sec=1.0)
+                    return best
         return None
 
     def _detect_hsv_handle_observation(

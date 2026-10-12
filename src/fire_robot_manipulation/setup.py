@@ -19,12 +19,14 @@ setup(
     zip_safe=True,
     entry_points={
         'console_scripts': [
+            'contact_scan_localization_node = fire_robot_manipulation.contact_scan_localization_node:main',
             'manipulation_node = fire_robot_manipulation.manipulation_node:main',
             'physical_contact_manipulation_node = fire_robot_manipulation.physical_contact_manipulation_node:main',
             'observed_door_angle_node = fire_robot_manipulation.observed_door_angle_node:main',
             'observed_angle_manipulation_node = fire_robot_manipulation.observed_angle_manipulation_node:main',
             'minimal_observed_angle_node = fire_robot_manipulation.minimal_observed_angle_node:main',
             'robot_observation_manipulation_node = fire_robot_manipulation.robot_observation_manipulation_node:main',
+            'mission_contact_adapter = fire_robot_manipulation.mission_contact_adapter:main',
         ],
     },
 )

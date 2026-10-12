@@ -36,12 +36,28 @@ class CoordinatedContactTests(unittest.TestCase):
         end, _ = coordinated_contact_endpoint(start, [1.,0.,0.], .04, 0., .1, .008, .01)
         self.assertAlmostEqual(end[0], .647)
 
-    def test_camera_clear_posture_is_derived_from_observed_normal(self):
+    def test_unsafe_observed_panel_pose_stops_instead_of_moving_target(self):
         normal = np.array([math.sqrt(1.-.85**2),-.85,0.])
-        _, _, target, _ = contact_posture_command([.54,.15,.75], normal,
-            [.54,.15,.75], PIPER_BODY_OUTLINE)
-        self.assertLess(target[1], -.08)
-        self.assertAlmostEqual(target[:2]@normal[:2]-max(PIPER_BODY_OUTLINE@normal[:2]), .03)
+        with self.assertRaises(ValueError):
+            contact_posture_command([.54,.15,.75], normal,
+                [.54,.15,.75], PIPER_BODY_OUTLINE)
+
+    def test_feasible_calibrated_workspace_target_is_not_replaced(self):
+        preferred = np.array([.54,-.15,.75])
+        normal = np.array([math.sqrt(1.-.85**2),-.85,0.])
+        _, _, target, _ = contact_posture_command(preferred,normal,
+            preferred,PIPER_BODY_OUTLINE)
+        np.testing.assert_array_equal(target,preferred)
+
+    def test_stopped_chassis_has_no_normal_opening_command(self):
+        start = np.array([.65,.15,.75])
+        end, _ = coordinated_contact_endpoint(start,[1.,0.,0.],0.,0.,.1,.008,0.)
+        np.testing.assert_array_equal(end,start)
+
+    def test_reverse_only_compensates_chassis_and_does_not_open_panel(self):
+        start = np.array([.65,.15,.75])
+        end, _ = coordinated_contact_endpoint(start,[1.,0.,0.],-.02,0.,.1,.008,0.)
+        np.testing.assert_allclose(end+[-.002,0.,0.],start)
 
     def test_reach_error_increases_base_speed_not_opening_speed(self):
         preferred = np.array([.54,.15,.75])

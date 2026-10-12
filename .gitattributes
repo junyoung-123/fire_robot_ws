@@ -14,3 +14,9 @@ docs/reports/2026-09-17/**/*.log -diff
 docs/handoff/2026-09-29/** -text whitespace=cr-at-eol
 docs/handoff/2026-09-29/**/*.log -diff
 docs/handoff/2026-09-29/**/*.pdf binary
+
+# Preserve published R243 evidence hashes and frozen source snapshot bytes.
+docs/validation/2026-10-12/** -text whitespace=cr-at-eol
+docs/validation/2026-10-12/**/*.log -diff
+*.mp4 binary
+*.zip binary

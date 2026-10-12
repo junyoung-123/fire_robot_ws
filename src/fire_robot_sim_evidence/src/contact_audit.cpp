@@ -34,7 +34,7 @@ class ContactAudit final : public sim::System, public sim::ISystemPostUpdate {
   void PostUpdate(const sim::UpdateInfo &info,
                   const sim::EntityComponentManager &ecm) override {
     if (info.paused) return;
-    if (streams.size() < 5) {
+    if (streams.size() < 15) {
       ecm.Each<comp::ContactSensor,comp::ParentEntity>(
           [&](const sim::Entity &, const comp::ContactSensor *sensor,
               const comp::ParentEntity *parent) {
@@ -45,7 +45,8 @@ class ContactAudit final : public sim::System, public sim::ISystemPostUpdate {
         const std::set<std::string> allowed = {"lever","latch","panel","jamb","strike"};
         if (topic.rfind("/proof/contact/",0) != 0) return true;
         const auto part = topic.substr(std::string("/proof/contact/").size());
-        if (!allowed.count(part) || streams.count(part)) return true;
+        const auto leaf = part.substr(part.find_last_of('/') + 1);
+        if (!allowed.count(leaf) || streams.count(part)) return true;
         Stream stream;
         for (auto collision = contact->GetElement("collision"); collision;
              collision = collision->GetNextElement("collision")) {

@@ -1,0 +1,71 @@
+{
+  "scope": "evaluation_only_never_loaded_by_control",
+  "doors": [
+    {
+      "model": "door_blue1",
+      "closed_panel_center": [
+        3.0,
+        -2.1,
+        1
+      ],
+      "painted_panel_y": -1.86,
+      "hinge_mounting": "outer_wall_face",
+      "evaluation_joint_topic": "/evaluation/door_blue1/joints"
+    },
+    {
+      "model": "door_blue2",
+      "closed_panel_center": [
+        9.0,
+        -2.1,
+        1
+      ],
+      "painted_panel_y": -1.86,
+      "hinge_mounting": "outer_wall_face",
+      "evaluation_joint_topic": "/evaluation/door_blue2/joints"
+    },
+    {
+      "model": "door_blue3",
+      "closed_panel_center": [
+        12.0,
+        2.1,
+        1
+      ],
+      "painted_panel_y": 1.86,
+      "hinge_mounting": "outer_wall_face",
+      "evaluation_joint_topic": "/evaluation/door_blue3/joints"
+    }
+  ],
+  "construction_clearance_audit": {
+    "scope": "offline_environment_construction_only",
+    "pass_clearance": true,
+    "doors": [
+      {
+        "model": "door_blue1",
+        "checked_joint_range_deg": [
+          -128.91550390443524,
+          2.8647889756541165
+        ],
+        "continuous_sampling_margin_m": 0.0034882979081165815,
+        "wall_intersections": {}
+      },
+      {
+        "model": "door_blue2",
+        "checked_joint_range_deg": [
+          -128.91550390443524,
+          2.8647889756541165
+        ],
+        "continuous_sampling_margin_m": 0.0034882979081165815,
+        "wall_intersections": {}
+      },
+      {
+        "model": "door_blue3",
+        "checked_joint_range_deg": [
+          -128.91550390443524,
+          2.8647889756541165
+        ],
+        "continuous_sampling_margin_m": 0.0034882979081165815,
+        "wall_intersections": {}
+      }
+    ]
+  }
+}

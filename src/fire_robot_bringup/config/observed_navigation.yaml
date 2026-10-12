@@ -7,6 +7,16 @@ mission_axis_node:
     fallback_without_map_after_sec: 0.0
 door_detection_node:
   ros__parameters:
+    handle_require_registered_depth: true
+    handle_yolo_full_frame: true
+    handle_yolo_imgsz: 320
+    handle_yolo_max_area_ratio: 0.25
+    front_image_process_min_interval_sec: 0.25
+    front_yolo_min_interval_sec: 0.35
+    yolo_min_interval_sec: 0.35
+    yolo_reject_edge_clipped_doors: false
+    hsv_fallback_clipped_max_width_ratio: 0.95
+    publish_debug_image: true
     visual_range_requires_complete_bbox: true
     nav_goal_max_abs_y_m: 0.0
     side_handle_max_abs_y_m: 0.0
@@ -16,7 +26,7 @@ navigation_node:
     goal_adjust_max_abs_y_m: 0.0
 cmd_vel_safety_node:
   ros__parameters:
-    lidar_stop_manual_commands: true
+    lidar_stop_manual_commands: false
     stop_on_missing_scan: true
     coupled_collision_stop: true
     rear_stop_distance_m: 0.40

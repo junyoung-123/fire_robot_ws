@@ -42,8 +42,11 @@ class HandleImageTracker:
             gray, self.gray, nxt, None, winSize=(21, 21), maxLevel=3)
         if back is None:
             return None
+        h,w=gray.shape
         valid = ((status.ravel() != 0) & (back_status.ravel() != 0)
-                 & (np.linalg.norm(back - self.points, axis=2).ravel() < 1.0))
+                 & (np.linalg.norm(back - self.points, axis=2).ravel() < 1.0)
+                 & (nxt[:,0,0]>=0.) & (nxt[:,0,0]<w)
+                 & (nxt[:,0,1]>=0.) & (nxt[:,0,1]<h))
         if np.count_nonzero(valid) < 4 or np.mean(valid) < .7:
             return None
         matrix, inliers = cv2.estimateAffinePartial2D(
@@ -55,10 +58,28 @@ class HandleImageTracker:
         if not .8 <= scale <= 1.25:
             return None
         box = cv2.transform(self.box[None], matrix)[0]
-        h, w = gray.shape
-        if (not np.all(np.isfinite(box)) or np.any(box < 2)
-                or np.any(box[:, 0] >= w-2) or np.any(box[:, 1] >= h-2)):
+        centre=box.mean(axis=0)
+        if (not np.all(np.isfinite(box)) or np.any(centre < 2)
+                or centre[0]>=w-2 or centre[1]>=h-2):
             return None
         self.gray, self.points, self.box = gray, nxt[valid], box
         confidence = min(self.confidence, float(np.mean(valid)), float(np.mean(inliers)))
         return tuple(np.round(box).astype(int).ravel()), confidence
+
+    def confirm_partial_primary(self,box,confidence,now):
+        """Refresh object identity without moving its tracked grasp centre."""
+        if (self.box is None or self.gray is None or self.seed_time is None
+                or not 0.<=now-self.seed_time<=15. or not .45<=confidence<=1.):
+            return False
+        proposed=np.asarray(box,float).reshape(2,2)
+        h,w=self.gray.shape
+        visible=np.clip(self.box,[0.,0.],[float(w),float(h)])
+        size=proposed[1]-proposed[0]
+        intersection=np.maximum(0.,np.minimum(visible[1],proposed[1])
+                                -np.maximum(visible[0],proposed[0]))
+        if (not np.all(np.isfinite(proposed)) or np.any(size<=0.)
+                or np.prod(intersection)<.7*np.prod(size)):
+            return False
+        self.seed_time=now
+        self.confidence=min(self.confidence,confidence)
+        return True

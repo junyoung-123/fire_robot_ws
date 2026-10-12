@@ -1,0 +1,33 @@
+{
+  "world1_full_same_run_1x": {
+    "frames": 43809,
+    "fps": 30.0,
+    "duration_sec": 1460.3,
+    "decoded_fractions": [
+      0.0,
+      0.25,
+      0.5,
+      0.75,
+      1.0
+    ],
+    "passed": true
+  },
+  "world1_full_same_run_4x": {
+    "frames": 10952,
+    "fps": 30.0,
+    "duration_sec": 365.06666666666666,
+    "decoded_fractions": [
+      0.0,
+      0.25,
+      0.5,
+      0.75,
+      1.0
+    ],
+    "passed": true
+  },
+  "evidence_images": {
+    "count": 23,
+    "hashes_match": true
+  },
+  "same_continuous_run": true
+}

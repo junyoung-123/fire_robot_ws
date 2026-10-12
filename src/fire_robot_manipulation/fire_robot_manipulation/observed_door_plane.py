@@ -74,9 +74,66 @@ def fit_panel(points, anchor, rng, threshold=.008, min_points=100, prior=None):
             uncertainty=max(uncertainty,disagreement)
     if uncertainty>math.radians(2.):
         raise ValueError('panel_orientation_uncertain')
+    tangent=np.array([-normal[1],normal[0],0.])
+    tangent/=np.linalg.norm(tangent)
+    projection=(inliers-center)@tangent
+    # Isolated coplanar clutter must not extend the supported moving segment.
+    lower,upper=np.quantile(projection,[.02,.98])
+    segment=np.array([center+tangent*lower,center+tangent*upper])
     return dict(normal=normal, center=center, residual_m=residual,
+                segment_xy=segment[:,:2],
                 inliers=len(inliers), inlier_ratio=len(inliers)/len(points),
                 support_std_m=support, orientation_uncertainty_rad=uncertainty)
+
+
+def fused_panel_segment(depth_fit, lidar_fit, angle, delay):
+    """Extend visual support only with a current, independently agreeing scan.
+
+    A panel still parallel to the closed wall is not distinguishable by LiDAR.
+    Segment edges keep their measured noise margin; no door width is supplied.
+    """
+    normal=np.asarray(depth_fit['normal'],float)
+    other=np.asarray(lidar_fit['normal'],float)
+    depth_center=np.asarray(depth_fit['center'],float)
+    lidar_center=np.asarray(lidar_fit['center'],float)
+    center=depth_center[:2]
+    depth_segment=np.asarray(depth_fit['segment_xy'],float)
+    segment=np.asarray(lidar_fit['segment_xy'],float)
+    depth_sigma=float(depth_fit['orientation_uncertainty_rad'])
+    lidar_sigma=float(lidar_fit['orientation_uncertainty_rad'])
+    residuals=np.array([depth_fit['residual_m'],lidar_fit['residual_m']],float)
+    count=float(lidar_fit['inliers'])
+    if (normal.shape!=(3,) or other.shape!=(3,) or segment.shape!=(2,2)
+            or depth_segment.shape!=(2,2) or depth_center.shape!=(3,)
+            or lidar_center.shape not in ((2,),(3,))
+            or not all(np.all(np.isfinite(v)) for v in
+                (normal,other,depth_center,lidar_center,segment,depth_segment,residuals))
+            or np.linalg.norm(normal)<1.e-6 or np.linalg.norm(other)<1.e-6
+            or np.linalg.norm(normal[:2])<.98*np.linalg.norm(normal)
+            or np.any(residuals<0.) or not math.isfinite(count) or count<30.
+            or not all(math.isfinite(v) for v in (angle,delay,depth_sigma,lidar_sigma))
+            or not 0.<=delay<=.15 or not 0.<=depth_sigma<=math.radians(2.)
+            or not 0.<=lidar_sigma<=math.radians(2.)):
+        raise ValueError('Invalid fused panel observation')
+    if abs(angle)<=.20+depth_sigma+lidar_sigma:
+        raise ValueError('Panel has not separated from the closed-wall orientation')
+    normal=normal/np.linalg.norm(normal)
+    other=other/np.linalg.norm(other)
+    disagreement=math.acos(float(np.clip(abs(normal@other),0.,1.)))
+    limit=min(.08,depth_sigma+lidar_sigma+.035+.45*delay)
+    if disagreement>limit:
+        raise ValueError('RGB-D and LiDAR panel orientations disagree')
+    offset=abs(float((lidar_center[:2]-center)@normal[:2]))
+    bound=.01+3.*max(residuals)/math.sqrt(count)
+    if offset>bound:
+        raise ValueError('RGB-D and LiDAR panel locations disagree')
+    tangent=np.array([-normal[1],normal[0]]);tangent/=np.linalg.norm(tangent)
+    extent=np.sort((segment-center)@tangent)
+    visual=np.sort((depth_segment-center)@tangent)
+    overlap=min(extent[1],visual[1])-max(extent[0],visual[0])
+    if overlap<=0. or extent[0]>0. or extent[1]<0.:
+        raise ValueError('LiDAR support is not the observed visual panel')
+    return np.array([center+extent[0]*tangent,center+extent[1]*tangent])
 
 
 class PlaneRotation:

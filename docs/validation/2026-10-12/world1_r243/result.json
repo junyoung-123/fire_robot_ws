@@ -1,0 +1,13 @@
+{
+  "status": "MISSION_COMPLETE",
+  "wall_seconds": 7886.406893921,
+  "all_physical_doors_open": true,
+  "gripper_lever_contacts": true,
+  "successful_physical_jobs": 3,
+  "body_door_contacts": [],
+  "whole_chassis_past_exit": true,
+  "source_unchanged": true,
+  "model_unchanged": true,
+  "scripts_unchanged": true,
+  "pass": true
+}

@@ -71,3 +71,42 @@ def articulation_from_wrist(reference,measured,base_delta,residual_limit=.12):
     if residual>residual_limit or abs(roll)>.7:
         raise ValueError('wrist_pose_inconsistent_with_grasped_door_and_lever')
     return yaw,roll,residual
+
+
+def fused_grasped_panel_angle(panel_angle,reference,measured,base_delta,door_baseline,
+                              encoder_weight=.8,maximum_disagreement=.12,previous_estimate=None,
+                              panel_uncertainty_rad=None):
+    """Measured FK smooths panel noise only under independently supported grasp.
+
+    This is not opening-completion evidence. The caller must keep raw panel
+    observations for independent confirmation and stop on disagreement/slip.
+    """
+    if (not all(math.isfinite(v) for v in (panel_angle,base_delta,door_baseline,
+                                         encoder_weight,maximum_disagreement))
+            or not 0.<=encoder_weight<=1. or not 0.<maximum_disagreement<=.12):
+        raise ValueError('invalid_grasped_panel_fusion')
+    yaw,roll,residual=articulation_from_wrist(reference,measured,base_delta)
+    encoder_angle=door_baseline+yaw
+    prediction=encoder_angle
+    if previous_estimate is not None:
+        old_angle,old_encoder=previous_estimate
+        if not all(math.isfinite(v) for v in (old_angle,old_encoder)):
+            raise ValueError('invalid_grasped_panel_filter_baseline')
+        # Predict from measured increments, not an absolute wrist yaw which
+        # can differ slightly from the panel through grasp compliance.
+        prediction=old_angle+math.atan2(math.sin(encoder_angle-old_encoder),
+                                       math.cos(encoder_angle-old_encoder))
+    disagreement=math.atan2(math.sin(panel_angle-prediction),math.cos(panel_angle-prediction))
+    if abs(disagreement)>maximum_disagreement:
+        raise ValueError('independent_panel_disagrees_with_measured_grasp')
+    estimate = prediction+(1.-encoder_weight)*disagreement
+    if panel_uncertainty_rad is not None:
+        if (not math.isfinite(panel_uncertainty_rad)
+                or not 0. <= panel_uncertainty_rad <= math.radians(2.)):
+            raise ValueError('invalid_independent_panel_confidence')
+        # A compliant wrist is not the door joint. Prediction may smooth
+        # within the independent sensor interval, never move that interval.
+        sensor_angle = prediction+disagreement
+        estimate = float(np.clip(estimate, sensor_angle-panel_uncertainty_rad,
+                                 sensor_angle+panel_uncertainty_rad))
+    return float(estimate),float(disagreement),roll,residual

@@ -19,6 +19,8 @@ setup(
     zip_safe=True,
     entry_points={
         'console_scripts': [
+            'sensor_message_gate = fire_robot_navigation.sensor_message_gate:main',
+            'robot_self_scan_filter = fire_robot_navigation.robot_self_scan_filter:main',
             'motion_scan_filter = fire_robot_navigation.motion_scan_filter:main',
             'slam_correction_tf = fire_robot_navigation.slam_correction_tf_node:main',
             'navigation_visit_node = fire_robot_navigation.navigation_visit_node:main',

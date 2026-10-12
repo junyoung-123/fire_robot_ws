@@ -523,7 +523,7 @@
     <sensor name="rgb_camera" type="camera">
       <always_on>true</always_on>
       <visualize>false</visualize>
-      <update_rate>6</update_rate>
+      <update_rate>15</update_rate>
       <topic>camera_raw</topic>
       <gz_frame_id>camera_color_optical_frame</gz_frame_id>
       <camera name="rgb">
@@ -746,8 +746,9 @@
             name="gz::sim::systems::JointPositionController">
       <joint_name>gripper_left_joint</joint_name>
       <topic>/fire_robot/sim_arm/gripper_left_joint_cmd</topic>
-      <!-- Calibrated in free space for <1 mm gravity sag; force cap unchanged. -->
+      <!-- Bounded PD: loaded grasp must not accumulate a closing bias. -->
       <p_gain>400.0</p_gain>
+      <i_gain>0.0</i_gain>
       <d_gain>6.3</d_gain>
       <cmd_max>8</cmd_max>
       <cmd_min>-8</cmd_min>
@@ -757,6 +758,7 @@
       <joint_name>gripper_right_joint</joint_name>
       <topic>/fire_robot/sim_arm/gripper_right_joint_cmd</topic>
       <p_gain>400.0</p_gain>
+      <i_gain>0.0</i_gain>
       <d_gain>6.3</d_gain>
       <cmd_max>8</cmd_max>
       <cmd_min>-8</cmd_min>

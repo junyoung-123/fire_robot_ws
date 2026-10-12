@@ -16,6 +16,7 @@ class CmdVelSafetyNode(Node):
 
         self.declare_parameter('input_topic', '/cmd_vel')
         self.declare_parameter('manual_input_topic', '/cmd_vel_manual')
+        self.declare_parameter('guarded_manual_input_topic', '/cmd_vel_manual_guarded')
         self.declare_parameter('output_topic', '/cmd_vel_safe')
         self.declare_parameter('manual_hold_sec', 0.75)
         self.declare_parameter('allow_reverse', False)
@@ -31,6 +32,14 @@ class CmdVelSafetyNode(Node):
         self.declare_parameter('lidar_stop_manual_commands', False)
         self.declare_parameter('stop_on_missing_scan', False)
         self.declare_parameter('coupled_collision_stop', False)
+        self.declare_parameter('guarded_footprint_enabled', False)
+        self.declare_parameter('nav_swept_clearance_enabled', False)
+        self._nav_swept_clearance_enabled = bool(
+            self.get_parameter('nav_swept_clearance_enabled').value)
+        self._footprint_guard = None
+        if self.get_parameter('guarded_footprint_enabled').value:
+            from .observed_footprint import ObservedFootprintGuard
+            self._footprint_guard = ObservedFootprintGuard(self)
 
         self._allow_reverse = bool(self.get_parameter('allow_reverse').value)
         self._max_blocked_reverse_linear_x = abs(float(
@@ -53,6 +62,7 @@ class CmdVelSafetyNode(Node):
             1.0, float(self.get_parameter('drive_stop_half_angle_deg').value)))
         input_topic = str(self.get_parameter('input_topic').value)
         manual_input_topic = str(self.get_parameter('manual_input_topic').value)
+        guarded_manual_input_topic = str(self.get_parameter('guarded_manual_input_topic').value)
         output_topic = str(self.get_parameter('output_topic').value)
         scan_topic = str(self.get_parameter('scan_topic').value)
         self._manual_hold_sec = max(
@@ -63,6 +73,8 @@ class CmdVelSafetyNode(Node):
         self.create_subscription(Twist, input_topic, self._on_nav_cmd_vel, 10)
         self.create_subscription(
             Twist, manual_input_topic, self._on_manual_cmd_vel, 10)
+        self.create_subscription(
+            Twist, guarded_manual_input_topic, self._on_guarded_manual_cmd_vel, 10)
         self.create_subscription(LaserScan, scan_topic, self._on_scan, 10)
         self._latest_scan: LaserScan | None = None
         self._latest_scan_time_sec = 0.0
@@ -72,6 +84,7 @@ class CmdVelSafetyNode(Node):
         self.get_logger().info(
             f'CmdVelSafetyNode started | nav={input_topic}, '
             f'manual={manual_input_topic} -> {output_topic} '
+            f'guarded_manual={guarded_manual_input_topic}, '
             f'manual_hold={self._manual_hold_sec:.2f}s, '
             f'allow_reverse={self._allow_reverse}, '
             f'micro_reverse={self._max_blocked_reverse_linear_x:.3f}m/s, '
@@ -88,14 +101,30 @@ class CmdVelSafetyNode(Node):
     def _on_nav_cmd_vel(self, msg: Twist):
         if self._now_sec() <= self._manual_active_until_sec:
             return
-        self._publish_safe(msg, apply_lidar_stop=True)
+        self._publish_safe(msg, apply_lidar_stop=True, allow_nav_sweep=True)
 
     def _on_manual_cmd_vel(self, msg: Twist):
         self._manual_active_until_sec = self._now_sec() + self._manual_hold_sec
         self._publish_safe(
             msg, apply_lidar_stop=self._lidar_stop_manual_commands)
 
-    def _publish_safe(self, msg: Twist, *, apply_lidar_stop: bool):
+    def _on_guarded_manual_cmd_vel(self, msg: Twist):
+        # FSM docking/retreat is not the separately checked contact trajectory.
+        self._manual_active_until_sec = self._now_sec() + self._manual_hold_sec
+        guard = getattr(self, '_footprint_guard', None)
+        if guard is not None:
+            scene = guard.snapshot(self._latest_scan, self._latest_scan_time_sec)
+            if scene is None or not scene.safe(msg.linear.x, msg.angular.z):
+                self._pub.publish(Twist())
+                detail = ('stale geometry' if scene is None else
+                          f'{scene.last_failure}, gap={scene.clearance([0.,0.,0.]):.3f}m')
+                self._log_obstacle_clamp(f'guarded footprint sweep not observed clear: {detail}')
+                return
+            self._publish_safe(msg, apply_lidar_stop=False)
+            return
+        self._publish_safe(msg, apply_lidar_stop=True)
+
+    def _publish_safe(self, msg: Twist, *, apply_lidar_stop: bool, allow_nav_sweep=False):
         safe = Twist()
         safe.linear.x = max(-self._max_linear_x, min(self._max_linear_x, msg.linear.x))
         if not self._allow_reverse and safe.linear.x < 0.0:
@@ -110,17 +139,30 @@ class CmdVelSafetyNode(Node):
         safe.angular.x = 0.0
         safe.angular.y = 0.0
         safe.angular.z = max(-self._max_angular_z, min(self._max_angular_z, msg.angular.z))
-        if apply_lidar_stop:
-            self._apply_lidar_collision_stop(safe)
+        # Near-contact commands may bypass the normal stand-off distance,
+        # but must never bypass missing or stale sensor protection.
+        if self._stop_on_missing_scan and not self._scan_available():
+            safe.linear.x = 0.0
+            safe.angular.z = 0.0
+            self._log_obstacle_clamp('scan unavailable or stale')
+        elif apply_lidar_stop:
+            self._apply_lidar_collision_stop(safe, allow_nav_sweep=allow_nav_sweep)
         self._pub.publish(safe)
 
-    def _apply_lidar_collision_stop(self, safe: Twist):
+    def _scan_available(self):
         scan = self._latest_scan
-        stale = (
-                self._scan_timeout_sec > 0.0
-                and self._now_sec() - self._latest_scan_time_sec
-                > self._scan_timeout_sec)
-        if scan is None or stale:
+        if scan is None:
+            return False
+        now = self._now_sec()
+        stamp = scan.header.stamp.sec + scan.header.stamp.nanosec * 1e-9
+        ages = (now - self._latest_scan_time_sec, now - stamp)
+        return all(math.isfinite(age) and age >= -1e-6
+                   and (self._scan_timeout_sec <= 0.0 or age <= self._scan_timeout_sec)
+                   for age in ages)
+
+    def _apply_lidar_collision_stop(self, safe: Twist, *, allow_nav_sweep=False):
+        scan = self._latest_scan
+        if not self._scan_available():
             if self._stop_on_missing_scan:
                 safe.linear.x = 0.0
                 safe.angular.z = 0.0
@@ -143,6 +185,19 @@ class CmdVelSafetyNode(Node):
         turn_blocked = (
                 abs(safe.angular.z) > 1e-3
                 and surround < self._rotation_stop_distance_m)
+        if (turn_blocked and not blocked and allow_nav_sweep
+                and getattr(self, '_nav_swept_clearance_enabled', False)):
+            guard = getattr(self, '_footprint_guard', None)
+            scene = (guard.snapshot(scan, self._latest_scan_time_sec)
+                     if guard is not None else None)
+            # A full-circle bound need not fit for a short Nav2 arc. Keep its
+            # curvature, reduce speed, and verify the entire padded body sweep.
+            scale = min(1., .12/max(abs(safe.linear.x), 1.e-9),
+                        .5/max(abs(safe.angular.z), 1.e-9))
+            v, w = safe.linear.x*scale, safe.angular.z*scale
+            if scene is not None and scene.safe(v, w):
+                safe.linear.x, safe.angular.z = v, w
+                return
         if turn_blocked:
             safe.angular.z = 0.0
             blocked.append(f'turn_clearance={surround:.2f}m')

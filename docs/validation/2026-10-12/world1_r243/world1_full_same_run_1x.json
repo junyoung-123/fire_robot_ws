@@ -1,0 +1,19 @@
+{
+  "source_run": "/home/junyoung/fire_robot_ws_world1_full_20261003/artifacts/full_pipeline_r243_local_return_heading",
+  "source_frames": 21681,
+  "simulation_interval_sec": [
+    0.002,
+    1460.25
+  ],
+  "uniform_playback_speed": 1.0,
+  "output_frames": 43809,
+  "duration_sec": 1460.3,
+  "output_fps": 30.0,
+  "cross_run_splicing": false,
+  "actual_capture_fps": 14.84679314746536,
+  "capture_gap_p95_sec": 0.06700000000000728,
+  "capture_gap_max_sec": 0.19800000000009277,
+  "complete_mission_verified": true,
+  "status": "MISSION_COMPLETE",
+  "missing_camera_frames": 1
+}

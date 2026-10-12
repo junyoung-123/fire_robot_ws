@@ -1,0 +1,12 @@
+{
+  "bundle": "\ud300\uc6d0\uacf5\uc720_\uc6d4\ub4dc1_\uad00\uce21\ud1b5\ud569PASS_20261012.zip",
+  "bundle_bytes": 181172277,
+  "bundle_sha256": "59b4c29609fe85550f71c3f7801d450b7ea71e2c913a5b23f96bd5309b2f619b",
+  "zip_crc_pass": true,
+  "zip_html_local_links_pass": true,
+  "repository_html_local_links_pass": true,
+  "omitted_from_git": [
+    "world1_full_same_run_1x.mp4"
+  ],
+  "reason": "GitHub individual file limit; full video remains in share bundle"
+}

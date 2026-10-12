@@ -76,6 +76,14 @@ def generate_launch_description():
             'spawn_yaw':    spawn_yaw,
             'odometry_source': odometry_source,
             'app_overrides': app_overrides,
+            'robot_xacro_file': LaunchConfiguration('robot_xacro_file'),
+            'enable_depth_camera': LaunchConfiguration('enable_depth_camera'),
+            'spawn_z': LaunchConfiguration('spawn_z'),
+            'lidar_tf_x': LaunchConfiguration('lidar_tf_x'),
+            'lidar_tf_z': LaunchConfiguration('lidar_tf_z'),
+            'raw_scan_topic': LaunchConfiguration('raw_scan_topic'),
+            'clock_output_topic': LaunchConfiguration('clock_output_topic'),
+            'joint_states_output_topic': LaunchConfiguration('joint_states_output_topic'),
         }.items(),
     )
 
@@ -575,7 +583,10 @@ def generate_launch_description():
                 executable='navigation_visit_node',
                 name='navigation_visit_node',
                 parameters=[{'use_sim_time': use_sim_time}],
-                condition=IfCondition(navigation_only),
+                condition=IfCondition(PythonExpression([
+                    "'", navigation_only, "' == 'true' and '",
+                    LaunchConfiguration('physical_contact'), "' != 'true'",
+                ])),
                 output='screen',
             ),
             TimerAction(
@@ -585,6 +596,7 @@ def generate_launch_description():
                         package='fire_robot_fsm',
                         executable='state_machine_node',
                         name='state_machine_node',
+                        condition=IfCondition(LaunchConfiguration('enable_mission_fsm')),
                         parameters=[{
                             'use_sim_time':        use_sim_time,
                             'nav_timeout_sec':     55.0,
@@ -848,6 +860,7 @@ def generate_launch_description():
         DeclareLaunchArgument('use_rviz',     default_value='true'),
         DeclareLaunchArgument('world',        default_value='obstacle_wall_doors_v5.world'),
         DeclareLaunchArgument('start_without_fire', default_value='true'),
+        DeclareLaunchArgument('enable_mission_fsm', default_value='true'),
         DeclareLaunchArgument('min_opened_doors_before_exit', default_value='0'),
         DeclareLaunchArgument('launch_moveit', default_value='false'),
         DeclareLaunchArgument('log_detection_candidates', default_value='false'),
@@ -862,6 +875,15 @@ def generate_launch_description():
             description='sim_odom: fixed map plus Gazebo odometry; mapping: SLAM; localization: saved map plus AMCL.',
         ),
         DeclareLaunchArgument('spawn_x', default_value='-3.0'),
+        DeclareLaunchArgument('spawn_z', default_value='0.07'),
+        DeclareLaunchArgument('lidar_tf_x', default_value='0.2'),
+        DeclareLaunchArgument('lidar_tf_z', default_value='0.07'),
+        DeclareLaunchArgument('raw_scan_topic', default_value='/scan'),
+        DeclareLaunchArgument('clock_output_topic', default_value='/clock'),
+        DeclareLaunchArgument('joint_states_output_topic', default_value='/joint_states'),
+        DeclareLaunchArgument('robot_xacro_file', default_value='fire_robot.urdf.xacro'),
+        DeclareLaunchArgument('enable_depth_camera', default_value='false'),
+        DeclareLaunchArgument('physical_contact', default_value='false'),
         DeclareLaunchArgument('spawn_y', default_value='0.0'),
         DeclareLaunchArgument('spawn_yaw', default_value='0.0'),
         DeclareLaunchArgument(

@@ -17,8 +17,10 @@ class MinimalObservedAngle(ManipulationNode):
         if self._sim_door_feedback_joint_name!='camera_door_rotation':
             raise RuntimeError('This adapter requires the observed angle, never door_hinge')
         self._angle_freshness=ObservedFreshness(bool(self.get_parameter('use_sim_time').value))
-        self.create_subscription(JointState,'/observed_door/rotation',
-            self._sim_door_state_callback,10,callback_group=ReentrantCallbackGroup())
+        if (self._sim_door_feedback_topic!='/observed_door/rotation'
+                or self._sim_door_state_subscription is None):
+            self.create_subscription(JointState,'/observed_door/rotation',
+                self._sim_door_state_callback,10,callback_group=ReentrantCallbackGroup())
 
     def _feedback_fresh(self):
         began=time.monotonic()

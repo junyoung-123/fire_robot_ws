@@ -1,4 +1,5 @@
 import copy
+import json
 import math
 import re
 import time
@@ -10,7 +11,7 @@ from rclpy.duration import Duration
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from rclpy.time import Time
 from enum import IntEnum
-from std_msgs.msg import Bool
+from std_msgs.msg import Bool, String
 from geometry_msgs.msg import PoseStamped, Twist
 from sensor_msgs.msg import LaserScan
 from nav_msgs.msg import OccupancyGrid
@@ -19,7 +20,9 @@ from tf2_ros import Buffer, TransformException, TransformListener
 from fire_robot_interfaces.msg import DoorInfo, FireInfo, RobotState
 from fire_robot_interfaces.srv import OpenDoor
 from fire_robot_fsm.fsm_subsystems import DoorApproachSubFsm, DoorTargetSubFsm
-from fire_robot_fsm.alignment_safety import grid_segment_is_clear
+from fire_robot_fsm.alignment_safety import (
+    retreat_progress_budget, retreat_escape_budget, remembered_return_heading,
+    grid_segment_is_clear, retreat_scan_clearance, observed_retreat_velocity)
 from fire_robot_fsm.observed_exit_aperture import find_aperture
 from fire_robot_fsm.observed_wall_normal import fit_wall_normal
 
@@ -183,6 +186,10 @@ class StateMachineNode(Node):
         self.declare_parameter('post_open_clearance_heading_kp', 0.8)
         self.declare_parameter('post_open_clearance_angular_vel_limit', 0.30)
         self.declare_parameter('post_open_side_retreat_enabled', True)
+        self.declare_parameter('post_open_observed_clearance_enabled', False)
+        self.declare_parameter('guarded_footprint_enabled', False)
+        self.declare_parameter('post_open_guarded_cmd_vel_topic', '')
+        self.declare_parameter('post_open_scan_turn_min_m', 0.32)
         self.declare_parameter('post_open_side_retreat_m', 1.60)
         self.declare_parameter('post_open_side_retreat_target_abs_y_m', 0.85)
         self.declare_parameter('post_open_side_retreat_linear_vel', 0.16)
@@ -572,6 +579,14 @@ class StateMachineNode(Node):
             self.get_parameter('post_open_clearance_angular_vel_limit').value)
         self._post_open_side_retreat_enabled = bool(
             self.get_parameter('post_open_side_retreat_enabled').value)
+        self._post_open_observed_clearance_enabled = bool(
+            self.get_parameter('post_open_observed_clearance_enabled').value)
+        self._post_open_footprint_guard = None
+        if self.get_parameter('guarded_footprint_enabled').value:
+            from fire_robot_navigation.observed_footprint import ObservedFootprintGuard
+            self._post_open_footprint_guard = ObservedFootprintGuard(self)
+        self._post_open_scan_turn_min_m = max(.01, float(
+            self.get_parameter('post_open_scan_turn_min_m').value))
         self._post_open_side_retreat_m = float(
             self.get_parameter('post_open_side_retreat_m').value)
         self._post_open_side_retreat_target_abs_y_m = float(
@@ -878,6 +893,9 @@ class StateMachineNode(Node):
         self.scan_sub = self.create_subscription(
             LaserScan, '/scan', self.scan_callback, 10,
             callback_group=cb_group)
+        self.contact_return_pose_sub = self.create_subscription(
+            PoseStamped, '/contact/return_pose', self._contact_return_pose_callback, 10,
+            callback_group=cb_group)
         axis_qos = QoSProfile(depth=1)
         axis_qos.reliability = ReliabilityPolicy.RELIABLE
         axis_qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
@@ -892,8 +910,12 @@ class StateMachineNode(Node):
         self._tf_listener = TransformListener(self._tf_buffer, self)
 
         self.state_pub       = self.create_publisher(RobotState, '/robot_state', 10)
+        self.memory_evidence_pub = self.create_publisher(String, '/mission/memory_evidence', 10)
         self.target_door_pub = self.create_publisher(DoorInfo,   '/target_door', 10)
         self.cmd_vel_pub     = self.create_publisher(Twist,      '/cmd_vel',     10)
+        post_open_topic = str(self.get_parameter('post_open_guarded_cmd_vel_topic').value)
+        self._post_open_guarded_pub = (
+            self.create_publisher(Twist, post_open_topic, 10) if post_open_topic else None)
         self.nav_cancel_pub = self.create_publisher(Bool, '/cancel_navigation', 10)
 
         self.open_door_client = self.create_client(
@@ -908,6 +930,7 @@ class StateMachineNode(Node):
         self._last_valid_exit_from_front_wall = False
         self._last_provisional_exit_xy: tuple[float, float] | None = None
         self._latest_scan:      LaserScan | None = None
+        self._latest_scan_received_sec = float('-inf')
         self._last_lane_sign    = 0.0
         self._explore_lane_success_since_flip = 0
 
@@ -2493,6 +2516,7 @@ class StateMachineNode(Node):
 
     def scan_callback(self, msg: LaserScan):
         self._latest_scan = msg
+        self._latest_scan_received_sec = self.get_clock().now().nanoseconds / 1e9
 
     def mission_axis_callback(self, msg: PoseStamped):
         if msg.header.frame_id and msg.header.frame_id != 'map':
@@ -3764,6 +3788,9 @@ class StateMachineNode(Node):
                 self._transition(State.EXPLORING)
                 return
             self._door_opening_in_progress = False
+            # Remember a robot-measured reachable doorway pose, not a world
+            # door coordinate. Opening can leave the base beyond the jamb.
+            self._post_open_return_waypoint = self._current_map_pose()
             self._transition(State.OPENING_DOOR)
         elif self._nav_failed:
             self._nav_failed = False
@@ -4771,13 +4798,31 @@ class StateMachineNode(Node):
             throttle_duration_sec=3.0)
         return adjusted
 
+    def _contact_return_pose_callback(self, msg):
+        if self.state != State.OPENING_DOOR or msg.header.frame_id != 'map':
+            return
+        now = self.get_clock().now().nanoseconds/1e9
+        stamp = msg.header.stamp.sec+msg.header.stamp.nanosec/1e9
+        p, q = msg.pose.position, msg.pose.orientation
+        if (not 0. <= now-stamp <= .75
+                or not all(math.isfinite(v) for v in (p.x, p.y, q.x, q.y, q.z, q.w))
+                or abs(q.x*q.x+q.y*q.y+q.z*q.z+q.w*q.w-1.) > .02):
+            return
+        yaw = math.atan2(2*(q.w*q.z+q.x*q.y), 1-2*(q.y*q.y+q.z*q.z))
+        self._post_open_return_waypoint = (p.x, p.y, yaw)
+
     def _on_door_opened(self):
         # 즉시 다음 파란 문 탐색으로 전환
+        guard = getattr(self, '_post_open_footprint_guard', None)
+        if guard is not None:
+            guard.reset_recovery()
         self._clear_locked_blue_anchor()
         self.target_door = None
         self._post_open_side_retreat_pending = self._post_open_side_retreat_enabled
         self._post_open_side_retreat_start_time = None
         self._post_open_side_retreat_start_lateral = None
+        self._post_open_return_budget = 0.
+        self._post_open_progress_anchor = None
         self._post_open_reorient_pending = self._post_open_reorient_enabled
         self._post_open_reorient_start_time = None
         self._post_open_advance_pending = self._post_open_clearance_advance_enabled
@@ -4786,6 +4831,10 @@ class StateMachineNode(Node):
         self.get_logger().info(
             f'다음 파란 문 탐색 시작 (개방 완료: {self._resolved_blue_door_count()}개)')
         self._transition(State.EXPLORING)
+
+    def _publish_post_open_twist(self, twist):
+        publisher = getattr(self, '_post_open_guarded_pub', None)
+        (publisher if publisher is not None else self.cmd_vel_pub).publish(twist)
 
     def _run_post_open_side_retreat(self) -> bool:
         if not self._post_open_side_retreat_pending:
@@ -4796,14 +4845,25 @@ class StateMachineNode(Node):
             return False
         pose = self._current_map_pose()
         if pose is None:
-            self.cmd_vel_pub.publish(Twist())
+            self._publish_post_open_twist(Twist())
             return True
 
         now = self.get_clock().now()
+        observed_clearance = bool(getattr(self, '_post_open_observed_clearance_enabled', False))
+        clearance = (retreat_scan_clearance(
+            self._latest_scan, now.nanoseconds / 1e9,
+            self._latest_scan_received_sec) if observed_clearance else None)
+        turn_min = getattr(self, '_post_open_scan_turn_min_m', .32)
+        guard = getattr(self, '_post_open_footprint_guard', None)
+        scene = (guard.snapshot(self._latest_scan, self._latest_scan_received_sec)
+                 if guard is not None else None)
         lateral = self._axis_lateral_xy(pose[0], pose[1]) - self._explore_center_y
         abs_lateral = abs(lateral)
         target_abs = max(0.05, self._post_open_side_retreat_target_abs_y_m)
-        if abs_lateral <= target_abs:
+        handoff_clear = (scene is not None and scene.safe(0., .24) and scene.safe(0., -.24)
+                         if guard is not None else
+                         not observed_clearance or (clearance is not None and clearance[2] >= turn_min))
+        if abs_lateral <= target_abs and handoff_clear:
             self._finish_post_open_side_retreat(
                 f'lateral={abs_lateral:.2f}m <= target={target_abs:.2f}m')
             return False
@@ -4811,6 +4871,7 @@ class StateMachineNode(Node):
         if self._post_open_side_retreat_start_time is None:
             self._post_open_side_retreat_start_time = now
             self._post_open_side_retreat_start_lateral = lateral
+            self._post_open_return_odom_anchor = None
             self.get_logger().info(
                 f'Post-open side retreat started: lateral={lateral:.2f}m, '
                 f'target_abs={target_abs:.2f}m.')
@@ -4820,23 +4881,90 @@ class StateMachineNode(Node):
             if self._post_open_side_retreat_start_lateral is not None
             else lateral)
         moved_toward_center = max(0.0, abs(start_lateral) - abs_lateral)
-        if moved_toward_center >= self._post_open_side_retreat_m:
+        if moved_toward_center >= self._post_open_side_retreat_m and not observed_clearance:
             self._finish_post_open_side_retreat(
                 f'moved_toward_center={moved_toward_center:.2f}m')
             return False
 
         elapsed = (
             now - self._post_open_side_retreat_start_time).nanoseconds / 1e9
-        if elapsed > max(0.0, self._post_open_side_retreat_timeout_sec):
+        retreat_budget = max(0.0, self._post_open_side_retreat_timeout_sec)
+        waypoint = getattr(self, '_post_open_return_waypoint', None)
+        if observed_clearance and waypoint is not None:
+            # Allow the measured return route at the guarded 0.06 m/s speed,
+            # plus reobservation/turning reserve, without relaxing acceptance.
+            route = math.hypot(waypoint[0]-pose[0], waypoint[1]-pose[1])
+            if math.isfinite(route):
+                retreat_budget = max(retreat_budget, min(180., 90.+route/.06))
+        self._post_open_return_budget = max(
+            retreat_budget, getattr(self, '_post_open_return_budget', 0.))
+        retreat_budget = self._post_open_return_budget
+        if observed_clearance and scene is not None:
+            # Extend only for fresh scan/map progress supported by wheel motion.
+            odom_xy = None
+            measured_odom=getattr(scene,'odom_pose',None)
+            if measured_odom is not None:
+                odom_xy=tuple(measured_odom[:2])
+            try:
+                if odom_xy is None:
+                    odom_tf = self._tf_buffer.lookup_transform(
+                        'odom', 'base_link', Time(), timeout=Duration(seconds=.05))
+                    stamp = odom_tf.header.stamp.sec+odom_tf.header.stamp.nanosec*1.e-9
+                    if 0. <= now.nanoseconds*1.e-9-stamp <= .75:
+                        t = odom_tf.transform.translation
+                        odom_xy = (t.x, t.y)
+            except TransformException:
+                pass
+            if scene.clearance([0., 0., 0.]) >= .05:
+                self._post_open_progress_anchor, retreat_budget = retreat_progress_budget(
+                    getattr(self, '_post_open_progress_anchor', None), lateral,
+                    odom_xy, elapsed, retreat_budget)
+                # A necessary outward detour is progress only after the guarded
+                # primitive is reached using own-odometry feedback.
+                retreat_budget=retreat_escape_budget(elapsed,retreat_budget,
+                    now.nanoseconds/1e9,getattr(guard,'last_recovery_progress_time',None))
+                self._post_open_return_budget = retreat_budget
+        if elapsed > retreat_budget:
+            if observed_clearance:
+                self._publish_post_open_twist(Twist())
+                self.get_logger().error(
+                    'Post-open measured clearance timeout; stopping before Nav2 handoff.')
+                self._transition(State.EMERGENCY_STOP)
+                return True
             self._finish_post_open_side_retreat(
                 f'timeout after {elapsed:.1f}s, lateral={abs_lateral:.2f}m')
             return False
 
         side = 1.0 if lateral > 0.0 else -1.0
         center_facing_yaw = self._mission_forward_yaw() - side * math.pi / 2.0
-        yaw_error = self._normalize_angle(center_facing_yaw - pose[2])
+        return_yaw = self._post_open_return_heading(pose, center_facing_yaw)
+        yaw_error = self._normalize_angle(return_yaw - pose[2])
+        if scene is not None and getattr(scene,'odom_pose',None) is not None:
+            try:
+                self._post_open_return_odom_anchor,yaw_error=remembered_return_heading(
+                    getattr(self,'_post_open_return_odom_anchor',None),scene.pose,
+                    scene.odom_pose,waypoint,center_facing_yaw)
+            except ValueError:
+                self._publish_post_open_twist(Twist())
+                return True
         twist = Twist()
-        if abs(yaw_error) > self._post_open_side_retreat_yaw_tolerance:
+        if guard is not None:
+            twist.linear.x, twist.angular.z, mode = (
+                guard.recovery_command(scene, yaw_error, now.nanoseconds/1e9))
+            self.get_logger().info(
+                f'Post-open footprint clearance: {mode}, '
+                f'gap={None if scene is None else scene.clearance([0.,0.,0.])}, '
+                f'last_plan_stop={getattr(guard,"last_recovery_rejection",None)}',
+                throttle_duration_sec=1.0)
+        elif observed_clearance:
+            twist.linear.x, twist.angular.z, mode = observed_retreat_velocity(
+                clearance, yaw_error, self._post_open_side_retreat_linear_vel,
+                self._post_open_reorient_angular_vel,
+                self._post_open_side_retreat_yaw_tolerance, turn_min)
+            self.get_logger().info(
+                f'Post-open measured clearance: {mode}, scan={clearance}',
+                throttle_duration_sec=1.0)
+        elif abs(yaw_error) > self._post_open_side_retreat_yaw_tolerance:
             angular = math.copysign(
                 abs(self._post_open_reorient_angular_vel), yaw_error)
             twist.angular.z = angular
@@ -4847,7 +4975,7 @@ class StateMachineNode(Node):
             twist.angular.z = max(
                 -angular_limit,
                 min(angular_limit, self._post_open_clearance_heading_kp * yaw_error))
-        self.cmd_vel_pub.publish(twist)
+        self._publish_post_open_twist(twist)
         self.get_logger().info(
             f'Post-open side retreat: lateral={lateral:.2f}m, '
             f'moved={moved_toward_center:.2f}/{self._post_open_side_retreat_m:.2f}m, '
@@ -4856,11 +4984,28 @@ class StateMachineNode(Node):
             throttle_duration_sec=1.0)
         return True
 
+    def _post_open_return_heading(self, pose, fallback):
+        waypoint = getattr(self, '_post_open_return_waypoint', None)
+        if waypoint is None:
+            return fallback
+        dx, dy = waypoint[0]-pose[0], waypoint[1]-pose[1]
+        if not all(math.isfinite(v) for v in (dx, dy)):
+            return fallback
+        if math.hypot(dx, dy) <= .18:
+            self._post_open_return_waypoint = None
+            return fallback
+        return math.atan2(dy, dx)
+
     def _finish_post_open_side_retreat(self, reason: str):
+        guard=getattr(self,'_post_open_footprint_guard',None)
+        if guard is not None:
+            guard.reset_recovery()
         self._post_open_side_retreat_pending = False
         self._post_open_side_retreat_start_time = None
         self._post_open_side_retreat_start_lateral = None
-        self.cmd_vel_pub.publish(Twist())
+        self._post_open_return_waypoint = None
+        self._post_open_return_odom_anchor = None
+        self._publish_post_open_twist(Twist())
         self.get_logger().info(f'Post-open side retreat complete: {reason}')
 
     def _run_post_open_reorient(self) -> bool:
@@ -4911,7 +5056,7 @@ class StateMachineNode(Node):
                 max(0.14, abs(self._post_open_reorient_angular_vel) * 0.45),
                 yaw_error)
         twist.angular.z = angular
-        self.cmd_vel_pub.publish(twist)
+        self._publish_post_open_twist(twist)
         self.get_logger().info(
             f'문 개방 후 진행 방향 정렬 중: yaw_error='
             f'{math.degrees(yaw_error):.0f}deg, cmd={twist.angular.z:.2f}',
@@ -4981,7 +5126,7 @@ class StateMachineNode(Node):
             if yaw_abs > math.radians(18.0):
                 speed *= 0.45
             twist.linear.x = speed
-        self.cmd_vel_pub.publish(twist)
+        self._publish_post_open_twist(twist)
         self.get_logger().info(
             f'Post-open corridor clearance advance: '
             f'{advanced:.2f}/{self._post_open_clearance_advance_m:.2f}m, '
@@ -19172,6 +19317,10 @@ class StateMachineNode(Node):
         msg.target_door_id    = (self.target_door.door_id
                                   if self.target_door else self._explore_nav_goal_id)
         self.state_pub.publish(msg)
+        snapshot = {'sim_time': self.get_clock().now().nanoseconds / 1e9,
+                    'state': self.state.name, 'target_id': msg.target_door_id,
+                    'landmarks': self._semantic_door_landmarks}
+        self.memory_evidence_pub.publish(String(data=json.dumps(snapshot)))
 
 
 def main(args=None):
