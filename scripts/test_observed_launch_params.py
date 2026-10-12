@@ -50,6 +50,13 @@ class ObservedLaunchParamsTests(unittest.TestCase):
             self.assertFalse(local['inflation_layer']['inflate_around_unknown'])
             self.assertEqual(local['plugins'],['obstacle_layer','inflation_layer'])
             self.assertEqual(local['obstacle_layer']['observation_sources'],'scan')
+            guard=module.observed_guard_costmap_parameters(local)
+            self.assertEqual(guard['plugins'],['obstacle_layer'])
+            self.assertNotIn('inflation_layer',guard)
+            self.assertTrue(guard['track_unknown_space'])
+            self.assertFalse(guard['obstacle_layer']['footprint_clearing_enabled'])
+            self.assertEqual(guard['global_frame'],'odom')
+            self.assertEqual(guard['obstacle_layer']['scan']['topic'],'/scan')
             for name in ('cmd_vel_safety_node', 'state_machine_node'):
                 params = app[name]['ros__parameters']
                 self.assertTrue(params['guarded_footprint_enabled'])

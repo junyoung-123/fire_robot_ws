@@ -2,14 +2,45 @@
 import os
 import math
 import tempfile
+from copy import deepcopy
 
 import yaml
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction, RegisterEventHandler, EmitEvent
+from launch.event_handlers import OnProcessStart
+from launch.events import matches_action
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
-from launch_ros.actions import Node
+from launch_ros.actions import Node, LifecycleNode
+from launch_ros.event_handlers import OnStateTransition
+from launch_ros.events.lifecycle import ChangeState
+from lifecycle_msgs.msg import Transition
+
+
+def observed_guard_costmap_parameters(local):
+    params = deepcopy(local)
+    params.update(track_unknown_space=True, always_send_full_costmap=True,
+                  plugins=['obstacle_layer'], use_sim_time=True, global_frame='odom')
+    params.pop('inflation_layer', None)
+    params['obstacle_layer']['footprint_clearing_enabled'] = False
+    return params
+
+
+def observed_guard_costmap_actions(local):
+    # The Humble standalone costmap fixes its own node namespace/name.
+    # Native lifecycle events activate it without assuming a lifecycle bond.
+    node = LifecycleNode(package='nav2_costmap_2d', executable='nav2_costmap_2d',
+        name='costmap', namespace='costmap',
+        parameters=[observed_guard_costmap_parameters(local)],
+        remappings=[('/costmap/costmap','/guard/observed_costmap')], output='screen')
+    configure = EmitEvent(event=ChangeState(lifecycle_node_matcher=matches_action(node),
+                                           transition_id=Transition.TRANSITION_CONFIGURE))
+    activate = EmitEvent(event=ChangeState(lifecycle_node_matcher=matches_action(node),
+                                          transition_id=Transition.TRANSITION_ACTIVATE))
+    return [RegisterEventHandler(OnProcessStart(target_action=node,on_start=[configure])),
+            RegisterEventHandler(OnStateTransition(target_lifecycle_node=node,
+                goal_state='inactive',entities=[activate],handle_once=True)),node]
 
 
 def start(context):
@@ -78,7 +109,9 @@ def start(context):
         yaml.safe_dump(slam, stream, sort_keys=False)
         runtime_slam = stream.name
     app_overrides = os.path.join(bringup, 'config', 'observed_navigation.yaml')
+    guard_actions = []
     if LaunchConfiguration('guarded_post_open').perform(context).lower() == 'true':
+        guard_actions = observed_guard_costmap_actions(params['local_costmap']['local_costmap']['ros__parameters'])
         from fire_robot_manipulation.piper_actual_kinematics import PIPER_BODY_OUTLINE
         scan_x = float(LaunchConfiguration('lidar_tf_x').perform(context))
         # Bound a full rotation about base_link from the actual body outline
@@ -109,7 +142,7 @@ def start(context):
                                          prefix='observed_contact_app_', delete=False) as stream:
             yaml.safe_dump(app, stream, sort_keys=False)
             app_overrides = stream.name
-    return [Node(package='fire_robot_navigation', executable='motion_scan_filter',
+    return guard_actions + [Node(package='fire_robot_navigation', executable='motion_scan_filter',
                  parameters=[{'use_sim_time': True}], output='screen'),
             Node(package='fire_robot_navigation', executable='slam_correction_tf',
                  parameters=[{'use_sim_time': True}], output='screen'),

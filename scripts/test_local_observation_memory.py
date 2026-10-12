@@ -2,6 +2,7 @@
 import math
 from types import SimpleNamespace as NS
 import unittest
+from unittest.mock import Mock
 import numpy as np
 from fire_robot_navigation.observed_footprint import ObservedSweep
 
@@ -32,8 +33,9 @@ class LocalObservationMemoryTests(unittest.TestCase):
         for odom in (None,(20.,20.,0.),(math.nan,0.,0.)):
             self.assertFalse(self.scene(self.grid(),odom=odom).safe(-.03,0.))
 
-    def test_observed_inflation_below_inscribed_cost_is_allowed(self):
-        self.assertTrue(self.scene(self.grid(98)).safe(-.03,0.))
+    def test_only_raw_zero_cost_certifies_observed_free_space(self):
+        for cost in (1,50,98):
+            self.assertFalse(self.scene(self.grid(cost)).safe(-.03,0.))
 
     def test_current_obstacle_and_neighbor_shadow_override_memory(self):
         scene=self.scene(self.grid())
@@ -67,6 +69,21 @@ class LocalObservationMemoryTests(unittest.TestCase):
                             (9.7,(0.,0.,0.),(.25,0.,0.),old)]
         scene.measurement_stamp=10.
         self.assertFalse(scene.observed_free(np.array([[-.5,0.]])).all())
+
+    def test_clear_forward_only_does_not_undo_return_progress(self):
+        scene=self.scene(self.grid())
+        scene.clearance=Mock(return_value=.2)
+        scene.safe=Mock(side_effect=lambda v,w: v>0. and w==0.)
+        scene._lookahead_recovery=Mock(return_value=None)
+        self.assertEqual(scene.choose(math.pi),(0.,0.,'NO_OBSERVED_PROGRESS'))
+        scene._lookahead_recovery.assert_called_once()
+
+    def test_temporary_motion_away_requires_a_verified_multistep_route(self):
+        scene=self.scene(self.grid())
+        scene.clearance=Mock(return_value=.2)
+        scene.safe=Mock(side_effect=lambda v,w: v>0. and w==0.)
+        scene._lookahead_recovery=Mock(return_value=(.03,.08))
+        self.assertEqual(scene.choose(math.pi),(.03,.08,'OBSERVED_MULTI_STEP_SWEEP'))
 
 
 if __name__=='__main__':unittest.main()

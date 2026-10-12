@@ -143,7 +143,7 @@ class ObservedSweep:
             # This opt-in grid starts unknown and is cleared only by scans,
             # never by a saved map or automatic footprint clearing. Odometry
             # keeps its local memory independent of SLAM map corrections.
-            support |= (local >= 0) & (local < 99)
+            support |= local == 0
             free[blind & (local >= 99)] = False
             support &= local < 99
         # 99 is Nav2's inscribed cost: inflation may put it into an UNKNOWN
@@ -263,6 +263,13 @@ class ObservedSweep:
         if not choices:
             return 0., 0., 'NO_OBSERVED_SWEEP'
         _, v, w = max(choices)
+        if max(choices)[0] <= 1.e-4:
+            recovery = self._lookahead_recovery(yaw_error, speed, start_gap)
+            if recovery is not None:
+                return *recovery, 'OBSERVED_MULTI_STEP_SWEEP'
+            # Do not undo a measured retreat just because moving away from
+            # the return target is the only currently clear one-step command.
+            return 0., 0., 'NO_OBSERVED_PROGRESS'
         if not any(candidate[1] > 0. for candidate in choices):
             recovery = self._lookahead_recovery(yaw_error, speed, start_gap)
             if recovery is not None:
@@ -337,6 +344,7 @@ class ObservedFootprintGuard:
         node.declare_parameter('guard_footprint_bounds_m', [-.245, .312, -.226, .226])
         node.declare_parameter('guard_static_free_history_sec', 2.)
         node.declare_parameter('guard_observed_local_costmap_enabled', False)
+        node.declare_parameter('guard_observed_local_costmap_topic', '/guard/observed_costmap')
         self.bounds = node.get_parameter('guard_footprint_bounds_m').value
         self.free_history_age_sec=float(node.get_parameter('guard_static_free_history_sec').value)
         if not math.isfinite(self.free_history_age_sec) or not 2.<=self.free_history_age_sec<=30.:
@@ -354,7 +362,8 @@ class ObservedFootprintGuard:
                          durability=DurabilityPolicy.TRANSIENT_LOCAL)
         self.sub = node.create_subscription(OccupancyGrid, '/global_costmap/costmap', self.on_grid, qos)
         if self.local_grid_enabled:
-            self.local_sub = node.create_subscription(OccupancyGrid, '/local_costmap/costmap', self.on_local_grid, qos)
+            self.local_sub = node.create_subscription(OccupancyGrid,
+                str(node.get_parameter('guard_observed_local_costmap_topic').value), self.on_local_grid, qos)
 
     def on_grid(self, msg):
         self.grid = (msg, self.node.get_clock().now().nanoseconds*1.e-9)
@@ -480,7 +489,7 @@ class ObservedFootprintGuard:
         command = scene.choose(yaw_error)
         if scene.recovery_path:
             self._store_recovery(scene.recovery_path,tracking_pose,tracking_frame,now)
-        elif (command[2] in ('NO_OBSERVED_SWEEP','OBSERVED_FOOTPRINT_SWEEP')
+        elif (command[2] in ('NO_OBSERVED_SWEEP','NO_OBSERVED_PROGRESS','OBSERVED_FOOTPRINT_SWEEP')
                 and command[0]<=.03 and abs(command[1])<=.04
                 and now>=getattr(self,'next_extended_plan',0.)
                 and hasattr(scene,'extended_recovery_path')):
