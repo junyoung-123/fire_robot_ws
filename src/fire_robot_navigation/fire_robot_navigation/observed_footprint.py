@@ -72,12 +72,13 @@ def arc_pose(speed, angular, elapsed):
 class ObservedSweep:
     def __init__(self, scan, sensor_pose, body_bounds, map_pose, grid, margin=.05,
                  free_history=(), odom_pose=None, measurement_stamp=None,
-                 free_history_age_sec=2.):
+                 free_history_age_sec=2., local_grid=None):
         self.scan, self.sensor = scan, np.asarray(sensor_pose, float)
         self.bounds, self.pose = np.asarray(body_bounds, float), np.asarray(map_pose, float)
         self.grid, self.margin = grid, margin
         self.free_history,self.odom_pose,self.measurement_stamp=free_history,odom_pose,measurement_stamp
         self.free_history_age_sec=free_history_age_sec
+        self.local_grid=local_grid
         if (self.bounds.shape != (4,) or not np.isfinite(self.bounds).all()
                 or self.bounds[0] >= self.bounds[1] or self.bounds[2] >= self.bounds[3]
                 or self.sensor.shape != (3,) or self.pose.shape != (3,)
@@ -124,6 +125,8 @@ class ObservedSweep:
         in_scan = (indexes >= 0) & (indexes < len(self.ray_limits))
         free = (in_scan
                 & np.isfinite(limits) & (distance+ray_margin < limits))
+        if free.all():
+            return free
         known_limit = np.min(np.where(np.isnan(neighbor_limits), np.inf, neighbor_limits), axis=1)
         known_rays_clear = distance+ray_margin < known_limit
         if self.free_history and self.odom_pose is not None and self.measurement_stamp is not None:
@@ -132,31 +135,45 @@ class ObservedSweep:
                 free[blind] |= historical_ray_support(points[blind],self.odom_pose,
                     self.measurement_stamp,self.free_history,margin=ray_margin+.03,
                     max_age_sec=self.free_history_age_sec)
-        if free.all() or self.grid is None:
-            return free
-        info = self.grid.info
+        blind = in_scan & np.isnan(limits) & known_rays_clear
+        remembered = self._grid_costs(points, self.pose, self.grid)
+        support = (remembered >= 0) & (remembered < 99)
+        if self.local_grid is not None and self.odom_pose is not None:
+            local = self._grid_costs(points, self.odom_pose, self.local_grid)
+            # This opt-in grid starts unknown and is cleared only by scans,
+            # never by a saved map or automatic footprint clearing. Odometry
+            # keeps its local memory independent of SLAM map corrections.
+            support |= (local >= 0) & (local < 99)
+            free[blind & (local >= 99)] = False
+            support &= local < 99
+        # 99 is Nav2's inscribed cost: inflation may put it into an UNKNOWN
+        # cell without a clearing ray. It cannot prove observed free space.
+        return free | (blind & support)
+
+    @staticmethod
+    def _grid_costs(points, pose, grid):
+        costs = np.full(len(points), -1, dtype=int)
+        if grid is None or np.shape(pose)!=(3,) or not np.isfinite(pose).all():
+            return costs
+        info = grid.info
         q = info.origin.orientation
         values = (info.resolution, q.x, q.y, q.z, q.w,
                   info.origin.position.x, info.origin.position.y)
         if (not all(math.isfinite(v) for v in values) or info.resolution <= 0
                 or abs(q.x)+abs(q.y) > 1.e-5 or abs(q.w*q.w+q.z*q.z-1.) > .02
-                or len(self.grid.data) != info.width*info.height):
-            return free
-        c, s = math.cos(self.pose[2]), math.sin(self.pose[2])
-        world = points @ np.array([[c, s], [-s, c]]) + self.pose[:2]
+                or len(grid.data) != info.width*info.height):
+            return costs
+        c, s = math.cos(pose[2]), math.sin(pose[2])
+        world = points @ np.array([[c, s], [-s, c]]) + np.asarray(pose)[:2]
         origin = np.array([info.origin.position.x, info.origin.position.y])
         yaw = math.atan2(2*q.w*q.z, 1-2*q.z*q.z)
         c, s = math.cos(yaw), math.sin(yaw)
         ij = np.floor(((world-origin) @ np.array([[c, -s], [s, c]]))/info.resolution).astype(int)
         inside = ((ij[:, 0] >= 0) & (ij[:, 0] < info.width)
                   & (ij[:, 1] >= 0) & (ij[:, 1] < info.height))
-        costs = np.full(len(points), -1, dtype=int)
-        data = np.asarray(self.grid.data)
+        data = np.asarray(grid.data)
         costs[inside] = data[ij[inside, 1]*info.width+ij[inside, 0]]
-        # Inflation is a centre-distance cost. Here the whole padded body is
-        # checked, so only known non-lethal cells can fill sensor blind rays.
-        # Missing rays do not erase the obstacle shadow of valid neighbors.
-        return free | (in_scan & np.isnan(limits) & known_rays_clear & (costs >= 0) & (costs < 100))
+        return costs
 
     def safe(self, speed, angular, horizon=1.5, start=None):
         self.last_failure = None
@@ -319,6 +336,7 @@ class ObservedFootprintGuard:
         self.node = node
         node.declare_parameter('guard_footprint_bounds_m', [-.245, .312, -.226, .226])
         node.declare_parameter('guard_static_free_history_sec', 2.)
+        node.declare_parameter('guard_observed_local_costmap_enabled', False)
         self.bounds = node.get_parameter('guard_footprint_bounds_m').value
         self.free_history_age_sec=float(node.get_parameter('guard_static_free_history_sec').value)
         if not math.isfinite(self.free_history_age_sec) or not 2.<=self.free_history_age_sec<=30.:
@@ -326,6 +344,8 @@ class ObservedFootprintGuard:
         self.tf = Buffer()
         self.listener = TransformListener(self.tf, node)
         self.grid = None
+        self.local_grid = None
+        self.local_grid_enabled = bool(node.get_parameter('guard_observed_local_costmap_enabled').value)
         self.recovery = None
         self.free_history = deque(maxlen=math.ceil(self.free_history_age_sec/.12)+2)
         self.static_history_ready = False
@@ -333,9 +353,14 @@ class ObservedFootprintGuard:
         qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
                          durability=DurabilityPolicy.TRANSIENT_LOCAL)
         self.sub = node.create_subscription(OccupancyGrid, '/global_costmap/costmap', self.on_grid, qos)
+        if self.local_grid_enabled:
+            self.local_sub = node.create_subscription(OccupancyGrid, '/local_costmap/costmap', self.on_local_grid, qos)
 
     def on_grid(self, msg):
         self.grid = (msg, self.node.get_clock().now().nanoseconds*1.e-9)
+
+    def on_local_grid(self, msg):
+        self.local_grid = (msg, self.node.get_clock().now().nanoseconds*1.e-9)
 
     def on_phase(self, msg):
         ready = msg.data.split(':', 1)[0] == 'COMPLETE'
@@ -519,9 +544,17 @@ class ObservedFootprintGuard:
                     timeout=Duration(seconds=.015)))
             except TransformException:
                 pass
+            local_grid=None
+            if getattr(self,'local_grid_enabled',False) and getattr(self,'local_grid',None) is not None:
+                candidate,receipt=self.local_grid
+                grid_stamp=candidate.header.stamp.sec+candidate.header.stamp.nanosec*1.e-9
+                if (candidate.header.frame_id=='odom' and odom_pose is not None
+                        and 0.<=now-receipt<=1. and 0.<=now-grid_stamp<=1.):
+                    local_grid=candidate
             scene=ObservedSweep(scan,sensor,self.bounds,pose,grid,
                 free_history=list(self.free_history),odom_pose=odom_pose,measurement_stamp=stamp,
-                free_history_age_sec=(self.free_history_age_sec if self.static_history_ready else 2.))
+                free_history_age_sec=(self.free_history_age_sec if self.static_history_ready else 2.),
+                local_grid=local_grid)
             if odom_pose is not None:
                 if self.free_history and stamp<self.free_history[-1][0]:
                     self.free_history.clear()

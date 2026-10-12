@@ -41,9 +41,19 @@ class ObservedLaunchParamsTests(unittest.TestCase):
                 self.assertFalse(any(isinstance(event, yaml.events.AliasEvent)
                                      for event in yaml.parse(content)), generated.name)
             app = yaml.safe_load(paths[-1].read_text())
+            nav = yaml.safe_load(paths[0].read_text())
+            local = nav['local_costmap']['local_costmap']['ros__parameters']
+            self.assertTrue(local['track_unknown_space'])
+            self.assertTrue(local['always_send_full_costmap'])
+            self.assertFalse(local['obstacle_layer']['footprint_clearing_enabled'])
+            self.assertFalse(local['inflation_layer']['inflate_unknown'])
+            self.assertFalse(local['inflation_layer']['inflate_around_unknown'])
+            self.assertEqual(local['plugins'],['obstacle_layer','inflation_layer'])
+            self.assertEqual(local['obstacle_layer']['observation_sources'],'scan')
             for name in ('cmd_vel_safety_node', 'state_machine_node'):
                 params = app[name]['ros__parameters']
                 self.assertTrue(params['guarded_footprint_enabled'])
+                self.assertTrue(params['guard_observed_local_costmap_enabled'])
                 self.assertEqual(params['guard_static_free_history_sec'],30.)
                 self.assertEqual(len(params['guard_footprint_bounds_m']), 4)
         finally:

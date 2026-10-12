@@ -13,6 +13,8 @@ class GuardSensorContractTests(unittest.TestCase):
         guard.node = NS(get_clock=lambda: NS(now=lambda: NS(nanoseconds=100100000000)))
         guard.bounds = [-.245, .312, -.226, .226]
         guard.grid = None
+        guard.local_grid = None
+        guard.local_grid_enabled = False
         guard.free_history = deque(maxlen=20)
         guard.free_history_age_sec = 2.
         guard.static_history_ready = False
@@ -73,6 +75,24 @@ class GuardSensorContractTests(unittest.TestCase):
         grid = NS(header=NS(frame_id='map',stamp=NS(sec=100,nanosec=0)))
         guard.grid = (grid,100.)
         self.assertIs(guard.snapshot(scan,100.).grid,grid)
+
+    def test_local_grid_requires_opt_in_correct_frame_and_freshness(self):
+        cases=[(False,'odom',100,100.),(True,'map',100,100.),
+               (True,'odom',98,100.),(True,'odom',100,98.),
+               (True,'odom',101,100.),(True,'odom',100,101.)]
+        for enabled,frame,stamp,receipt in cases:
+            with self.subTest(enabled=enabled,frame=frame,stamp=stamp,receipt=receipt):
+                guard,scan=self.make();guard.local_grid_enabled=enabled
+                guard.local_grid=(NS(header=NS(frame_id=frame,stamp=NS(sec=stamp,nanosec=0))),receipt)
+                self.assertIsNone(guard.snapshot(scan,100.).local_grid)
+
+    def test_fresh_local_odom_grid_is_accepted_separately_from_global_map(self):
+        guard,scan=self.make();guard.local_grid_enabled=True
+        grid=NS(header=NS(frame_id='odom',stamp=NS(sec=100,nanosec=0)))
+        guard.local_grid=(grid,100.)
+        scene=guard.snapshot(scan,100.)
+        self.assertIs(scene.local_grid,grid)
+        self.assertIsNone(scene.grid)
 
 
 if __name__ == '__main__':

@@ -27,6 +27,13 @@ def start(context):
     costmap.pop('origin_y', None)
     costmap['plugins'] = ['static_layer', 'obstacle_layer', 'inflation_layer']
     costmap.pop('fixed_obstacle_layer', None)
+    if LaunchConfiguration('guarded_post_open').perform(context).lower() == 'true':
+        local = params['local_costmap']['local_costmap']['ros__parameters']
+        # Local free-space memory must have sensor provenance. Never use a
+        # default-free rolling grid to certify a blind part of a body sweep.
+        local.update(track_unknown_space=True, always_send_full_costmap=True)
+        local['obstacle_layer']['footprint_clearing_enabled'] = False
+        local['inflation_layer'].update(inflate_unknown=False, inflate_around_unknown=False)
     costmap['static_layer']['map_topic'] = '/map'
     costmap['static_layer']['subscribe_to_updates'] = True
     for layer in (costmap, params['local_costmap']['local_costmap']['ros__parameters']):
@@ -86,6 +93,7 @@ def start(context):
         for name in ('cmd_vel_safety_node', 'state_machine_node'):
             app[name]['ros__parameters'].update({
                 'guarded_footprint_enabled': True, 'guard_footprint_bounds_m': list(bounds),
+                'guard_observed_local_costmap_enabled': True,
                 'guard_static_free_history_sec': float(
                     LaunchConfiguration('guard_static_free_history_sec').perform(context))})
         app['state_machine_node']['ros__parameters'].update({
