@@ -1,4 +1,5 @@
 import math
+import random
 import unittest
 from unittest.mock import Mock
 
@@ -199,6 +200,16 @@ class ObservedVelocitySafetyTests(unittest.TestCase):
         safe = node._pub.publish.call_args.args[0]
         self.assertEqual((safe.linear.x, safe.angular.z), (0., 0.))
         node._footprint_guard.snapshot.return_value.safe.assert_called_once_with(.12, 0.)
+
+    def test_scaled_velocity_cannot_round_outside_strict_sweep_bounds(self):
+        rng = random.Random(1)
+        for _ in range(10000):
+            command = Twist()
+            command.linear.x = rng.uniform(-.25, .25)
+            command.angular.z = rng.uniform(-1., 1.)
+            bounded = CmdVelSafetyNode._bounded_sweep_twist(command)
+            self.assertLessEqual(abs(bounded.linear.x), .12)
+            self.assertLessEqual(abs(bounded.angular.z), .5)
 
     def test_guarded_mission_motion_is_scaled_before_body_check(self):
         node = self.swept_node()

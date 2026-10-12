@@ -132,8 +132,10 @@ class CmdVelSafetyNode(Node):
             return command
         scale = min(1., .12/max(abs(msg.linear.x), 1.e-9),
                     .5/max(abs(msg.angular.z), 1.e-9))
-        command.linear.x = msg.linear.x*scale
-        command.angular.z = msg.angular.z*scale
+        # Multiplication can round 0.12 up by one ULP. Keep the strict sweep
+        # bounds; clamp roundoff instead of weakening the safety predicate.
+        command.linear.x = max(-.12, min(.12, msg.linear.x*scale))
+        command.angular.z = max(-.5, min(.5, msg.angular.z*scale))
         return command
 
     def _publish_safe(self, msg: Twist, *, apply_lidar_stop: bool, allow_nav_sweep=False):
