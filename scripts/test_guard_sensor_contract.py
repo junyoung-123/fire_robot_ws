@@ -14,6 +14,8 @@ class GuardSensorContractTests(unittest.TestCase):
         guard.bounds = [-.245, .312, -.226, .226]
         guard.grid = None
         guard.free_history = deque(maxlen=20)
+        guard.free_history_age_sec = 2.
+        guard.static_history_ready = False
         guard.requests = []
 
         def lookup(target, source, at, **kwargs):
@@ -41,6 +43,15 @@ class GuardSensorContractTests(unittest.TestCase):
         self.assertEqual(len(guard.free_history),1)
         self.assertEqual(len(scene.free_history),1)
         self.assertEqual(scene.measurement_stamp,100.)
+
+    def test_extended_static_history_only_after_completed_manipulation(self):
+        guard,scan=self.make()
+        guard.free_history_age_sec=30.
+        self.assertEqual(guard.snapshot(scan,100.).free_history_age_sec,2.)
+        guard.on_phase(NS(data='COMPLETE:observed_door'))
+        self.assertEqual(guard.snapshot(scan,100.).free_history_age_sec,30.)
+        guard.on_phase(NS(data='PRESS_LEVER:next_door'))
+        self.assertEqual(guard.snapshot(scan,100.).free_history_age_sec,2.)
 
     def test_old_received_sample_and_future_sample_are_rejected(self):
         for received, stamp in ((99.,100),(100.,99),(100.,101),(101.,100)):

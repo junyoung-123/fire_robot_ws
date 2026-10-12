@@ -18,6 +18,7 @@ class ObservedLaunchParamsTests(unittest.TestCase):
         context = LaunchContext()
         context.launch_configurations.update({
             'guarded_post_open': 'true', 'robot_xacro_file': 'fire_robot_actual_piper.urdf.xacro',
+            'guard_static_free_history_sec': '30.0',
             'lidar_tf_x': '0.25', 'lidar_tf_z': '0.248', 'world': 'world1_full_contact.world',
             'physical_contact': 'true', 'enable_depth_camera': 'true', 'spawn_z': '0.07',
             'spawn_x': '-3.0', 'spawn_y': '0.0', 'spawn_yaw': '0.0',
@@ -43,6 +44,7 @@ class ObservedLaunchParamsTests(unittest.TestCase):
             for name in ('cmd_vel_safety_node', 'state_machine_node'):
                 params = app[name]['ros__parameters']
                 self.assertTrue(params['guarded_footprint_enabled'])
+                self.assertEqual(params['guard_static_free_history_sec'],30.)
                 self.assertEqual(len(params['guard_footprint_bounds_m']), 4)
         finally:
             for generated in paths:
