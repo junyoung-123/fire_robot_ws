@@ -3791,6 +3791,7 @@ class StateMachineNode(Node):
             # Remember a robot-measured reachable doorway pose, not a world
             # door coordinate. Opening can leave the base beyond the jamb.
             self._post_open_return_waypoint = self._current_map_pose()
+            self._post_open_precontact_odom = None
             self._transition(State.OPENING_DOOR)
         elif self._nav_failed:
             self._nav_failed = False
@@ -4799,7 +4800,7 @@ class StateMachineNode(Node):
         return adjusted
 
     def _contact_return_pose_callback(self, msg):
-        if self.state != State.OPENING_DOOR or msg.header.frame_id != 'map':
+        if self.state != State.OPENING_DOOR or msg.header.frame_id not in ('map', 'odom'):
             return
         now = self.get_clock().now().nanoseconds/1e9
         stamp = msg.header.stamp.sec+msg.header.stamp.nanosec/1e9
@@ -4809,7 +4810,10 @@ class StateMachineNode(Node):
                 or abs(q.x*q.x+q.y*q.y+q.z*q.z+q.w*q.w-1.) > .02):
             return
         yaw = math.atan2(2*(q.w*q.z+q.x*q.y), 1-2*(q.y*q.y+q.z*q.z))
-        self._post_open_return_waypoint = (p.x, p.y, yaw)
+        if msg.header.frame_id == 'odom':
+            self._post_open_precontact_odom = (p.x, p.y, yaw)
+        else:
+            self._post_open_return_waypoint = (p.x, p.y, yaw)
 
     def _on_door_opened(self):
         # 즉시 다음 파란 문 탐색으로 전환
@@ -4871,7 +4875,12 @@ class StateMachineNode(Node):
         if self._post_open_side_retreat_start_time is None:
             self._post_open_side_retreat_start_time = now
             self._post_open_side_retreat_start_lateral = lateral
-            self._post_open_return_odom_anchor = None
+            parked = getattr(self, '_post_open_precontact_odom', None)
+            # The aligned robot faced the observed panel; the opposite heading
+            # leads out through the same doorway after reaching its own pose.
+            self._post_open_return_odom_anchor = (
+                (parked[:2], self._normalize_angle(parked[2] + math.pi))
+                if parked is not None else None)
             self.get_logger().info(
                 f'Post-open side retreat started: lateral={lateral:.2f}m, '
                 f'target_abs={target_abs:.2f}m.')
@@ -4890,10 +4899,15 @@ class StateMachineNode(Node):
             now - self._post_open_side_retreat_start_time).nanoseconds / 1e9
         retreat_budget = max(0.0, self._post_open_side_retreat_timeout_sec)
         waypoint = getattr(self, '_post_open_return_waypoint', None)
-        if observed_clearance and waypoint is not None:
+        parked = getattr(self, '_post_open_precontact_odom', None)
+        measured_odom = getattr(scene, 'odom_pose', None)
+        route_target, route_pose = waypoint, pose
+        if parked is not None and measured_odom is not None:
+            route_target, route_pose = parked, measured_odom
+        if observed_clearance and route_target is not None:
             # Allow the measured return route at the guarded 0.06 m/s speed,
             # plus reobservation/turning reserve, without relaxing acceptance.
-            route = math.hypot(waypoint[0]-pose[0], waypoint[1]-pose[1])
+            route = math.hypot(route_target[0]-route_pose[0], route_target[1]-route_pose[1])
             if math.isfinite(route):
                 retreat_budget = max(retreat_budget, min(180., 90.+route/.06))
         self._post_open_return_budget = max(
@@ -5004,6 +5018,7 @@ class StateMachineNode(Node):
         self._post_open_side_retreat_start_time = None
         self._post_open_side_retreat_start_lateral = None
         self._post_open_return_waypoint = None
+        self._post_open_precontact_odom = None
         self._post_open_return_odom_anchor = None
         self._publish_post_open_twist(Twist())
         self.get_logger().info(f'Post-open side retreat complete: {reason}')

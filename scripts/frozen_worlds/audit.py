@@ -99,7 +99,7 @@ def check(folder):
         live_slam_map_publisher=audit['map_publishers']==['slam_toolbox'],
         no_prior_map=manifest['prior_map'] is None,wheel_odometry=manifest['odometry']=='wheel_encoders',
         no_control_truth_subscription=not truth_consumers,
-        frozen_R243_baseline=manifest.get('baseline_all_hashes_match') is True,
+        frozen_run_baseline=manifest.get('baseline_all_hashes_match') is True,
         all_expected_still_open_at_end=all(angles.get(name,0.)>=2.05 for name in expected),
         all_distinct_physical_doors_processed=completed==expected,
         no_physical_revisit_after_success=not repeated_after_success,

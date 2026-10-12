@@ -715,7 +715,8 @@ class MissionContactAdapter(Node):
             if failure:
                 break
             try:
-                parked = self.tf.lookup_transform('map', 'base_link', Time())
+                # A later SLAM correction must not move this remembered pose.
+                parked = self.tf.lookup_transform('odom', 'base_link', Time())
                 stamp = parked.header.stamp.sec+parked.header.stamp.nanosec*1.e-9
                 age = self.now()-stamp
                 if 0. <= age <= .75:

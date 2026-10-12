@@ -126,7 +126,7 @@ class PostOpenRetreatTests(unittest.TestCase):
         node._contact_return_pose_callback(msg)
         self.assertEqual(node._post_open_return_waypoint, (6.1, -1.4, 0.))
         for state, frame, stamp in ((State.EXPLORING, 'map', 10),
-                                    (State.OPENING_DOOR, 'odom', 10),
+                                    (State.OPENING_DOOR, 'evaluation', 10),
                                     (State.OPENING_DOOR, 'map', 8),
                                     (State.OPENING_DOOR, 'map', 11)):
             node.state = state
@@ -134,6 +134,48 @@ class PostOpenRetreatTests(unittest.TestCase):
             msg.pose.position.x = 8.
             node._contact_return_pose_callback(msg)
             self.assertEqual(node._post_open_return_waypoint, (6.1, -1.4, 0.))
+
+    def test_precontact_odom_pose_survives_later_map_correction(self):
+        from geometry_msgs.msg import PoseStamped
+        node = self.guarded_node(0.)
+        node.state = State.OPENING_DOOR
+        msg = PoseStamped()
+        msg.header.frame_id, msg.header.stamp.sec = 'odom', 10
+        msg.pose.position.x, msg.pose.position.y = 6.1, -1.4
+        msg.pose.orientation.z = math.sin(-math.pi/4)
+        msg.pose.orientation.w = math.cos(-math.pi/4)
+        node._contact_return_pose_callback(msg)
+        node._post_open_side_retreat_start_time = None
+        scene = SimpleNamespace(pose=(15., -3., 1.), odom_pose=(6.6, -2.4, 1.),
+                                safe=Mock(return_value=True), clearance=Mock(return_value=.1))
+        node._current_map_pose = lambda: scene.pose
+        guard = SimpleNamespace(snapshot=Mock(return_value=scene),
+                                recovery_command=Mock(return_value=(0., 0., 'test')),
+                                reset_recovery=Mock())
+        node._post_open_footprint_guard = guard
+        node._run_post_open_side_retreat()
+        self.assertEqual(node._post_open_return_odom_anchor[0], (6.1, -1.4))
+        self.assertAlmostEqual(node._post_open_return_odom_anchor[1], math.pi/2)
+        expected = math.atan2(1., -.5)-1.
+        self.assertAlmostEqual(guard.recovery_command.call_args.args[1], expected)
+        scene.pose = (30., -10., -2.)
+        node._run_post_open_side_retreat()
+        self.assertAlmostEqual(guard.recovery_command.call_args.args[1], expected)
+        node._finish_post_open_side_retreat('test')
+        self.assertIsNone(node._post_open_precontact_odom)
+
+    def test_odom_return_pose_rejects_stale_future_and_wrong_state(self):
+        from geometry_msgs.msg import PoseStamped
+        node = self.node(0.)
+        node._post_open_precontact_odom = None
+        msg = PoseStamped()
+        msg.header.frame_id = 'odom'
+        msg.pose.orientation.w = 1.
+        for state, stamp in ((State.EXPLORING, 10), (State.OPENING_DOOR, 8),
+                             (State.OPENING_DOOR, 11)):
+            node.state, msg.header.stamp.sec = state, stamp
+            node._contact_return_pose_callback(msg)
+            self.assertIsNone(node._post_open_precontact_odom)
 
     def node(self, error_deg):
         node = object.__new__(StateMachineNode)

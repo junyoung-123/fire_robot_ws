@@ -1,4 +1,4 @@
-"""One frozen-code attempt per world; continue after FAIL, never tune or retry."""
+"""One frozen-code attempt per world; retain every result without overwriting."""
 import argparse
 import hashlib
 import json
@@ -13,6 +13,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--baseline', type=Path, required=True)
+    parser.add_argument('--baseline-label', default='R243')
+    parser.add_argument('--worlds', type=int, nargs='+', choices=range(1,6), default=[2,3,4,5])
+    parser.add_argument('--stop-on-failure', action='store_true')
     parser.add_argument('--timeout', type=float, default=21600.)
     parser.add_argument('--prepare-only', action='store_true')
     args = parser.parse_args()
@@ -20,18 +23,19 @@ def main():
     root.mkdir(parents=True, exist_ok=True)
     harness = Path(__file__).resolve().parent
     fixtures = root / 'fixtures'
-    for number in (2, 3, 4, 5):
+    for number in args.worlds:
         fixture = fixtures / f'world{number}_full_contact.world'
         if not fixture.exists():
             build(number, fixture)
     if args.prepare_only:
         return
-    suite = dict(policy='R243 frozen; single attempt each, no tuning after failure',
+    suite = dict(policy=args.baseline_label+' frozen per sequence; no edits during a run',
+        requested_order=args.worlds,
         baseline_sha256=hashlib.sha256(args.baseline.read_bytes()).hexdigest(),
         harness_sha256={p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in harness.glob('*.py')},
         active_world=None, completed=[])
     status = root / 'suite_status.json'
-    for number in (2, 3, 4, 5):
+    for number in args.worlds:
         output = root / f'world{number}'
         if output.exists():
             raise FileExistsError('No automatic retry or overwritten evidence: ' + str(output))
@@ -40,6 +44,7 @@ def main():
         command = [sys.executable, str(harness / 'run.py'), '--world', str(number),
             '--fixture', str(fixtures / f'world{number}_full_contact.world'),
             '--baseline', str(args.baseline.resolve()), '--output', str(output),
+            '--baseline-label', args.baseline_label,
             '--timeout', str(args.timeout), '--full-reference-validation',
             '--contact-motion-policy', 'r34_reference', '--contact-reference-frame', 'contact_scan', '--dds-udp-only']
         with (root / f'world{number}_runner.log').open('w') as stream:
@@ -57,6 +62,9 @@ def main():
         suite['completed'].append(summary)
         status.write_text(json.dumps(suite, indent=2))
         print(json.dumps(summary), flush=True)
+        if not summary['pass_all'] and args.stop_on_failure:
+            suite['stopped_on_failure'] = number
+            break
         if not all(hashlib.sha256((harness/name).read_bytes()).hexdigest() == digest
                    for name, digest in suite['harness_sha256'].items()):
             raise RuntimeError('Test harness changed during frozen sequence')

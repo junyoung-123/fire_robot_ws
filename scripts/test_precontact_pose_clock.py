@@ -28,6 +28,8 @@ class PrecontactPoseClockTests(unittest.TestCase):
         self.assertIs(result, valid)
         self.assertEqual(future.header.stamp.nanosec, 18000000)
         self.assertEqual(node.command.call_count, 2)
+        for call in node.tf.lookup_transform.call_args_list:
+            self.assertEqual(call.args[:2], ('odom', 'base_link'))
         for call in node.command.call_args_list:
             self.assertEqual(call.args, ())
 

@@ -39,9 +39,10 @@ def failed_required_node(path):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--world', type=int, choices=range(2, 6), required=True)
+    parser.add_argument('--world', type=int, choices=range(1, 6), required=True)
     parser.add_argument('--fixture', type=Path, required=True)
     parser.add_argument('--baseline', type=Path, required=True)
+    parser.add_argument('--baseline-label', default='R243')
     parser.add_argument('--timeout', type=float, default=3600)
     parser.add_argument('--contact-probe', action='store_true')
     parser.add_argument('--probe-spawn',type=float,nargs=3,metavar=('X','Y','YAW'),
@@ -64,7 +65,7 @@ def main():
         for group in ('source_sha256', 'model_sha256', 'script_sha256')
         for path, digest in baseline[group].items()}
     if not all(baseline_checks.values()):
-        raise RuntimeError('Frozen R243 baseline mismatch: ' + str([p for p, ok in baseline_checks.items() if not ok]))
+        raise RuntimeError('Frozen source baseline mismatch: ' + str([p for p, ok in baseline_checks.items() if not ok]))
     args.output.mkdir(parents=True, exist_ok=False)
     shutil.copy2(args.fixture, args.output/'world_snapshot.world')
     world = ET.parse(args.fixture).getroot().find('world')
@@ -88,7 +89,8 @@ def main():
                                   and p.suffix in ('.py', '.yaml', '.world', '.xacro', '.cpp')}}
     manifest.update(world_id=args.world, evaluation_blue_models=expected,
         frozen_baseline_sha256=hashlib.sha256(args.baseline.read_bytes()).hexdigest(),
-        baseline_all_hashes_match=True, no_policy_tuning=True)
+        baseline_all_hashes_match=True, baseline_label=args.baseline_label,
+        no_policy_tuning=args.baseline_label == 'R243', no_changes_during_run=True)
     weights = [ws/'src/fire_robot_perception/models'/name for name in
                ('best.pt', 'handle_best_v3_CANDIDATE.pt', 'handle_best_v2.pt')]
     manifest['model_sha256'] = {str(path.relative_to(ws)): hashlib.sha256(path.read_bytes()).hexdigest()
