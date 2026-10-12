@@ -1,5 +1,20 @@
 # Fire Robot Workspace
 
+## 최신 월드1 주행·접촉 개방 통합 성공 (2026-10-12)
+
+**최신 통합 코드: [codex/integrated-contact-20261012](https://github.com/junyoung-123/fire_robot_ws/tree/codex/integrated-contact-20261012), `2666f5d`.**
+이 `master`의 기존 로봇 소스는 보존하며, 이번 변경은 최신 자료 안내뿐입니다.
+
+- [결과·재현·한계](https://github.com/junyoung-123/fire_robot_ws/blob/codex/integrated-contact-20261012/docs/RELEASE_20261012.md)
+- [HTML·증거 이미지·궤적·판정 원본](https://github.com/junyoung-123/fire_robot_ws/tree/codex/integrated-contact-20261012/docs/validation/2026-10-12/world1_r243)
+- [전체 4배속 MP4, 6분 5초](https://github.com/junyoung-123/fire_robot_ws/blob/codex/integrated-contact-20261012/docs/validation/2026-10-12/world1_r243/world1_full_same_run_4x.mp4)
+- R243: 사전 지도 없이 SLAM부터 세 문 PIPER 접촉 개방·해제·팔 회수·차체 전체 출구 통과까지 **한 번의 연속 실행 FULL PASS**. 개방 기준 2.05 rad 유지, 회귀 테스트 843개 PASS.
+- 지도·문 개수·문/장애물 정답 좌표를 제어에 제공하지 않았습니다. 시뮬레이터 정답은 평가 전용이며 로봇 치수·센서 보정·학습 모델·개방 정책·안전 기준은 사전 설정입니다.
+- 월드1 단일 통합 성공입니다. 월드2~5는 동일 제어 코드의 검증만 진행하며 실패 시 수정하지 않습니다. 모든 월드의 통합 성공이나 실물 성공으로 해석하지 않습니다.
+- 팀원 공유 ZIP `팀원공유_월드1_관측통합PASS_20261012.zip`에는 HTML·증거·1배속/4배속 영상·코드 스냅샷이 포함됩니다. 압축 해제 후 `R243_FULL_PASS/00_results.html`을 여세요.
+
+아래 '최신'은 각 과거 기록 날짜 기준입니다. 이전 성공 코드와 실패 증거는 보존합니다.
+
 화재/문 탐지 로봇 시뮬레이션 및 AgileX PIPER 연동 준비용 ROS2 Humble 워크스페이스입니다.
 
 목표 동작은 시작 위치 기준으로 관측한 벽, 문, 장애물 구조를 map 좌표에 축적하고, 가장 가까운 파란문을 선택해 장애물을 피해 접근한 뒤 문 개방 FSM을 수행하는 것입니다. 더 이상 열 파란문이 없으면 초록 비상구를 관측 기반으로 선택해 통과합니다.
