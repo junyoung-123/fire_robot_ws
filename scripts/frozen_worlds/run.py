@@ -52,7 +52,10 @@ def main():
     parser.add_argument('--contact-motion-policy', choices=('measured', 'r34_reference'), default='measured')
     parser.add_argument('--contact-reference-frame', choices=('odom','map','contact_scan'), default='odom')
     parser.add_argument('--dds-udp-only', action='store_true')
+    parser.add_argument('--static-return-memory-sec', type=float, default=2.)
     args = parser.parse_args()
+    if not math.isfinite(args.static_return_memory_sec) or not 2.<=args.static_return_memory_sec<=30.:
+        parser.error('--static-return-memory-sec must be bounded to 2..30 seconds')
     if args.probe_spawn is not None and (not args.contact_probe or not all(math.isfinite(v) for v in args.probe_spawn)):
         parser.error('--probe-spawn requires diagnostic --contact-probe and finite fixture coordinates')
     if args.full_reference_validation and (args.contact_probe or args.contact_motion_policy!='r34_reference'):
@@ -82,6 +85,8 @@ def main():
                 'contact_reference_frame': args.contact_reference_frame,
                 'contact_motion_policy': args.contact_motion_policy,
                 'odometry': 'wheel_encoders', 'environment_truth': 'evaluation_only',
+                'static_post_open_free_memory_sec': args.static_return_memory_sec,
+                'static_memory_assumption': 'fixed obstacles; completed door; fresh hits override history',
                 'domain': env['ROS_DOMAIN_ID'], 'partition': env['IGN_PARTITION'],
                 'dds_transport': 'udp_only' if args.dds_udp_only else 'default',
                 'source_sha256': {str(p.relative_to(ws)): hashlib.sha256(p.read_bytes()).hexdigest()
@@ -142,6 +147,7 @@ def main():
         shutil.copy2(ws/relative, destination)
     commands = [(['ros2', 'launch', str(Path(__file__).parent/'runtime.launch.py'),
                   'contact_reference_frame:='+args.contact_reference_frame,
+                  'guard_static_free_history_sec:='+str(args.static_return_memory_sec),
                   'contact_motion_policy:='+args.contact_motion_policy], 'simulation.log'),
                 (['ros2', 'run', 'ros_gz_bridge', 'parameter_bridge',
                   '/odom@nav_msgs/msg/Odometry[gz.msgs.Odometry', '--ros-args',

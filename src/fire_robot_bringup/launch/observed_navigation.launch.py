@@ -85,7 +85,9 @@ def start(context):
                   float(PIPER_BODY_OUTLINE[:,1].min()), float(PIPER_BODY_OUTLINE[:,1].max())]
         for name in ('cmd_vel_safety_node', 'state_machine_node'):
             app[name]['ros__parameters'].update({
-                'guarded_footprint_enabled': True, 'guard_footprint_bounds_m': list(bounds)})
+                'guarded_footprint_enabled': True, 'guard_footprint_bounds_m': list(bounds),
+                'guard_static_free_history_sec': float(
+                    LaunchConfiguration('guard_static_free_history_sec').perform(context))})
         app['state_machine_node']['ros__parameters'].update({
             # All mission motions need body sweeps. Only the separately
             # checked arm/contact controller uses the near-contact channel.
@@ -147,6 +149,7 @@ def generate_launch_description():
         DeclareLaunchArgument('spawn_yaw', default_value='0.0'),
         DeclareLaunchArgument('enable_mission_fsm', default_value='true'),
         DeclareLaunchArgument('guarded_post_open', default_value='false'),
+        DeclareLaunchArgument('guard_static_free_history_sec', default_value='2.0'),
         DeclareLaunchArgument('lidar_tf_x', default_value='0.2'),
         DeclareLaunchArgument('lidar_tf_z', default_value='0.07'),
         DeclareLaunchArgument('raw_scan_topic', default_value='/scan'),

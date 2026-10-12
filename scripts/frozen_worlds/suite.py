@@ -18,6 +18,7 @@ def main():
     parser.add_argument('--stop-on-failure', action='store_true')
     parser.add_argument('--timeout', type=float, default=21600.)
     parser.add_argument('--prepare-only', action='store_true')
+    parser.add_argument('--static-return-memory-sec', type=float, default=2.)
     args = parser.parse_args()
     root = args.output.resolve()
     root.mkdir(parents=True, exist_ok=True)
@@ -31,6 +32,7 @@ def main():
         return
     suite = dict(policy=args.baseline_label+' frozen per sequence; no edits during a run',
         requested_order=args.worlds,
+        static_post_open_free_memory_sec=args.static_return_memory_sec,
         baseline_sha256=hashlib.sha256(args.baseline.read_bytes()).hexdigest(),
         harness_sha256={p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in harness.glob('*.py')},
         active_world=None, completed=[])
@@ -45,6 +47,7 @@ def main():
             '--fixture', str(fixtures / f'world{number}_full_contact.world'),
             '--baseline', str(args.baseline.resolve()), '--output', str(output),
             '--baseline-label', args.baseline_label,
+            '--static-return-memory-sec', str(args.static_return_memory_sec),
             '--timeout', str(args.timeout), '--full-reference-validation',
             '--contact-motion-policy', 'r34_reference', '--contact-reference-frame', 'contact_scan', '--dds-udp-only']
         with (root / f'world{number}_runner.log').open('w') as stream:

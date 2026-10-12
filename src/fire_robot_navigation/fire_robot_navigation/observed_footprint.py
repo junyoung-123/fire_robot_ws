@@ -5,7 +5,8 @@ from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 
 
-def historical_ray_support(points, current_odom, current_stamp, history, margin=.08):
+def historical_ray_support(points, current_odom, current_stamp, history, margin=.08,
+                           max_age_sec=2.):
     """Two recent, independent measured views may cover a current blind ray.
 
     Poses are timestamped wheel odometry, not SLAM map corrections. Unknown or
@@ -14,7 +15,8 @@ def historical_ray_support(points, current_odom, current_stamp, history, margin=
     points=np.asarray(points,float)
     current_odom=np.asarray(current_odom,float)
     if (current_odom.shape!=(3,) or not np.isfinite(current_odom).all()
-            or not math.isfinite(current_stamp)):
+            or not math.isfinite(current_stamp)
+            or not math.isfinite(max_age_sec) or not 0.<max_age_sec<=30.):
         return np.zeros(len(points),bool)
     c,s=math.cos(current_odom[2]),math.sin(current_odom[2])
     world=points@np.array([[c,s],[-s,c]])+current_odom[:2]
@@ -22,11 +24,23 @@ def historical_ray_support(points, current_odom, current_stamp, history, margin=
     used=[]
     for stamp,pose,sensor,scan in reversed(history):
         # Separation prevents repeated callbacks from becoming extra evidence.
-        if not .08<=current_stamp-stamp<=2. or any(abs(stamp-t)<.12 for t in used):
+        age=current_stamp-stamp
+        separation = .12 if age<=2. else 1.5
+        if not .08<=age<=max_age_sec or any(abs(stamp-t)<separation for t in used):
             continue
         pose,sensor=np.asarray(pose,float),np.asarray(sensor,float)
         if pose.shape!=(3,) or sensor.shape!=(3,) or not np.isfinite(np.r_[pose,sensor]).all():
             continue
+        extra_margin=0.
+        if age>2.:
+            # Explicit static-scene mode only. Bound local odometry separation
+            # and reserve additional translation/yaw uncertainty for old rays.
+            displacement=float(np.linalg.norm(current_odom[:2]-pose[:2]))
+            turn=abs(math.atan2(math.sin(current_odom[2]-pose[2]),
+                                math.cos(current_odom[2]-pose[2])))
+            if displacement>.5 or turn>math.pi/2:
+                continue
+            extra_margin=.02*displacement+.01*turn
         ranges=np.asarray(scan.ranges,float)
         if len(ranges)<3 or not math.isfinite(scan.angle_increment) or scan.angle_increment<=0.:
             continue
@@ -40,8 +54,10 @@ def historical_ray_support(points, current_odom, current_stamp, history, margin=
         neighbors=np.clip(index[:,None]+np.array([-1,0,1]),0,len(limits)-1)
         observed=np.min(limits[neighbors],axis=1)
         support+=((index>=0)&(index<len(limits))&np.isfinite(observed)
-                  &(np.linalg.norm(local,axis=1)+margin<observed))
+                  &(np.linalg.norm(local,axis=1)+margin+extra_margin<observed))
         used.append(stamp)
+        if np.all(support>=2):
+            break
     return support>=2
 
 
@@ -55,11 +71,13 @@ def arc_pose(speed, angular, elapsed):
 
 class ObservedSweep:
     def __init__(self, scan, sensor_pose, body_bounds, map_pose, grid, margin=.05,
-                 free_history=(), odom_pose=None, measurement_stamp=None):
+                 free_history=(), odom_pose=None, measurement_stamp=None,
+                 free_history_age_sec=2.):
         self.scan, self.sensor = scan, np.asarray(sensor_pose, float)
         self.bounds, self.pose = np.asarray(body_bounds, float), np.asarray(map_pose, float)
         self.grid, self.margin = grid, margin
         self.free_history,self.odom_pose,self.measurement_stamp=free_history,odom_pose,measurement_stamp
+        self.free_history_age_sec=free_history_age_sec
         if (self.bounds.shape != (4,) or not np.isfinite(self.bounds).all()
                 or self.bounds[0] >= self.bounds[1] or self.bounds[2] >= self.bounds[3]
                 or self.sensor.shape != (3,) or self.pose.shape != (3,)
@@ -112,7 +130,8 @@ class ObservedSweep:
             blind=in_scan & np.isnan(limits) & known_rays_clear
             if blind.any():
                 free[blind] |= historical_ray_support(points[blind],self.odom_pose,
-                    self.measurement_stamp,self.free_history,margin=ray_margin+.03)
+                    self.measurement_stamp,self.free_history,margin=ray_margin+.03,
+                    max_age_sec=self.free_history_age_sec)
         if free.all() or self.grid is None:
             return free
         info = self.grid.info
@@ -239,6 +258,14 @@ class ObservedSweep:
         # Every segment uses the same observed-space and whole-body checks.
         commands = [(v, w) for v in (speed, 0., -speed)
                     for w in (0., -.24, .24) if abs(v)+abs(w) > 1.e-8]
+        # Doorway clearances can admit a short arc but reject every 9cm/20deg
+        # primitive. Keep those smaller, fully checked steps in the route too,
+        # rather than allowing them only in the one-step fallback above.
+        fine_speed = min(speed, .03)
+        commands += [(v, w) for v in (fine_speed, -fine_speed)
+                     for w in (0., -.08, .08)]
+        commands += [(0., -.08), (0., .08)]
+        commands = list(dict.fromkeys(commands))
         beam = [(0., np.zeros(3), [], 0.)]
         solutions = []
         for depth in range(depth_limit):
@@ -266,6 +293,10 @@ class ObservedSweep:
             if not candidates:
                 break
             beam = sorted(candidates.values(), key=lambda item: item[0], reverse=True)[:beam_width]
+            # Reobserve after the shortest useful escape; a longer route is
+            # not worth exhausting the freshness budget of its sensor proof.
+            if solutions:
+                break
         if not solutions:
             return None
         self.recovery_path = max(solutions, key=lambda item: item[0])[2]
@@ -282,22 +313,36 @@ class ObservedFootprintGuard:
     """ROS adapter shared by candidate selection and the final velocity gate."""
     def __init__(self, node):
         from nav_msgs.msg import OccupancyGrid
+        from std_msgs.msg import String
         from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy
         from tf2_ros import Buffer, TransformListener
         self.node = node
         node.declare_parameter('guard_footprint_bounds_m', [-.245, .312, -.226, .226])
+        node.declare_parameter('guard_static_free_history_sec', 2.)
         self.bounds = node.get_parameter('guard_footprint_bounds_m').value
+        self.free_history_age_sec=float(node.get_parameter('guard_static_free_history_sec').value)
+        if not math.isfinite(self.free_history_age_sec) or not 2.<=self.free_history_age_sec<=30.:
+            raise ValueError('Static free-space memory must be bounded to 2..30 seconds')
         self.tf = Buffer()
         self.listener = TransformListener(self.tf, node)
         self.grid = None
         self.recovery = None
-        self.free_history = deque(maxlen=20)
+        self.free_history = deque(maxlen=math.ceil(self.free_history_age_sec/.12)+2)
+        self.static_history_ready = False
+        self.phase_sub = node.create_subscription(String, '/manipulation_phase', self.on_phase, 10)
         qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE,
                          durability=DurabilityPolicy.TRANSIENT_LOCAL)
         self.sub = node.create_subscription(OccupancyGrid, '/global_costmap/costmap', self.on_grid, qos)
 
     def on_grid(self, msg):
         self.grid = (msg, self.node.get_clock().now().nanoseconds*1.e-9)
+
+    def on_phase(self, msg):
+        ready = msg.data.split(':', 1)[0] == 'COMPLETE'
+        if ready != self.static_history_ready:
+            # Never reuse free rays from before/during a moving door.
+            self.free_history.clear()
+        self.static_history_ready = ready
 
     def reset_recovery(self):
         self.recovery=None
@@ -475,7 +520,8 @@ class ObservedFootprintGuard:
             except TransformException:
                 pass
             scene=ObservedSweep(scan,sensor,self.bounds,pose,grid,
-                free_history=list(self.free_history),odom_pose=odom_pose,measurement_stamp=stamp)
+                free_history=list(self.free_history),odom_pose=odom_pose,measurement_stamp=stamp,
+                free_history_age_sec=(self.free_history_age_sec if self.static_history_ready else 2.))
             if odom_pose is not None:
                 if self.free_history and stamp<self.free_history[-1][0]:
                     self.free_history.clear()
