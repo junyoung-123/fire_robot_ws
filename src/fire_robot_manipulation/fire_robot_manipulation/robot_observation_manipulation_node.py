@@ -930,6 +930,56 @@ class RobotObservationManipulation(R34ReferenceMotion, MinimalObservedAngle):
             return False
         return super()._feedback_settle_held_target()
 
+    def _feedback_retain_lever_press(self):
+        following=(getattr(self,'_feedback_full_handle_follow',False)
+                   and getattr(self,'_feedback_follow_mode',None)=='encoder_lever_contact'
+                   and self._phase in ('LATCH_CLEAR_PUSH','HANDLE_HELD_BASE_OPEN'))
+        if not following:
+            return super()._feedback_retain_lever_press()
+        previous_goal=self._feedback_last_cartesian_target.copy()
+        previous_depth=self._feedback_press_depth
+        if not super()._feedback_retain_lever_press():
+            return False
+        if self._feedback_press_depth==previous_depth:
+            return True
+        # Retain only the explicit, response-confirmed press command's shift.
+        # Rebasing every encoder sample would integrate load error into motion.
+        goal=self._feedback_last_cartesian_target.copy()
+        shift=goal-previous_goal
+        shift[2]=0.
+        actual=self._feedback_tool()
+        cfg=self._feedback_config
+        if (actual is None or not self._feedback_fresh()
+                or not np.isfinite(shift).all()
+                or np.linalg.norm(shift)>cfg['tool_tolerance_m']):
+            return self._feedback_stop('Confirmed hold correction cannot update contact reference')
+        door0,yaw0,_=self._feedback_contact_orientation_reference
+        heading=self._sim_door_position-door0-self._feedback_base_yaw()+yaw0
+        normal=np.array([math.cos(heading),math.sin(heading),0.])
+        residual=actual-goal
+        if (not np.isfinite(residual).all()
+                or np.linalg.norm(residual)>cfg['tracking_limit_m']
+                or abs(residual@normal)>cfg['tool_tolerance_m']
+                or abs(residual[2])>cfg['tool_tolerance_m']):
+            return self._feedback_stop('Confirmed hold correction exceeds original pose bounds')
+        try:
+            transform=self._tf_buffer.lookup_transform(
+                self._contact_reference_frame,self._manipulation_frame,Time(),
+                timeout=Duration(seconds=.1))
+            q=transform.transform.rotation
+            fixed_shift=rotation_matrix([q.x,q.y,q.z,q.w])@shift
+        except (ValueError,TransformException) as exc:
+            return self._feedback_stop('Confirmed hold reference transform: '+str(exc))
+        reference,previous,angle=self._feedback_sweep_state
+        self._feedback_sweep_state=(reference+fixed_shift,previous,angle)
+        self._feedback_press_origin[:2]=goal[:2]
+        self._feedback_event('confirmed_hold_reference_shift',
+            previous_target_xyz=previous_goal.tolist(),requested_tool_xyz=goal.tolist(),
+            fixed_reference_shift_xyz=fixed_shift.tolist(),
+            actual_tool_xyz=actual.tolist(),
+            basis='response_confirmed_bounded_press_command_not_passive_encoder_drift')
+        return True
+
     def _feedback_loaded_settle_goal(self,goal,actual):
         if self._phase not in ('LATCH_CLEAR_PUSH', 'HANDLE_HELD_BASE_OPEN'):
             return goal
@@ -946,6 +996,9 @@ class RobotObservationManipulation(R34ReferenceMotion, MinimalObservedAngle):
                 or np.linalg.norm(residual)>cfg['tracking_limit_m']
                 or abs(residual@normal)>cfg['tool_tolerance_m']
                 or abs(residual[2])>cfg['tool_tolerance_m']):
+            self._feedback_event('loaded_pose_bound_exceeded',
+                requested_tool_xyz=np.asarray(goal).tolist(),actual_tool_xyz=actual.tolist(),
+                normal_error_m=float(residual@normal),vertical_error_m=float(residual[2]))
             self._feedback_stop('Loaded preload exceeds original pose bounds')
             return None
         # Relieve measured excess preload during latch probes as well, before
