@@ -1,7 +1,7 @@
 import math
 from types import SimpleNamespace as NS
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 from concurrent.futures import Future
 import numpy as np
 from fire_robot_navigation.observed_footprint import (
@@ -479,6 +479,37 @@ class ObservedFootprintTests(unittest.TestCase):
         scene.free_history=self.history()
         scene.odom_pose=np.zeros(3);scene.measurement_stamp=10.
         self.assertFalse(scene.observed_free(np.array([[1.,0.]])).all())
+
+    def test_map_supported_blind_points_do_not_repeat_history_search(self):
+        scene=self.scene()
+        scene.ray_limits[:]=math.nan
+        scene.free_history=self.history()
+        scene.odom_pose=np.zeros(3);scene.measurement_stamp=10.
+        scene.local_grid=self.grid(0)
+        with patch('fire_robot_navigation.observed_footprint.historical_ray_support') as history:
+            self.assertTrue(scene.observed_free(np.array([[-.4,0.],[.4,0.]])).all())
+            history.assert_not_called()
+
+    def test_local_occupied_blind_points_cannot_fall_back_to_history(self):
+        scene=self.scene(grid=self.grid(0))
+        scene.ray_limits[:]=math.nan
+        scene.free_history=self.history()
+        scene.odom_pose=np.zeros(3);scene.measurement_stamp=10.
+        for cost in (99,100):
+            scene.local_grid=self.grid(cost)
+            with patch('fire_robot_navigation.observed_footprint.historical_ray_support') as history:
+                self.assertFalse(scene.observed_free(np.array([[-.4,0.],[.4,0.]])).any())
+                history.assert_not_called()
+
+    def test_unknown_map_still_requires_two_independent_measured_rays(self):
+        scene=self.scene(grid=self.grid(-1))
+        scene.ray_limits[:]=math.nan
+        scene.odom_pose=np.zeros(3);scene.measurement_stamp=10.
+        scene.local_grid=self.grid(-1)
+        scene.free_history=self.history(stamps=(9.8,))
+        self.assertFalse(scene.observed_free(np.array([[-.4,0.]])).any())
+        scene.free_history=self.history()
+        self.assertTrue(scene.observed_free(np.array([[-.4,0.]])).all())
 
     def test_old_future_duplicate_or_single_views_cannot_certify_blind_space(self):
         points=np.array([[-.4,0.]])

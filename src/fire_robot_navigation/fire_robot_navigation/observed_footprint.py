@@ -129,12 +129,6 @@ class ObservedSweep:
             return free
         known_limit = np.min(np.where(np.isnan(neighbor_limits), np.inf, neighbor_limits), axis=1)
         known_rays_clear = distance+ray_margin < known_limit
-        if self.free_history and self.odom_pose is not None and self.measurement_stamp is not None:
-            blind=in_scan & np.isnan(limits) & known_rays_clear
-            if blind.any():
-                free[blind] |= historical_ray_support(points[blind],self.odom_pose,
-                    self.measurement_stamp,self.free_history,margin=ray_margin+.03,
-                    max_age_sec=self.free_history_age_sec)
         blind = in_scan & np.isnan(limits) & known_rays_clear
         remembered = self._grid_costs(points, self.pose, self.grid)
         support = (remembered >= 0) & (remembered < 99)
@@ -144,11 +138,19 @@ class ObservedSweep:
             # never by a saved map or automatic footprint clearing. Odometry
             # keeps its local memory independent of SLAM map corrections.
             support |= local == 0
-            free[blind & (local >= 99)] = False
-            support &= local < 99
+            blind &= local < 99
         # 99 is Nav2's inscribed cost: inflation may put it into an UNKNOWN
         # cell without a clearing ray. It cannot prove observed free space.
-        return free | (blind & support)
+        free |= blind & support
+        # Check expensive ray history only where the same observed maps have
+        # not already supplied proof. Local occupied cells still veto history.
+        remaining = blind & ~free
+        if (remaining.any() and self.free_history and self.odom_pose is not None
+                and self.measurement_stamp is not None):
+            free[remaining] |= historical_ray_support(points[remaining],self.odom_pose,
+                self.measurement_stamp,self.free_history,margin=ray_margin+.03,
+                max_age_sec=self.free_history_age_sec)
+        return free
 
     @staticmethod
     def _grid_costs(points, pose, grid):
@@ -292,31 +294,56 @@ class ObservedSweep:
         commands = list(dict.fromkeys(commands))
         beam = [(0., np.zeros(3), [], 0.)]
         solutions = []
+        visited = {}
         for depth in range(depth_limit):
             candidates = {}
             for _, start, path, traveled in beam:
+                start_key = (round(start[0]/.025), round(start[1]/.025), round(start[2]/.10))
+                start_cost = (depth, traveled)
+                if start_key in visited and visited[start_key] <= start_cost:
+                    continue
+                visited[start_key] = start_cost
                 for v, w in commands:
-                    if not self.safe(v, w, start=start):
-                        continue
                     local = arc_pose(v, w, 1.5)
                     c, s = math.cos(start[2]), math.sin(start[2])
                     end = local.copy()
                     end[:2] = local[:2] @ np.array([[c, s], [-s, c]]) + start[:2]
                     end[2] += start[2]
                     distance = traveled + abs(v)*1.5
+                    key = (round(end[0]/.025), round(end[1]/.025), round(end[2]/.10))
+                    cost = (depth+1, distance)
+                    # Only expanded states count as visited; a pruned beam
+                    # candidate must remain available to a later route.
+                    if key in visited and visited[key] <= cost:
+                        continue
+                    if not self.safe(v, w, start=start):
+                        continue
                     progress = end[0]*math.cos(yaw_error)+end[1]*math.sin(yaw_error)
                     error = math.atan2(math.sin(yaw_error-end[2]), math.cos(yaw_error-end[2]))
                     gain = min(.4, self.clearance(end))-min(.4, start_gap)
                     score = 4*progress + 1.2*(abs(yaw_error)-abs(error)) + .8*gain - .10*distance
                     item = (score, end, path+[(v, w, end.copy())], distance)
-                    key = (round(end[0]/.025), round(end[1]/.025), round(end[2]/.10))
                     if key not in candidates or score > candidates[key][0]:
                         candidates[key] = item
                     if progress > minimum_progress and depth > 0:
                         solutions.append(item)
             if not candidates:
                 break
-            beam = sorted(candidates.values(), key=lambda item: item[0], reverse=True)[:beam_width]
+            # A blocked straight return needs headings that initially point
+            # away from the goal. Keep angular diversity instead of filling
+            # the beam with near-identical goal-facing poses at the obstacle.
+            beam = []
+            headings = {}
+            per_heading = max(2, beam_width//12)
+            for item in sorted(candidates.values(), key=lambda item: item[0], reverse=True):
+                heading = math.atan2(math.sin(item[1][2]-yaw_error),math.cos(item[1][2]-yaw_error))
+                bucket = round(heading/.36)
+                if headings.get(bucket,0) >= per_heading:
+                    continue
+                headings[bucket] = headings.get(bucket,0)+1
+                beam.append(item)
+                if len(beam) >= beam_width:
+                    break
             # Reobserve after the shortest useful escape; a longer route is
             # not worth exhausting the freshness budget of its sensor proof.
             if solutions:
