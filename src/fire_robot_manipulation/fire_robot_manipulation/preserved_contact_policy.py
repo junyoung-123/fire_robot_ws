@@ -1919,6 +1919,9 @@ class ManipulationNode(Node):
                     door_position_rad=self._sim_door_position)
         return success
 
+    def _feedback_loaded_settle_goal(self, goal, actual):
+        return goal
+
     def _feedback_move_tool(self, goal, stage):
         if not self._feedback_command_point(goal, stage):
             return False
@@ -1955,6 +1958,15 @@ class ManipulationNode(Node):
             if desired is None:
                 desired = self._piper_kinematics.approach_rotation
             orientation_error = float(np.linalg.norm(self._piper_kinematics._rotation_error(rotation, desired)))
+            if stage == 'encoder_contact_follow' and getattr(self, '_feedback_full_handle_follow', False):
+                updated = self._feedback_loaded_settle_goal(goal, actual)
+                if updated is None:
+                    return False
+                if not np.array_equal(updated, goal):
+                    goal = updated
+                    error = float(np.linalg.norm(actual-goal))
+                    stable_since = None
+                    previous_sample = None
             if self._sim_time_sec() >= next_sample:
                 self._feedback_event('approach_sample', stage=stage,
                                      actual_tool_xyz=actual.tolist(),

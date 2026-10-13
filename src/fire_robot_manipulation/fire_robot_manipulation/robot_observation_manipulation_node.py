@@ -926,19 +926,28 @@ class RobotObservationManipulation(R34ReferenceMotion, MinimalObservedAngle):
         self._publish_sim_cmd_vel(0.,0.)
         actual=self._feedback_tool()
         goal=self._feedback_last_cartesian_target.copy()
+        if self._feedback_loaded_settle_goal(goal,actual) is None:
+            return False
+        return super()._feedback_settle_held_target()
+
+    def _feedback_loaded_settle_goal(self,goal,actual):
+        if self._phase not in ('LATCH_CLEAR_PUSH', 'HANDLE_HELD_BASE_OPEN'):
+            return goal
         cfg=self._feedback_config
         if actual is None or not self._feedback_fresh():
-            return self._feedback_stop('Preload release needs fresh robot observations')
+            self._feedback_stop('Preload release needs fresh robot observations')
+            return None
         door0,yaw0,_=self._feedback_contact_orientation_reference
         alpha=self._sim_door_position-door0-self._feedback_base_yaw()+yaw0
         normal=np.array([math.cos(alpha),math.sin(alpha),0.])
         residual=actual-goal
-        if self._phase == 'LATCH_CLEAR_PUSH' and (
+        if (
                 not np.isfinite(residual).all()
                 or np.linalg.norm(residual)>cfg['tracking_limit_m']
                 or abs(residual@normal)>cfg['tool_tolerance_m']
                 or abs(residual[2])>cfg['tool_tolerance_m']):
-            return self._feedback_stop('Latch preload exceeds original pose bounds')
+            self._feedback_stop('Loaded preload exceeds original pose bounds')
+            return None
         # Relieve measured excess preload during latch probes as well, before
         # it can exceed the unchanged 15 mm bound at the opening handoff.
         unloading_supported=(
@@ -964,8 +973,9 @@ class RobotObservationManipulation(R34ReferenceMotion, MinimalObservedAngle):
                 depth=float(self._feedback_press_origin[2]-released[2])
                 if not 0.<=depth<=cfg['press_max_travel_m']:
                     raise ValueError('Released preload lies outside the original press travel bounds')
+                self._publish_sim_cmd_vel(0.,0.)
                 if not self._feedback_command_point(released,'encoder_contact_follow'):
-                    return False
+                    return None
                 # Following rebuilds z from the press origin and depth; retain
                 # this measured unloading instead of restoring the old preload.
                 previous_depth=self._feedback_press_depth
@@ -977,9 +987,11 @@ class RobotObservationManipulation(R34ReferenceMotion, MinimalObservedAngle):
                     previous_commanded_depth_m=previous_depth,retained_commanded_depth_m=depth,
                     normal_shift_m=float((released-goal)@normal),force_sensor_used=False,
                     basis='own_encoder_residual_with_retained_grip_and_wrist_roll')
+                goal=released
             except (ValueError,TransformException) as exc:
-                return self._feedback_stop('Measured preload release: '+str(exc))
-        return super()._feedback_settle_held_target()
+                self._feedback_stop('Measured preload release: '+str(exc))
+                return None
+        return goal
 
     def _sim_door_state_callback(self,msg):
         # Even accidental raw-state injection cannot update either control value.
