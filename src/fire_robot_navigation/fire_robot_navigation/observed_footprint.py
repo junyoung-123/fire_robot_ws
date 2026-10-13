@@ -407,6 +407,7 @@ class ObservedFootprintGuard:
 
     def reset_recovery(self):
         self.recovery=None
+        self.recovery_route_goal=None
         self.last_recovery_progress_time=None
         self.recovery_segment_start=None
         pending=getattr(self,'pending_recovery',None)
@@ -431,8 +432,21 @@ class ObservedFootprintGuard:
         tracking_pose=scene.pose if odom is None else np.asarray(odom,float)
         if np.shape(tracking_pose)!=(3,) or not np.isfinite(tracking_pose).all():
             self.recovery=None
+            self.recovery_route_goal=None
             return 0.,0.,'INVALID_TRACKING_POSE'
         tracking_frame='map' if odom is None else 'odom'
+        route=getattr(self,'recovery_route_goal',None)
+        if route is not None:
+            goal,frame,started=route
+            delta=goal[:2]-tracking_pose[:2]
+            if (frame!=tracking_frame or not 0.<=now-started<=60.
+                    or np.linalg.norm(delta)<=.06):
+                self.recovery_route_goal=None
+            else:
+                # A blocked primitive may need a new local path, but not a
+                # return to the obstacle-facing heading it just escaped.
+                direction=math.atan2(delta[1],delta[0])-tracking_pose[2]
+                yaw_error=math.atan2(math.sin(direction),math.cos(direction))
         pending=getattr(self,'pending_recovery',None)
         if pending is not None:
             future,origin,frame,started=pending
@@ -544,6 +558,10 @@ class ObservedFootprintGuard:
             goal[2]+=origin[2]
             path.append((v,w,goal))
         self.recovery=(path,now)
+        if len(path)>1 and getattr(self,'recovery_route_goal',None) is None:
+            # This is a geometric waypoint, never permission to replay old
+            # velocity commands. Live sweep checks and job deadlines remain.
+            self.recovery_route_goal=(path[-1][2].copy(),frame,now)
         self.last_recovery_rejection=None
         self.recovery_frame=frame
         self.recovery_segment_start=np.asarray(origin,float).copy()

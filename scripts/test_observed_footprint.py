@@ -356,6 +356,48 @@ class ObservedFootprintTests(unittest.TestCase):
         self.assertIsNone(guard.last_recovery_progress_time)
         self.assertIsNone(guard.recovery_segment_start)
 
+    def test_interrupted_escape_keeps_its_checked_detour_goal(self):
+        guard,scene=self.recovery_fixture()
+        guard.recovery=None
+        guard.recovery_route_goal=(np.array([.16,-.17,-.6]),'odom',10.)
+        scene.odom_pose=np.array([-.08,.01,-.4])
+        guard.recovery_command(scene,0.,16.)
+        expected=math.atan2(-.18,.24)+.4
+        self.assertAlmostEqual(scene.choose.call_args.args[0],expected)
+        self.assertIsNotNone(guard.recovery_route_goal)
+
+    def test_detour_intent_expires_on_time_frame_change_or_arrival(self):
+        for kind in ('expired','future','frame','arrived'):
+            guard,scene=self.recovery_fixture()
+            guard.recovery=None
+            guard.recovery_route_goal=(np.array([.16,-.17,-.6]),'odom',10.)
+            scene.odom_pose=np.zeros(3)
+            now=11.
+            if kind=='expired':now=70.01
+            if kind=='future':now=9.
+            if kind=='frame':scene.odom_pose=None
+            if kind=='arrived':scene.odom_pose=np.array([.15,-.16,-.6])
+            guard.recovery_command(scene,.7,now)
+            self.assertEqual(scene.choose.call_args.args[0],.7)
+            self.assertIsNone(guard.recovery_route_goal)
+
+    def test_replanned_segments_do_not_renew_old_detour_deadline(self):
+        guard,scene=self.recovery_fixture()
+        intent=(np.array([.16,-.17,-.6]),'odom',10.)
+        guard.recovery_route_goal=intent
+        path=[(-.06,0.,np.array([-.09,0.,0.])),(0.,-.24,np.array([-.09,0.,-.36]))]
+        guard._store_recovery(path,np.zeros(3),'odom',20.)
+        self.assertIs(guard.recovery_route_goal,intent)
+        guard.reset_recovery()
+        self.assertIsNone(guard.recovery_route_goal)
+
+    def test_detour_intent_does_not_execute_a_blocked_primitive(self):
+        guard,scene=self.recovery_fixture()
+        guard.recovery_route_goal=(np.array([.16,-.17,-.6]),'map',10.)
+        scene.safe.return_value=False
+        self.assertEqual(guard.recovery_command(scene,0.,11.)[:2],(0.,0.))
+        self.assertIsNotNone(guard.recovery_route_goal)
+
     def test_extended_planning_keeps_robot_stopped_without_blocking_callback(self):
         guard,scene=self.recovery_fixture()
         guard.recovery=None
