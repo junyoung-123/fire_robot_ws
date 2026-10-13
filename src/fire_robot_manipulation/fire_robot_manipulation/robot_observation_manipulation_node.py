@@ -930,21 +930,14 @@ class RobotObservationManipulation(R34ReferenceMotion, MinimalObservedAngle):
             return False
         return super()._feedback_settle_held_target()
 
-    def _feedback_retain_lever_press(self):
+    def _feedback_confirmed_hold_reference(self,previous_goal,goal):
         following=(getattr(self,'_feedback_full_handle_follow',False)
                    and getattr(self,'_feedback_follow_mode',None)=='encoder_lever_contact'
                    and self._phase in ('LATCH_CLEAR_PUSH','HANDLE_HELD_BASE_OPEN'))
         if not following:
-            return super()._feedback_retain_lever_press()
-        previous_goal=self._feedback_last_cartesian_target.copy()
-        previous_depth=self._feedback_press_depth
-        if not super()._feedback_retain_lever_press():
-            return False
-        if self._feedback_press_depth==previous_depth:
             return True
         # Retain only the explicit, response-confirmed press command's shift.
         # Rebasing every encoder sample would integrate load error into motion.
-        goal=self._feedback_last_cartesian_target.copy()
         shift=goal-previous_goal
         shift[2]=0.
         actual=self._feedback_tool()

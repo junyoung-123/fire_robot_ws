@@ -2564,6 +2564,9 @@ class ManipulationNode(Node):
                              requested_tool_xyz=goal.tolist(), actual_tool_xyz=actual.tolist())
         return True
 
+    def _feedback_confirmed_hold_reference(self, previous_goal, goal):
+        return True
+
     def _feedback_retain_lever_press(self):
         actual = self._feedback_tool()
         cfg = self._feedback_config
@@ -2597,6 +2600,7 @@ class ManipulationNode(Node):
         if depth > cfg['press_max_travel_m']:
             return self._feedback_stop('Lever hold correction reached press travel limit')
         goal[2] = self._feedback_press_origin[2] - depth
+        previous_goal = self._feedback_last_cartesian_target.copy()
         if not self._feedback_command_point(goal, 'feedback_lever_hold'):
             return False
         # IK runs while physics continues. Compare the response with the
@@ -2613,8 +2617,10 @@ class ManipulationNode(Node):
                              actual_tool_xyz=actual.tolist(), requested_tool_xyz=goal.tolist(),
                              lever_delta_rad=lever_delta,
                              retained_lever_delta_rad=self._feedback_lever_hold_delta)
-        return self._feedback_confirm_latch_press_response(
-            lever_before, door_before, require_lever_motion=True)
+        if not self._feedback_confirm_latch_press_response(
+                lever_before, door_before, require_lever_motion=True):
+            return False
+        return self._feedback_confirmed_hold_reference(previous_goal, goal)
 
     def _feedback_confirm_latch_press_response(
             self, lever_before, door_before, require_lever_motion=False):
