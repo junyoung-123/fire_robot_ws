@@ -489,8 +489,10 @@ class ObservedFootprintGuard:
         command = scene.choose(yaw_error)
         if scene.recovery_path:
             self._store_recovery(scene.recovery_path,tracking_pose,tracking_frame,now)
-        elif (command[2] in ('NO_OBSERVED_SWEEP','NO_OBSERVED_PROGRESS','OBSERVED_FOOTPRINT_SWEEP')
-                and command[0]<=.03 and abs(command[1])<=.04
+        # A short, positively scored sweep already has current sensor support.
+        # Let it expose the next view instead of replacing it with a stopped
+        # long search. Extended planning is only for an actually blocked step.
+        elif (command[2] in ('NO_OBSERVED_SWEEP','NO_OBSERVED_PROGRESS')
                 and now>=getattr(self,'next_extended_plan',0.)
                 and hasattr(scene,'extended_recovery_path')):
             old_task=getattr(self,'recovery_task',None)

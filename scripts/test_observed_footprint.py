@@ -359,7 +359,7 @@ class ObservedFootprintTests(unittest.TestCase):
     def test_extended_planning_keeps_robot_stopped_without_blocking_callback(self):
         guard,scene=self.recovery_fixture()
         guard.recovery=None
-        scene.choose.return_value=(.015,0.,'OBSERVED_FOOTPRINT_SWEEP')
+        scene.choose.return_value=(0.,0.,'NO_OBSERVED_SWEEP')
         scene.extended_recovery_path=Mock()
         pending=Future()
         guard.recovery_executor=Mock()
@@ -367,6 +367,27 @@ class ObservedFootprintTests(unittest.TestCase):
         self.assertEqual(guard.recovery_command(scene,0.,10.),(0.,0.,'PLANNING_OBSERVED_ESCAPE'))
         self.assertEqual(guard.recovery_command(scene,0.,10.1),(0.,0.,'PLANNING_OBSERVED_ESCAPE'))
         guard.recovery_executor.submit.assert_called_once()
+
+    def test_safe_fine_progress_is_not_replaced_by_a_stopped_long_search(self):
+        for speed in (.015,.03):
+            guard,scene=self.recovery_fixture()
+            guard.recovery=None
+            scene.choose.return_value=(speed,0.,'OBSERVED_FOOTPRINT_SWEEP')
+            scene.extended_recovery_path=Mock()
+            guard.recovery_executor=Mock()
+            self.assertEqual(guard.recovery_command(scene,0.,10.),
+                             (speed,0.,'OBSERVED_FOOTPRINT_SWEEP'))
+            guard.recovery_executor.submit.assert_not_called()
+
+    def test_safe_fine_progress_does_not_wait_for_a_discarded_search(self):
+        guard,scene=self.recovery_fixture()
+        guard.recovery=None
+        guard.recovery_task=Future()
+        scene.choose.return_value=(.015,0.,'OBSERVED_FOOTPRINT_SWEEP')
+        scene.extended_recovery_path=Mock()
+        self.assertEqual(guard.recovery_command(scene,0.,10.),
+                         (.015,0.,'OBSERVED_FOOTPRINT_SWEEP'))
+        self.assertFalse(guard.recovery_task.done())
 
     def pending_plan(self):
         guard,scene=self.recovery_fixture()
@@ -425,7 +446,7 @@ class ObservedFootprintTests(unittest.TestCase):
         guard.recovery=None
         guard.recovery_task=Future()
         guard.recovery_executor=Mock()
-        scene.choose.return_value=(.015,0.,'OBSERVED_FOOTPRINT_SWEEP')
+        scene.choose.return_value=(0.,0.,'NO_OBSERVED_PROGRESS')
         scene.extended_recovery_path=Mock()
         self.assertEqual(guard.recovery_command(scene,0.,11.),(0.,0.,'DRAINING_OBSERVED_ESCAPE'))
         guard.recovery_executor.submit.assert_not_called()
