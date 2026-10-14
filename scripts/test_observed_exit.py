@@ -1,6 +1,8 @@
 import math
 import unittest
 from unittest.mock import Mock
+from types import SimpleNamespace as NS
+from rclpy.time import Time
 
 from fire_robot_fsm.state_machine_node import StateMachineNode, State
 
@@ -118,6 +120,103 @@ class ObservedExitTests(unittest.TestCase):
         self.assertFalse(node._exit_nav2_approach_complete)
         node._transition.assert_not_called()
         node._send_exit_goal.assert_called_once()
+
+    def guarded_node(self):
+        node = self.node()
+        node._exit_observed_aperture = True
+        node._active_exit_goal = (15., 5., 0.)
+        node._latest_scan = object()
+        node._latest_scan_received_sec = 10.
+        node.get_clock = lambda: NS(now=lambda: Time(seconds=10))
+        node.get_logger = lambda: Mock()
+        node._publish_post_open_twist = Mock()
+        node._request_navigation_cancel_for_manual_control = Mock()
+        node._send_exit_goal = Mock()
+        node._transition = Mock()
+        node._nav_done, node._nav_failed = False, True
+        node._exit_retry_ready = lambda: True
+        scene = NS(pose=(10., 5., 0.), odom_pose=(2., 3., 0.),
+                   safe=Mock(return_value=True))
+        node._post_open_footprint_guard = NS(snapshot=Mock(return_value=scene),
+            reset_recovery=Mock(), recovery_command=Mock(return_value=(.03, .08, 'TEST')))
+        return node, scene
+
+    def test_exit_recovery_requires_repeated_failure_without_wheel_progress(self):
+        node, scene = self.guarded_node()
+        node._continue_nav2_exit_crossing()
+        node._send_exit_goal.assert_called_once()
+        self.assertIsNone(getattr(node, '_exit_local_recovery', None))
+        node._nav_failed = True
+        node._continue_nav2_exit_crossing()
+        self.assertIsNotNone(node._exit_local_recovery)
+        self.assertEqual(node._exit_local_recovery[2], (7., 3.))
+        node._request_navigation_cancel_for_manual_control.assert_called_once()
+        self.assertEqual(node._send_exit_goal.call_count, 1)
+
+    def test_exit_retry_progress_resets_recovery_attempts(self):
+        node, scene = self.guarded_node()
+        node._exit_failed_odom = (0., 3., 0.)
+        node._exit_local_recovery_attempts = 3
+        self.assertFalse(node._start_observed_exit_recovery())
+        self.assertEqual(node._exit_local_recovery_attempts, 0)
+
+    def test_exit_recovery_never_moves_without_fresh_geometry(self):
+        node, scene = self.guarded_node()
+        node._exit_local_recovery = (5., (2., 3., 0.), (7., 3.))
+        node._post_open_footprint_guard.snapshot.return_value = None
+        node._run_observed_exit_recovery()
+        node._post_open_footprint_guard.recovery_command.assert_not_called()
+        node._send_exit_goal.assert_not_called()
+        command = node._publish_post_open_twist.call_args.args[0]
+        self.assertEqual((command.linear.x, command.angular.z), (0., 0.))
+
+    def test_slam_jump_cannot_complete_exit_escape(self):
+        node, scene = self.guarded_node()
+        node._exit_local_recovery = (5., (2., 3., 0.), (7., 3.))
+        scene.pose = (50., 40., 2.)
+        node._run_observed_exit_recovery()
+        node._send_exit_goal.assert_not_called()
+        node._post_open_footprint_guard.recovery_command.assert_called_once()
+
+    def test_measured_escape_replans_without_declaring_exit_success(self):
+        node, scene = self.guarded_node()
+        node._exit_local_recovery = (5., (2., 3., 0.), (7., 3.))
+        scene.odom_pose = (2.25, 3., 0.)
+        node._run_observed_exit_recovery()
+        node._send_exit_goal.assert_called_once()
+        node._transition.assert_not_called()
+        self.assertIsNone(node._exit_local_recovery)
+
+    def test_exit_escape_handoff_requires_clear_forward_and_both_turns(self):
+        for values in ((False, True, True), (True, False, True), (True, True, False)):
+            node, scene = self.guarded_node()
+            node._exit_local_recovery = (5., (2., 3., 0.), (7., 3.))
+            scene.odom_pose = (2.25, 3., 0.)
+            scene.safe.side_effect = values
+            node._run_observed_exit_recovery()
+            node._send_exit_goal.assert_not_called()
+
+    def test_exit_escape_deadline_is_failure_not_handoff(self):
+        node, scene = self.guarded_node()
+        node._exit_local_recovery = (-51., (2., 3., 0.), (7., 3.))
+        node._run_observed_exit_recovery()
+        node._transition.assert_called_once_with(State.EMERGENCY_STOP)
+        node._send_exit_goal.assert_not_called()
+
+    def test_exit_escape_rejects_odometry_jump(self):
+        node, scene = self.guarded_node()
+        node._exit_local_recovery = (5., (2., 3., 0.), (7., 3.))
+        scene.odom_pose = (5., 3., 0.)
+        node._run_observed_exit_recovery()
+        node._transition.assert_called_once_with(State.EMERGENCY_STOP)
+        node._send_exit_goal.assert_not_called()
+
+    def test_exit_escape_retry_limit_stops(self):
+        node, scene = self.guarded_node()
+        node._exit_failed_odom = scene.odom_pose
+        node._exit_local_recovery_attempts = 3
+        self.assertTrue(node._start_observed_exit_recovery())
+        node._transition.assert_called_once_with(State.EMERGENCY_STOP)
 
 
 if __name__ == '__main__':

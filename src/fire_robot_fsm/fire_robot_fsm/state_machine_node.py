@@ -4931,15 +4931,15 @@ class StateMachineNode(Node):
                         odom_xy = (t.x, t.y)
             except TransformException:
                 pass
-            if scene.clearance([0., 0., 0.]) >= .05:
-                self._post_open_progress_anchor, retreat_budget = retreat_progress_budget(
-                    getattr(self, '_post_open_progress_anchor', None), lateral,
-                    odom_xy, elapsed, retreat_budget)
-                # A necessary outward detour is progress only after the guarded
-                # primitive is reached using own-odometry feedback.
-                retreat_budget=retreat_escape_budget(elapsed,retreat_budget,
-                    now.nanoseconds/1e9,getattr(guard,'last_recovery_progress_time',None))
-                self._post_open_return_budget = retreat_budget
+            # Progress is measured motion, not a second clearance threshold.
+            # The live swept-body gate independently authorizes every command,
+            # including non-decreasing-clearance escapes inside its margin.
+            self._post_open_progress_anchor, retreat_budget = retreat_progress_budget(
+                getattr(self, '_post_open_progress_anchor', None), lateral,
+                odom_xy, elapsed, retreat_budget)
+            retreat_budget=retreat_escape_budget(elapsed,retreat_budget,
+                now.nanoseconds/1e9,getattr(guard,'last_recovery_progress_time',None))
+            self._post_open_return_budget = retreat_budget
         if elapsed > retreat_budget:
             if observed_clearance:
                 self._publish_post_open_twist(Twist())
@@ -8121,6 +8121,9 @@ class StateMachineNode(Node):
     def _continue_nav2_exit_crossing(self):
         # Let the observed costmap route through the aperture, including the
         # final segment. A straight manual command cannot avoid an offset jamb.
+        if getattr(self, '_exit_local_recovery', None) is not None:
+            self._run_observed_exit_recovery()
+            return
         if self._nav_done:
             self._nav_done = False
             if self._exit_pose_complete():
@@ -8132,7 +8135,86 @@ class StateMachineNode(Node):
                 self._send_exit_goal()
         elif self._nav_failed and self._exit_retry_ready():
             self._nav_failed = False
+            if self._start_observed_exit_recovery():
+                return
             self._send_exit_goal()
+
+    def _start_observed_exit_recovery(self):
+        guard = getattr(self, '_post_open_footprint_guard', None)
+        goal = getattr(self, '_active_exit_goal', None)
+        if guard is None or goal is None or not getattr(self, '_exit_observed_aperture', False):
+            return False
+        scene = guard.snapshot(self._latest_scan, self._latest_scan_received_sec)
+        if scene is None or getattr(scene, 'odom_pose', None) is None:
+            return False
+        pose = tuple(scene.odom_pose)
+        previous = getattr(self, '_exit_failed_odom', None)
+        repeated = previous is not None and math.dist(pose[:2], previous[:2]) < .12
+        self._exit_failed_odom = pose
+        if not repeated:
+            self._exit_local_recovery_attempts = 0
+            return False
+        attempts = getattr(self, '_exit_local_recovery_attempts', 0) + 1
+        self._exit_local_recovery_attempts = attempts
+        if attempts > 3:
+            self._publish_post_open_twist(Twist())
+            self.get_logger().error('Observed exit recovery exhausted; stopping.')
+            self._transition(State.EMERGENCY_STOP)
+            return True
+        # Freeze this sensor-derived target in wheel odometry so a SLAM
+        # correction cannot appear to be local escape progress.
+        turn = pose[2] - scene.pose[2]
+        c, s = math.cos(turn), math.sin(turn)
+        dx, dy = goal[0]-scene.pose[0], goal[1]-scene.pose[1]
+        target = (pose[0]+c*dx-s*dy, pose[1]+s*dx+c*dy)
+        guard.reset_recovery()
+        self._exit_local_recovery = (self.get_clock().now().nanoseconds/1e9, pose, target)
+        self._nav_done = self._nav_failed = False
+        self._request_navigation_cancel_for_manual_control('observed exit escape')
+        self._publish_post_open_twist(Twist())
+        self.get_logger().info('Repeated exit failure without wheel progress; observing local escape.')
+        return True
+
+    def _run_observed_exit_recovery(self):
+        started, origin, target = self._exit_local_recovery
+        now = self.get_clock().now().nanoseconds/1e9
+        elapsed = now-started
+        guard = self._post_open_footprint_guard
+        scene = guard.snapshot(self._latest_scan, self._latest_scan_received_sec)
+        if not 0. <= elapsed <= 60.:
+            self._publish_post_open_twist(Twist())
+            guard.reset_recovery()
+            self._exit_local_recovery = None
+            self.get_logger().error('Observed exit escape deadline; stopping before replan.')
+            self._transition(State.EMERGENCY_STOP)
+            return
+        if elapsed < 1. or scene is None or getattr(scene, 'odom_pose', None) is None:
+            self._publish_post_open_twist(Twist())
+            return
+        pose = scene.odom_pose
+        moved = math.dist(pose[:2], origin[:2])
+        if moved > .12*elapsed+.05:
+            self._publish_post_open_twist(Twist())
+            self.get_logger().error('Implausible wheel-odometry jump during exit escape.')
+            self._transition(State.EMERGENCY_STOP)
+            return
+        heading = math.atan2(target[1]-pose[1], target[0]-pose[0])
+        error = self._normalize_angle(heading-pose[2])
+        if (moved >= .20 and abs(error) <= .30 and scene.safe(.06, 0.)
+                and scene.safe(0., .24) and scene.safe(0., -.24)):
+            self._publish_post_open_twist(Twist())
+            guard.reset_recovery()
+            self._exit_local_recovery = None
+            self._nav_done = self._nav_failed = False
+            self.get_logger().info(f'Observed exit escape complete: wheel movement={moved:.2f}m; replanning.')
+            self._send_exit_goal()
+            return
+        twist = Twist()
+        twist.linear.x, twist.angular.z, mode = guard.recovery_command(scene, error, now)
+        self._publish_post_open_twist(twist)
+        self.get_logger().info(
+            f'Observed exit escape: {mode}, moved={moved:.2f}m, elapsed={elapsed:.1f}s.',
+            throttle_duration_sec=1.)
 
     def _observed_exit_aperture_goal_pair(self):
         scan = self._latest_scan
@@ -19188,6 +19270,11 @@ class StateMachineNode(Node):
 
     def _transition(self, new_state: State):
         old_state = self.state
+        if old_state == State.EXITING and new_state != State.EXITING:
+            if getattr(self, '_exit_local_recovery', None) is not None:
+                self._publish_post_open_twist(Twist())
+                self._post_open_footprint_guard.reset_recovery()
+            self._exit_local_recovery = None
         nav2_motion_states = {
             State.NAVIGATING,
             State.EXPLORING_NAVIGATING,
@@ -19235,6 +19322,9 @@ class StateMachineNode(Node):
             self._reset_explore_nav_stuck_watch()
             self._door_open_fine_backoff_until = None
         elif new_state == State.EXITING:
+            self._exit_local_recovery = None
+            self._exit_failed_odom = None
+            self._exit_local_recovery_attempts = 0
             self._exit_reentry_guard_active = True
             self._explore_waypoint_scan_pending = False
             self._explore_waypoint_scan_start_time = None

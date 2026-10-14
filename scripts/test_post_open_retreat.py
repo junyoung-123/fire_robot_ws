@@ -283,6 +283,38 @@ class PostOpenRetreatTests(unittest.TestCase):
         node._transition.assert_called_once_with(State.EMERGENCY_STOP)
         self.assertTrue(node._post_open_side_retreat_pending)
 
+    def test_measured_progress_inside_margin_is_not_lost(self):
+        node = self.guarded_node(0.)
+        node.get_clock = lambda: SimpleNamespace(now=lambda: Time(seconds=115))
+        node._post_open_side_retreat_start_time = Time(seconds=0)
+        node._post_open_return_budget = 120.
+        node._post_open_progress_anchor = (1.1, 0., 0., 110.)
+        scene = SimpleNamespace(pose=(0., .9, -math.pi/2),
+            odom_pose=(0., .2, -math.pi/2), safe=Mock(return_value=False),
+            clearance=Mock(return_value=.045))
+        guard = SimpleNamespace(snapshot=Mock(return_value=scene),
+            recovery_command=Mock(return_value=(0., 0., 'BLOCKED')))
+        node._post_open_footprint_guard = guard
+        self.assertTrue(node._run_post_open_side_retreat())
+        self.assertEqual(node._post_open_return_budget, 135.)
+        node._transition.assert_not_called()
+        command = node.cmd_vel_pub.publish.call_args.args[0]
+        self.assertEqual((command.linear.x, command.angular.z), (0., 0.))
+
+    def test_close_but_stationary_robot_cannot_renew_deadline(self):
+        node = self.guarded_node(0.)
+        node.get_clock = lambda: SimpleNamespace(now=lambda: Time(seconds=115))
+        node._post_open_side_retreat_start_time = Time(seconds=0)
+        node._post_open_return_budget = 120.
+        node._post_open_progress_anchor = (1.1, 0., 0., 110.)
+        scene = SimpleNamespace(pose=(0., .9, -math.pi/2),
+            odom_pose=(0., 0., -math.pi/2), safe=Mock(return_value=False),
+            clearance=Mock(return_value=.045))
+        node._post_open_footprint_guard = SimpleNamespace(snapshot=Mock(return_value=scene),
+            recovery_command=Mock(return_value=(0., 0., 'BLOCKED')))
+        node._run_post_open_side_retreat()
+        self.assertEqual(node._post_open_return_budget, 120.)
+
     def test_clear_surround_allows_original_centerward_turn(self):
         node = self.guarded_node(30.)
         self.assertTrue(node._run_post_open_side_retreat())
