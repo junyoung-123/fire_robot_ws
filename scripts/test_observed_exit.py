@@ -218,6 +218,54 @@ class ObservedExitTests(unittest.TestCase):
         self.assertTrue(node._start_observed_exit_recovery())
         node._transition.assert_called_once_with(State.EMERGENCY_STOP)
 
+    def test_exploration_stall_uses_own_pose_not_exit_or_world_geometry(self):
+        node, scene = self.guarded_node()
+        node._exit_observed_aperture = False
+        node._active_exit_goal = None
+        node._explore_nav_goal_xy = (15., 5.)
+        self.assertFalse(node._start_observed_exit_recovery(exploring=True))
+        self.assertTrue(node._start_observed_exit_recovery(exploring=True))
+        self.assertEqual(node._observed_recovery_scope, 'explore')
+        self.assertEqual(node._exit_local_recovery[2], (7., 3.))
+
+    def test_exploration_handoff_resends_waypoint_not_exit(self):
+        node, scene = self.guarded_node()
+        node._exit_local_recovery = (5., (2., 3., 0.), (7., 3.))
+        node._observed_recovery_scope = 'explore'
+        node._resend_active_explore_goal = Mock(return_value=True)
+        scene.odom_pose = (2.25, 3., 0.)
+        node._run_observed_exit_recovery()
+        node._resend_active_explore_goal.assert_called_once()
+        node._send_exit_goal.assert_not_called()
+        node._transition.assert_not_called()
+
+    def test_cancelled_stuck_goal_can_start_recovery_before_failure_reset(self):
+        node, scene = self.guarded_node()
+        node._run_explore_nav_backoff = lambda: False
+        node._interrupt_explore_waypoint_for_blue_door = lambda: False
+        node._nav_done = node._nav_failed = False
+        node._explore_waypoint_wall_stuck = lambda: True
+        node._start_observed_exit_recovery = Mock(return_value=True)
+        node._on_exploring_navigating()
+        node._start_observed_exit_recovery.assert_called_once_with(exploring=True)
+        node._transition.assert_not_called()
+
+    def test_new_blue_goal_can_interrupt_active_exploration_escape(self):
+        node, scene = self.guarded_node()
+        node._exit_local_recovery = (5., (2., 3., 0.), (7., 3.))
+        node._interrupt_explore_waypoint_for_blue_door = lambda: True
+        node._run_observed_exit_recovery = Mock()
+        node._on_exploring_navigating()
+        node._run_observed_exit_recovery.assert_not_called()
+
+    def test_failure_history_not_reused_between_exit_and_exploration(self):
+        node, scene = self.guarded_node()
+        node._exit_failed_odom = scene.odom_pose
+        node._exit_local_recovery_attempts = 3
+        node._observed_recovery_failure_scope = 'explore'
+        self.assertFalse(node._start_observed_exit_recovery())
+        self.assertEqual(node._exit_local_recovery_attempts, 0)
+
 
 if __name__ == '__main__':
     unittest.main()

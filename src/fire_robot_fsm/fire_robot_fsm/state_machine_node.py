@@ -4034,6 +4034,11 @@ class StateMachineNode(Node):
         return False
 
     def _on_exploring_navigating(self):
+        if getattr(self, '_exit_local_recovery', None) is not None:
+            if self._interrupt_explore_waypoint_for_blue_door():
+                return
+            self._run_observed_exit_recovery()
+            return
         if self._run_explore_nav_backoff():
             return
 
@@ -4051,6 +4056,8 @@ class StateMachineNode(Node):
             return
         if self._nav_failed:
             self._nav_failed = False
+            if self._start_observed_exit_recovery(exploring=True):
+                return
             if self._start_explore_nav_backoff():
                 return
             if self._start_local_obstacle_escape(
@@ -4065,6 +4072,8 @@ class StateMachineNode(Node):
             return
 
         if self._explore_waypoint_wall_stuck():
+            if self._start_observed_exit_recovery(exploring=True):
+                return
             self._request_navigation_cancel_for_manual_control(
                 'explore waypoint stuck replanning')
             self.cmd_vel_pub.publish(Twist())
@@ -4085,6 +4094,8 @@ class StateMachineNode(Node):
                 self.get_clock().now() - self._nav_start_time
             ).nanoseconds / 1e9
             if elapsed > self._explore_nav_timeout_sec:
+                if self._start_observed_exit_recovery(exploring=True):
+                    return
                 self.get_logger().warn(
                     f'탐색 waypoint 이동 timeout ({elapsed:.1f}s). 반대 차선으로 다시 스캔합니다.')
                 self._request_navigation_cancel_for_manual_control(
@@ -4152,9 +4163,13 @@ class StateMachineNode(Node):
 
         self._explore_nav_backoff_until = None
         self.cmd_vel_pub.publish(Twist())
+        return self._resend_active_explore_goal()
+
+    def _resend_active_explore_goal(self) -> bool:
         if self._explore_nav_goal_xy is None or not self._explore_nav_goal_id:
             return False
 
+        now = self.get_clock().now()
         goal = DoorInfo()
         stamp = now.to_msg()
         goal.header.stamp = stamp
@@ -4172,7 +4187,7 @@ class StateMachineNode(Node):
         self._nav_start_time = now
         self._reset_explore_nav_stuck_watch()
         self.get_logger().info(
-            f'Explore navigation backoff complete; replanning to {goal.door_id}.')
+            f'Observed exploration recovery complete; replanning to {goal.door_id}.')
         self.target_door_pub.publish(goal)
         return True
 
@@ -8139,16 +8154,20 @@ class StateMachineNode(Node):
                 return
             self._send_exit_goal()
 
-    def _start_observed_exit_recovery(self):
+    def _start_observed_exit_recovery(self, exploring=False):
         guard = getattr(self, '_post_open_footprint_guard', None)
-        goal = getattr(self, '_active_exit_goal', None)
-        if guard is None or goal is None or not getattr(self, '_exit_observed_aperture', False):
+        goal = getattr(self, '_explore_nav_goal_xy' if exploring else '_active_exit_goal', None)
+        if (guard is None or goal is None
+                or (not exploring and not getattr(self, '_exit_observed_aperture', False))):
             return False
         scene = guard.snapshot(self._latest_scan, self._latest_scan_received_sec)
         if scene is None or getattr(scene, 'odom_pose', None) is None:
             return False
         pose = tuple(scene.odom_pose)
-        previous = getattr(self, '_exit_failed_odom', None)
+        scope = 'explore' if exploring else 'exit'
+        previous = (getattr(self, '_exit_failed_odom', None)
+                    if getattr(self, '_observed_recovery_failure_scope', scope) == scope else None)
+        self._observed_recovery_failure_scope = scope
         repeated = previous is not None and math.dist(pose[:2], previous[:2]) < .12
         self._exit_failed_odom = pose
         if not repeated:
@@ -8168,11 +8187,12 @@ class StateMachineNode(Node):
         dx, dy = goal[0]-scene.pose[0], goal[1]-scene.pose[1]
         target = (pose[0]+c*dx-s*dy, pose[1]+s*dx+c*dy)
         guard.reset_recovery()
+        self._observed_recovery_scope = scope
         self._exit_local_recovery = (self.get_clock().now().nanoseconds/1e9, pose, target)
         self._nav_done = self._nav_failed = False
-        self._request_navigation_cancel_for_manual_control('observed exit escape')
+        self._request_navigation_cancel_for_manual_control(f'observed {scope} escape')
         self._publish_post_open_twist(Twist())
-        self.get_logger().info('Repeated exit failure without wheel progress; observing local escape.')
+        self.get_logger().info(f'Repeated {scope} failure without wheel progress; observing local escape.')
         return True
 
     def _run_observed_exit_recovery(self):
@@ -8207,7 +8227,11 @@ class StateMachineNode(Node):
             self._exit_local_recovery = None
             self._nav_done = self._nav_failed = False
             self.get_logger().info(f'Observed exit escape complete: wheel movement={moved:.2f}m; replanning.')
-            self._send_exit_goal()
+            if getattr(self, '_observed_recovery_scope', 'exit') == 'explore':
+                if not self._resend_active_explore_goal():
+                    self._transition(State.EXPLORING)
+            else:
+                self._send_exit_goal()
             return
         twist = Twist()
         twist.linear.x, twist.angular.z, mode = guard.recovery_command(scene, error, now)
@@ -19270,7 +19294,7 @@ class StateMachineNode(Node):
 
     def _transition(self, new_state: State):
         old_state = self.state
-        if old_state == State.EXITING and new_state != State.EXITING:
+        if old_state in (State.EXITING, State.EXPLORING_NAVIGATING) and new_state != old_state:
             if getattr(self, '_exit_local_recovery', None) is not None:
                 self._publish_post_open_twist(Twist())
                 self._post_open_footprint_guard.reset_recovery()

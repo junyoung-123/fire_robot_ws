@@ -973,6 +973,36 @@ class RobotObservationManipulation(R34ReferenceMotion, MinimalObservedAngle):
             basis='response_confirmed_bounded_press_command_not_passive_encoder_drift')
         return True
 
+    def _feedback_correct_hold_servo(self):
+        # This is bounded position correction, not measured force control.
+        self._publish_sim_cmd_vel(0.,0.)
+        actual=self._feedback_tool()
+        if actual is None or not self._feedback_fresh():
+            return self._feedback_stop('Loaded servo correction needs fresh robot feedback')
+        cfg=self._feedback_config
+        goal=self._feedback_last_cartesian_target.copy()
+        door0,yaw0,_=self._feedback_contact_orientation_reference
+        heading=self._sim_door_position-door0-self._feedback_base_yaw()+yaw0
+        normal=np.array([math.cos(heading),math.sin(heading),0.])
+        residual=actual-goal
+        fingers=self._sim_arm_joint_positions
+        if (self._phase not in ('LATCH_CLEAR_PUSH','HANDLE_HELD_BASE_OPEN')
+                or not np.isfinite(residual).all()
+                or np.linalg.norm(residual)>cfg['tracking_limit_m']
+                or abs(residual@normal)>cfg['tool_tolerance_m']
+                or abs(residual[2])>cfg['tool_tolerance_m']
+                or not all(.002<v<=.036 for v in (
+                    fingers.get('gripper_left_joint',0.),-fingers.get('gripper_right_joint',0.)))):
+            return self._feedback_stop('Loaded servo correction exceeds original pose/grip bounds')
+        _,rotation=self._piper_kinematics.forward([fingers[n] for n in PIPER_JOINT_NAMES])
+        try:
+            desired=self._feedback_contact_rotation()
+            if desired is None or np.linalg.norm(self._piper_kinematics._rotation_error(rotation,desired))>.10:
+                return self._feedback_stop('Loaded servo correction lost wrist orientation')
+        except (ValueError,TransformException) as exc:
+            return self._feedback_stop('Loaded servo correction wrist observation: '+str(exc))
+        return super()._feedback_correct_hold_servo()
+
     def _feedback_loaded_settle_goal(self,goal,actual):
         if self._phase not in ('LATCH_CLEAR_PUSH', 'HANDLE_HELD_BASE_OPEN'):
             return goal

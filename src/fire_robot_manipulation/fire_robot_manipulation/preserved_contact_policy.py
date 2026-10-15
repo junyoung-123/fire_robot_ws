@@ -1930,6 +1930,7 @@ class ManipulationNode(Node):
         stable_since = None
         next_sample = self._sim_time_sec()
         previous_sample = None
+        loaded_servo_corrections = 0
         while rclpy.ok():
             failure = deadline.failure(self._sim_time_sec(), time.monotonic())
             if failure:
@@ -1997,6 +1998,17 @@ class ManipulationNode(Node):
                         except (ValueError, TransformException) as exc:
                             return self._feedback_stop(str(exc))
                         old_goal = np.asarray(goal).copy()
+                        if (np.linalg.norm(relaxed-old_goal) < .0005
+                                and loaded_servo_corrections < 3):
+                            # Tangential relaxation cannot remove a settled
+                            # normal/vertical servo residual. Keep the SAME
+                            # setpoint and use the bounded hold-servo correction.
+                            if not self._feedback_correct_hold_servo():
+                                return False
+                            loaded_servo_corrections += 1
+                            previous_sample = actual.copy()
+                            next_sample = self._sim_time_sec()+.5
+                            continue
                         goal = relaxed
                         if not self._feedback_command_point(goal, stage):
                             return False
@@ -2655,7 +2667,10 @@ class ManipulationNode(Node):
                 moving = previous is not None and np.linalg.norm(actual-previous) >= .0005
                 if moving:
                     last_movement = now
-                elif (require_lever_motion and getattr(self, '_feedback_full_handle_follow', False)
+                elif (require_lever_motion
+                      and (getattr(self, '_feedback_full_handle_follow', False)
+                           or (getattr(self, '_phase', None) == 'LATCH_CLEAR_PUSH'
+                               and getattr(self, '_feedback_follow_mode', None) == 'encoder_lever_contact'))
                       and servo_corrections < 3 and now-start >= .5
                       and now-last_movement >= .4
                       and np.linalg.norm(actual-self._feedback_last_cartesian_target) > .0025):
