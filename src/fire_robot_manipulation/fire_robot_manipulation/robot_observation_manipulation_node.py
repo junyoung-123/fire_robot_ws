@@ -973,7 +973,7 @@ class RobotObservationManipulation(R34ReferenceMotion, MinimalObservedAngle):
             basis='response_confirmed_bounded_press_command_not_passive_encoder_drift')
         return True
 
-    def _feedback_correct_hold_servo(self):
+    def _feedback_correct_hold_servo(self, pressing=False):
         # This is bounded position correction, not measured force control.
         self._publish_sim_cmd_vel(0.,0.)
         actual=self._feedback_tool()
@@ -986,9 +986,12 @@ class RobotObservationManipulation(R34ReferenceMotion, MinimalObservedAngle):
         normal=np.array([math.cos(heading),math.sin(heading),0.])
         residual=actual-goal
         fingers=self._sim_arm_joint_positions
-        if (self._phase not in ('LATCH_CLEAR_PUSH','HANDLE_HELD_BASE_OPEN')
+        allowed_phase = (self._phase == 'PRESS_HANDLE' if pressing
+                         else self._phase in ('LATCH_CLEAR_PUSH','HANDLE_HELD_BASE_OPEN'))
+        if (not allowed_phase
                 or not np.isfinite(residual).all()
                 or np.linalg.norm(residual)>cfg['tracking_limit_m']
+                or pressing and np.linalg.norm(residual)>cfg['tool_tolerance_m']+1.e-9
                 or abs(residual@normal)>cfg['tool_tolerance_m']
                 or abs(residual[2])>cfg['tool_tolerance_m']
                 or not all(.002<v<=.036 for v in (
@@ -1001,7 +1004,7 @@ class RobotObservationManipulation(R34ReferenceMotion, MinimalObservedAngle):
                 return self._feedback_stop('Loaded servo correction lost wrist orientation')
         except (ValueError,TransformException) as exc:
             return self._feedback_stop('Loaded servo correction wrist observation: '+str(exc))
-        return super()._feedback_correct_hold_servo()
+        return super()._feedback_correct_hold_servo(pressing=pressing)
 
     def _feedback_loaded_settle_goal(self,goal,actual):
         if self._phase not in ('LATCH_CLEAR_PUSH', 'HANDLE_HELD_BASE_OPEN'):

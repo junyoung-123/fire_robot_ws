@@ -2181,6 +2181,9 @@ class ManipulationNode(Node):
         deadline = began + 30.0
         sim_start = self._sim_time_sec()
         cfg = self._feedback_config
+        previous_tool = actual.copy()
+        last_motion = sim_start
+        servo_corrections = 0
         while (rclpy.ok() and time.monotonic() < deadline
                and self._sim_time_sec() - sim_start < self._sim_lever_press_timeout):
             actual = self._feedback_tool()
@@ -2229,6 +2232,17 @@ class ManipulationNode(Node):
             except ValueError as exc:
                 return self._feedback_stop(str(exc))
             if increment == 0.:
+                now = self._sim_time_sec()
+                if np.linalg.norm(actual-previous_tool) >= .0005:
+                    previous_tool = actual.copy()
+                    last_motion = now
+                elif now-last_motion >= .4 and servo_corrections < 3:
+                    # Do not deepen a saturated target. Correct only the
+                    # stationary tracking error, then require measured response.
+                    if not self._feedback_correct_hold_servo(pressing=True):
+                        return False
+                    servo_corrections += 1
+                    last_motion = now
                 time.sleep(.025)
                 continue
             depth += increment
@@ -2243,6 +2257,8 @@ class ManipulationNode(Node):
                                  actual_tool_xyz=actual.tolist())
             if not self._wait_for_sim_duration(0.35, wall_stall_timeout_sec=2.0):
                 return self._feedback_stop('Clock stalled during press')
+            previous_tool = actual.copy()
+            last_motion = self._sim_time_sec()
         return self._feedback_stop('Lever feedback did not confirm press before timeout')
 
     def _feedback_live_contact_observation(self):
@@ -2694,12 +2710,13 @@ class ManipulationNode(Node):
         return self._feedback_stop(
             'No measured response to latch press correction; possible contact loss or jam, reobservation required')
 
-    def _feedback_correct_hold_servo(self):
+    def _feedback_correct_hold_servo(self, pressing=False):
         self._publish_sim_cmd_vel(0.,0.)
         actual = self._feedback_tool()
         cfg = self._feedback_config
+        required_response = .005 if pressing else self._sim_lever_press_min_angle
         if actual is None or cfg['press_sign']*(
-                self._sim_lever_position-self._sim_lever_initial_position) < self._sim_lever_press_min_angle:
+                self._sim_lever_position-self._sim_lever_initial_position) < required_response:
             return self._feedback_stop('Lost lever contact before hold servo correction')
         goal = self._feedback_last_cartesian_target.copy()
         if np.linalg.norm(goal-actual) > cfg['tracking_limit_m']:
@@ -2709,10 +2726,12 @@ class ManipulationNode(Node):
         if np.max(np.abs(candidate)) > cfg['joint_bias_limit_rad']:
             return self._feedback_stop('Hold servo bias limit exceeded')
         self._feedback_joint_bias = candidate
-        if not self._feedback_command_point(goal, 'feedback_lever_hold'):
+        stage = 'feedback_press' if pressing else 'feedback_lever_hold'
+        if not self._feedback_command_point(goal, stage):
             return False
         self._feedback_event('hold_servo_correction', requested_tool_xyz=goal.tolist(),
-                             actual_tool_xyz=actual.tolist(), joint_bias_rad=candidate.tolist())
+                             actual_tool_xyz=actual.tolist(), joint_bias_rad=candidate.tolist(),
+                             initial_press=pressing, press_confirmed=False if pressing else True)
         return True
 
     def _feedback_settle_held_target(self):

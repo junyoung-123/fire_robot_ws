@@ -3460,6 +3460,9 @@ class StateMachineNode(Node):
         return False
 
     def _on_navigating(self):
+        if getattr(self, '_exit_local_recovery', None) is not None:
+            self._run_observed_exit_recovery()
+            return
         if (self.target_door is not None
                 and self.target_door.door_color == 'blue'
                 and not self._nav_done
@@ -4035,8 +4038,8 @@ class StateMachineNode(Node):
 
     def _on_exploring_navigating(self):
         if getattr(self, '_exit_local_recovery', None) is not None:
-            if self._interrupt_explore_waypoint_for_blue_door():
-                return
+            # Perception still updates memory; change targets only after the
+            # checked escape reaches a safe navigation handoff.
             self._run_observed_exit_recovery()
             return
         if self._run_explore_nav_backoff():
@@ -4502,6 +4505,12 @@ class StateMachineNode(Node):
             f'Nav failure [{reason}] → {door_id}. '
             f'재시도 {self._nav_retry_count}/{self._max_nav_retries}')
 
+        if (reason in ('nav2_failure', 'door_nav_stuck', 'timeout')
+                and self.target_door is not None
+                and self.target_door.door_color == 'blue'
+                and self._start_observed_exit_recovery(blue=True)):
+            return
+
         if (
                 reason in ('nav2_failure', 'door_nav_stuck')
                 and self._nav_retry_count < self._max_nav_retries
@@ -4543,6 +4552,7 @@ class StateMachineNode(Node):
                 and self._nav_retry_count >= 2
                 and self.target_door is not None
                 and self.target_door.door_color == 'blue'
+                and getattr(self, '_post_open_footprint_guard', None) is None
                 and self._start_local_obstacle_escape(
                     f'repeated blue-door Nav2 failure ({reason})')):
             return
@@ -8183,17 +8193,28 @@ class StateMachineNode(Node):
                 return
             self._send_exit_goal()
 
-    def _start_observed_exit_recovery(self, exploring=False):
+    def _start_observed_exit_recovery(self, exploring=False, blue=False):
         guard = getattr(self, '_post_open_footprint_guard', None)
+        if guard is None:
+            return False
         goal = getattr(self, '_explore_nav_goal_xy' if exploring else '_active_exit_goal', None)
+        door = getattr(self, 'target_door', None) if blue else None
+        if blue:
+            if (door is None or door.door_color != 'blue'
+                    or door.door_pose.header.frame_id != 'map'):
+                return False
+            p = door.door_pose.pose.position
+            goal = (p.x, p.y)
         if (guard is None or goal is None
-                or (not exploring and not getattr(self, '_exit_observed_aperture', False))):
+                or not all(math.isfinite(v) for v in goal[:2])
+                or (not exploring and not blue
+                    and not getattr(self, '_exit_observed_aperture', False))):
             return False
         scene = guard.snapshot(self._latest_scan, self._latest_scan_received_sec)
         if scene is None or getattr(scene, 'odom_pose', None) is None:
             return False
         pose = tuple(scene.odom_pose)
-        scope = 'explore' if exploring else 'exit'
+        scope = 'blue' if blue else 'explore' if exploring else 'exit'
         previous = (getattr(self, '_exit_failed_odom', None)
                     if getattr(self, '_observed_recovery_failure_scope', scope) == scope else None)
         self._observed_recovery_failure_scope = scope
@@ -8206,7 +8227,7 @@ class StateMachineNode(Node):
         self._exit_local_recovery_attempts = attempts
         if attempts > 3:
             self._publish_post_open_twist(Twist())
-            self.get_logger().error('Observed exit recovery exhausted; stopping.')
+            self.get_logger().error(f'Observed {scope} recovery exhausted; stopping.')
             self._transition(State.EMERGENCY_STOP)
             return True
         # Freeze this sensor-derived target in wheel odometry so a SLAM
@@ -8217,6 +8238,7 @@ class StateMachineNode(Node):
         target = (pose[0]+c*dx-s*dy, pose[1]+s*dx+c*dy)
         guard.reset_recovery()
         self._observed_recovery_scope = scope
+        self._observed_recovery_blue_id = door.door_id if blue else None
         self._exit_local_recovery = (self.get_clock().now().nanoseconds/1e9, pose, target)
         self._nav_done = self._nav_failed = False
         self._request_navigation_cancel_for_manual_control(f'observed {scope} escape')
@@ -8226,6 +8248,16 @@ class StateMachineNode(Node):
 
     def _run_observed_exit_recovery(self):
         started, origin, target = self._exit_local_recovery
+        scope = getattr(self, '_observed_recovery_scope', 'exit')
+        if scope == 'blue':
+            door = getattr(self, 'target_door', None)
+            if (door is None or door.door_id != self._observed_recovery_blue_id):
+                self._publish_post_open_twist(Twist())
+                self._post_open_footprint_guard.reset_recovery()
+                self._exit_local_recovery = None
+                self.get_logger().error('Locked blue target changed during escape; stopping.')
+                self._transition(State.EMERGENCY_STOP)
+                return
         now = self.get_clock().now().nanoseconds/1e9
         elapsed = now-started
         guard = self._post_open_footprint_guard
@@ -8255,10 +8287,17 @@ class StateMachineNode(Node):
             guard.reset_recovery()
             self._exit_local_recovery = None
             self._nav_done = self._nav_failed = False
-            self.get_logger().info(f'Observed exit escape complete: wheel movement={moved:.2f}m; replanning.')
-            if getattr(self, '_observed_recovery_scope', 'exit') == 'explore':
+            self.get_logger().info(f'Observed {scope} escape complete: wheel movement={moved:.2f}m; replanning.')
+            if scope == 'explore':
+                if self._interrupt_explore_waypoint_for_blue_door():
+                    return
                 if not self._resend_active_explore_goal():
                     self._transition(State.EXPLORING)
+            elif scope == 'blue':
+                self._nav_retry_count = 0
+                self._nav_start_time = self.get_clock().now()
+                self._reset_door_nav_stuck_watch()
+                self.target_door_pub.publish(self.target_door)
             else:
                 self._send_exit_goal()
             return
@@ -19323,7 +19362,7 @@ class StateMachineNode(Node):
 
     def _transition(self, new_state: State):
         old_state = self.state
-        if old_state in (State.EXITING, State.EXPLORING_NAVIGATING) and new_state != old_state:
+        if old_state in (State.EXITING, State.EXPLORING_NAVIGATING, State.NAVIGATING) and new_state != old_state:
             if getattr(self, '_exit_local_recovery', None) is not None:
                 self._publish_post_open_twist(Twist())
                 self._post_open_footprint_guard.reset_recovery()

@@ -266,6 +266,7 @@ class ObservedExitTests(unittest.TestCase):
         node, scene = self.guarded_node()
         node._exit_local_recovery = (5., (2., 3., 0.), (7., 3.))
         node._observed_recovery_scope = 'explore'
+        node._interrupt_explore_waypoint_for_blue_door = Mock(return_value=False)
         node._resend_active_explore_goal = Mock(return_value=True)
         scene.odom_pose = (2.25, 3., 0.)
         node._run_observed_exit_recovery()
@@ -284,13 +285,85 @@ class ObservedExitTests(unittest.TestCase):
         node._start_observed_exit_recovery.assert_called_once_with(exploring=True)
         node._transition.assert_not_called()
 
-    def test_new_blue_goal_can_interrupt_active_exploration_escape(self):
+    def test_new_blue_goal_does_not_discard_active_checked_escape(self):
         node, scene = self.guarded_node()
         node._exit_local_recovery = (5., (2., 3., 0.), (7., 3.))
-        node._interrupt_explore_waypoint_for_blue_door = lambda: True
+        node._interrupt_explore_waypoint_for_blue_door = Mock(return_value=True)
         node._run_observed_exit_recovery = Mock()
         node._on_exploring_navigating()
-        node._run_observed_exit_recovery.assert_not_called()
+        node._run_observed_exit_recovery.assert_called_once()
+        node._interrupt_explore_waypoint_for_blue_door.assert_not_called()
+
+    def test_saved_blue_candidate_is_selected_at_safe_escape_handoff(self):
+        node, scene = self.guarded_node()
+        node._exit_local_recovery = (5., (2., 3., 0.), (7., 3.))
+        node._observed_recovery_scope = 'explore'
+        node._interrupt_explore_waypoint_for_blue_door = Mock(return_value=True)
+        node._resend_active_explore_goal = Mock()
+        scene.odom_pose = (2.25, 3., 0.)
+        node._run_observed_exit_recovery()
+        node._interrupt_explore_waypoint_for_blue_door.assert_called_once()
+        node._resend_active_explore_goal.assert_not_called()
+        self.assertIsNone(node._exit_local_recovery)
+
+    def blue_node(self):
+        node, scene = self.guarded_node()
+        node._active_exit_goal = None
+        node._exit_observed_aperture = False
+        node.target_door = NS(door_id='observed-A', door_color='blue',
+            door_pose=NS(header=NS(frame_id='map'), pose=NS(position=NS(x=15., y=5.))))
+        node.target_door_pub = NS(publish=Mock())
+        node._reset_door_nav_stuck_watch = Mock()
+        return node, scene
+
+    def test_locked_blue_recovery_uses_observed_navigation_goal(self):
+        node, scene = self.blue_node()
+        self.assertFalse(node._start_observed_exit_recovery(blue=True))
+        self.assertTrue(node._start_observed_exit_recovery(blue=True))
+        self.assertEqual(node._observed_recovery_scope, 'blue')
+        self.assertEqual(node._observed_recovery_blue_id, 'observed-A')
+        self.assertEqual(node._exit_local_recovery[2], (7., 3.))
+
+    def test_blue_handoff_republishes_same_target_not_exit_or_new_candidate(self):
+        node, scene = self.blue_node()
+        node._start_observed_exit_recovery(blue=True)
+        node._start_observed_exit_recovery(blue=True)
+        node.get_clock = lambda: NS(now=lambda: Time(seconds=15))
+        scene.odom_pose = (2.25, 3., 0.)
+        original = node.target_door
+        node._run_observed_exit_recovery()
+        node.target_door_pub.publish.assert_called_once_with(original)
+        node._reset_door_nav_stuck_watch.assert_called_once()
+        node._send_exit_goal.assert_not_called()
+        self.assertIsNone(node._exit_local_recovery)
+
+    def test_blue_escape_owns_navigation_tick_until_handoff(self):
+        node, scene = self.blue_node()
+        node._exit_local_recovery = (5., (2., 3., 0.), (7., 3.))
+        node._run_observed_exit_recovery = Mock()
+        node._on_navigating()
+        node._run_observed_exit_recovery.assert_called_once()
+        node.target_door_pub.publish.assert_not_called()
+
+    def test_changed_blue_identity_stops_before_issuing_escape_motion(self):
+        node, scene = self.blue_node()
+        node._start_observed_exit_recovery(blue=True)
+        node._start_observed_exit_recovery(blue=True)
+        node.target_door.door_id = 'observed-B'
+        node._run_observed_exit_recovery()
+        node._transition.assert_called_once_with(State.EMERGENCY_STOP)
+        node._post_open_footprint_guard.recovery_command.assert_not_called()
+        node.target_door_pub.publish.assert_not_called()
+
+    def test_blue_recovery_rejects_missing_stale_or_unmapped_observation(self):
+        for invalid in ('missing', 'frame', 'nonfinite', 'stale'):
+            node, scene = self.blue_node()
+            if invalid == 'missing': node.target_door = None
+            if invalid == 'frame': node.target_door.door_pose.header.frame_id = 'base_link'
+            if invalid == 'nonfinite': node.target_door.door_pose.pose.position.x = math.nan
+            if invalid == 'stale': node._post_open_footprint_guard.snapshot.return_value = None
+            self.assertFalse(node._start_observed_exit_recovery(blue=True), invalid)
+            node._request_navigation_cancel_for_manual_control.assert_not_called()
 
     def test_failure_history_not_reused_between_exit_and_exploration(self):
         node, scene = self.guarded_node()
