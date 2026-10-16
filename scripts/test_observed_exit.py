@@ -153,6 +153,40 @@ class ObservedExitTests(unittest.TestCase):
         node._request_navigation_cancel_for_manual_control.assert_called_once()
         self.assertEqual(node._send_exit_goal.call_count, 1)
 
+    def test_repeated_hint_arrival_without_aperture_starts_reobservation(self):
+        node, scene = self.guarded_node()
+        node._exit_pose_complete = lambda: False
+        node._nav_done, node._nav_failed = True, False
+        node._continue_nav2_exit_crossing()
+        node._send_exit_goal.assert_called_once()
+        self.assertFalse(node._exit_nav2_approach_complete)
+        node._nav_done = True
+        node._continue_nav2_exit_crossing()
+        self.assertIsNotNone(node._exit_local_recovery)
+        self.assertEqual(node._send_exit_goal.call_count, 1)
+        node._transition.assert_not_called()
+        node._post_open_footprint_guard.recovery_command.assert_not_called()
+
+    def test_valid_exit_plane_keeps_normal_crossing_goal_dispatch(self):
+        node, scene = self.guarded_node()
+        node._exit_pose_complete = lambda: False
+        node._observed_exit_plane = (14., 5., 0., 1.5)
+        node._nav_done = True
+        node._continue_nav2_exit_crossing()
+        node._send_exit_goal.assert_called_once()
+        self.assertTrue(node._exit_nav2_approach_complete)
+        self.assertIsNone(getattr(node, '_exit_local_recovery', None))
+
+    def test_missing_geometry_does_not_turn_hint_arrival_into_success(self):
+        node, scene = self.guarded_node()
+        node._exit_pose_complete = lambda: False
+        node._post_open_footprint_guard.snapshot.return_value = None
+        node._nav_done = True
+        node._continue_nav2_exit_crossing()
+        node._transition.assert_not_called()
+        node._request_navigation_cancel_for_manual_control.assert_not_called()
+        self.assertFalse(node._exit_nav2_approach_complete)
+
     def test_exit_retry_progress_resets_recovery_attempts(self):
         node, scene = self.guarded_node()
         node._exit_failed_odom = (0., 3., 0.)

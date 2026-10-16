@@ -177,6 +177,58 @@ class PostOpenRetreatTests(unittest.TestCase):
             node._contact_return_pose_callback(msg)
             self.assertIsNone(node._post_open_precontact_odom)
 
+    def rejoined_node(self):
+        node = self.guarded_node(0.)
+        node._post_open_precontact_odom = (6., -1.4, -math.pi/2)
+        node._post_open_return_odom_anchor = (None, math.pi/2)
+        scene = SimpleNamespace(pose=(17.8, 1.95, 0.), odom_pose=(6., -.8, 0.),
+                                safe=Mock(return_value=True), clearance=Mock(return_value=.2))
+        node._current_map_pose = lambda: scene.pose
+        node._post_open_footprint_guard = SimpleNamespace(snapshot=Mock(return_value=scene),
+            recovery_command=Mock(return_value=(0., 0., 'BLOCKED')), reset_recovery=Mock())
+        return node, scene
+
+    def test_rejoined_return_hands_off_despite_drifted_map_center(self):
+        node, scene = self.rejoined_node()
+        self.assertFalse(node._run_post_open_side_retreat())
+        self.assertFalse(node._post_open_side_retreat_pending)
+        node._transition.assert_not_called()
+        self.assertEqual(set(scene.safe.call_args_list[i].args for i in range(3)),
+                         {(0., .24), (0., -.24), (.06, 0.)})
+
+    def test_map_center_alone_cannot_bypass_unreached_own_return_pose(self):
+        node, scene = self.rejoined_node()
+        scene.pose = (17.8, .1, 0.)
+        scene.odom_pose = (6., -2.4, 0.)
+        node._post_open_return_odom_anchor = ((6., -1.4), math.pi/2)
+        self.assertTrue(node._run_post_open_side_retreat())
+        self.assertTrue(node._post_open_side_retreat_pending)
+
+    def test_first_arrival_at_saved_approach_pose_can_handoff(self):
+        node, scene = self.rejoined_node()
+        node._post_open_return_odom_anchor = ((6., -1.4), math.pi/2)
+        scene.odom_pose = (6., -1.35, 0.)
+        self.assertFalse(node._run_post_open_side_retreat())
+
+    def test_rejoined_pose_requires_current_forward_and_both_turn_sweeps(self):
+        for blocked in ((.06, 0.), (0., .24), (0., -.24)):
+            node, scene = self.rejoined_node()
+            scene.safe.side_effect = lambda v, w, b=blocked: (v, w) != b
+            self.assertTrue(node._run_post_open_side_retreat())
+            self.assertTrue(node._post_open_side_retreat_pending)
+
+    def test_rejoined_flag_cannot_authorize_pose_back_inside_doorway(self):
+        node, scene = self.rejoined_node()
+        scene.odom_pose = (6., -1.7, 0.)
+        self.assertFalse(node._post_open_return_rejoined(scene))
+
+    def test_rejoined_return_rejects_missing_or_invalid_pose(self):
+        node, scene = self.rejoined_node()
+        for pose in (None, (1., 2.), (1., math.nan, 0.)):
+            scene.odom_pose = pose
+            self.assertFalse(node._post_open_return_rejoined(scene))
+        self.assertFalse(node._post_open_return_rejoined(None))
+
     def node(self, error_deg):
         node = object.__new__(StateMachineNode)
         node._post_open_side_retreat_pending = True

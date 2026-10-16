@@ -4884,8 +4884,17 @@ class StateMachineNode(Node):
         handoff_clear = (scene is not None and scene.safe(0., .24) and scene.safe(0., -.24)
                          if guard is not None else
                          not observed_clearance or (clearance is not None and clearance[2] >= turn_min))
-        if abs_lateral <= target_abs and handoff_clear:
+        parked = getattr(self, '_post_open_precontact_odom', None)
+        local_return = observed_clearance and guard is not None and parked is not None
+        # Rejoin the robot's measured approach pose, not an initial map-axis
+        # centerline that SLAM corrections can move relative to the corridor.
+        position_ready = (self._post_open_return_rejoined(scene) if local_return
+                          else abs_lateral <= target_abs)
+        if (position_ready and handoff_clear
+                and (not local_return or scene.safe(.06, 0.))):
             self._finish_post_open_side_retreat(
+                'measured approach pose rejoined; forward and both turns observed clear'
+                if local_return else
                 f'lateral={abs_lateral:.2f}m <= target={target_abs:.2f}m')
             return False
 
@@ -5014,6 +5023,19 @@ class StateMachineNode(Node):
             f'cmd=({twist.linear.x:.2f}, {twist.angular.z:.2f})',
             throttle_duration_sec=1.0)
         return True
+
+    def _post_open_return_rejoined(self, scene):
+        parked = getattr(self, '_post_open_precontact_odom', None)
+        pose = getattr(scene, 'odom_pose', None)
+        if (parked is None or pose is None or len(parked) != 3 or len(pose) != 3
+                or not all(math.isfinite(v) for v in (*parked, *pose))):
+            return False
+        anchor = getattr(self, '_post_open_return_odom_anchor', None)
+        reached = ((anchor is not None and anchor[0] is None)
+                   or math.dist(pose[:2], parked[:2]) <= .18)
+        outward = (-(pose[0]-parked[0])*math.cos(parked[2])
+                   -(pose[1]-parked[1])*math.sin(parked[2]))
+        return reached and outward >= -.18
 
     def _post_open_return_heading(self, pose, fallback):
         waypoint = getattr(self, '_post_open_return_waypoint', None)
@@ -8144,6 +8166,13 @@ class StateMachineNode(Node):
             if self._exit_pose_complete():
                 self._transition(State.MISSION_COMPLETE)
             else:
+                # Reaching the visual approach hint is not a passage sighting.
+                # Repeated completion at one wheel pose must reobserve from a
+                # safely reached viewpoint instead of resending the same goal.
+                if (getattr(self, '_exit_observed_aperture', False)
+                        and getattr(self, '_observed_exit_plane', None) is None
+                        and self._start_observed_exit_recovery()):
+                    return
                 self._exit_nav2_approach_complete = (
                     not getattr(self, '_exit_observed_aperture', False)
                     or getattr(self, '_observed_exit_plane', None) is not None)
