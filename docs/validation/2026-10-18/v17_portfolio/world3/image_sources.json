@@ -1,0 +1,242 @@
+[
+  {
+    "file": "01_start.jpg",
+    "frame": 4,
+    "sim_time": 0.396,
+    "phase": "WAITING",
+    "source_run": "/home/junyoung/fire_robot_ws_return_recovery_20261012/artifacts/recovery_v17_worlds12345/world3",
+    "sha256": "05016893249138787c26fafb45dec9935359c9bd60e9dd1a0e4abe15a27fe8b5"
+  },
+  {
+    "file": "02_job1_selected.jpg",
+    "frame": 1266,
+    "sim_time": 93.852,
+    "phase": "WAITING",
+    "source_run": "/home/junyoung/fire_robot_ws_return_recovery_20261012/artifacts/recovery_v17_worlds12345/world3",
+    "sha256": "5355819cb6315fb6228db4b89909688719d92879a40768bc3006dfd7726383a2"
+  },
+  {
+    "file": "03_job1_pre_grasp.jpg",
+    "frame": 1863,
+    "sim_time": 137.874,
+    "phase": "PRE_GRASP:door_blue_b55ad4__axis_p5p16_m2p16",
+    "source_run": "/home/junyoung/fire_robot_ws_return_recovery_20261012/artifacts/recovery_v17_worlds12345/world3",
+    "sha256": "c88310ac26466285be7724ddd5408950adab10de2c4828c75a88a76c060afc5b"
+  },
+  {
+    "file": "04_job1_grasp_handle.jpg",
+    "frame": 2028,
+    "sim_time": 150.018,
+    "phase": "GRASP_HANDLE:door_blue_b55ad4__axis_p5p16_m2p16",
+    "source_run": "/home/junyoung/fire_robot_ws_return_recovery_20261012/artifacts/recovery_v17_worlds12345/world3",
+    "sha256": "b8faf42d2f7dd792ef2b263703b6f8f66bb37b6f81c4f346a1f05f3b74a947d6"
+  },
+  {
+    "file": "05_job1_handle_held_base_open.jpg",
+    "frame": 2299,
+    "sim_time": 169.818,
+    "phase": "HANDLE_HELD_BASE_OPEN:door_blue_b55ad4__axis_p5p16_m2p16",
+    "source_run": "/home/junyoung/fire_robot_ws_return_recovery_20261012/artifacts/recovery_v17_worlds12345/world3",
+    "sha256": "7577f3bcb7271bb166f9f003c1560ad6179ace2a791afc967c469e32ab15a495"
+  },
+  {
+    "file": "06_job1_return_lever.jpg",
+    "frame": 4003,
+    "sim_time": 294.36,
+    "phase": "RETURN_LEVER:door_blue_b55ad4__axis_p5p16_m2p16",
+    "source_run": "/home/junyoung/fire_robot_ws_return_recovery_20261012/artifacts/recovery_v17_worlds12345/world3",
+    "sha256": "8dc86c1475a888a5d67037f846fa4c24b11f5b71b3e63e57e3070810b02e0b36"
+  },
+  {
+    "file": "07_job1_complete.jpg",
+    "frame": 4380,
+    "sim_time": 322.674,
+    "phase": "COMPLETE:door_blue_b55ad4__axis_p5p16_m2p16",
+    "source_run": "/home/junyoung/fire_robot_ws_return_recovery_20261012/artifacts/recovery_v17_worlds12345/world3",
+    "sha256": "dccd1435a48430d574df268acdc95b57b0ef79cd4b3055656d60b35a4ff2c6dc"
+  },
+  {
+    "file": "08_job1_success.jpg",
+    "frame": 4380,
+    "sim_time": 322.674,
+    "phase": "COMPLETE:door_blue_b55ad4__axis_p5p16_m2p16",
+    "source_run": "/home/junyoung/fire_robot_ws_return_recovery_20261012/artifacts/recovery_v17_worlds12345/world3",
+    "sha256": "dccd1435a48430d574df268acdc95b57b0ef79cd4b3055656d60b35a4ff2c6dc"
+  },
+  {
+    "file": "09_job2_selected.jpg",
+    "frame": 6835,
+    "sim_time": 504.306,
+    "phase": "COMPLETE:door_blue_b55ad4__axis_p5p16_m2p16",
+    "source_run": "/home/junyoung/fire_robot_ws_return_recovery_20261012/artifacts/recovery_v17_worlds12345/world3",
+    "sha256": "a00d813096d6b498b612e5aa44ce4c11a3e009908ab5c72aaad1c0440e38958e"
+  },
+  {
+    "file": "10_job2_pre_grasp.jpg",
+    "frame": 7477,
+    "sim_time": 552.156,
+    "phase": "PRE_GRASP:observed_blue_10p6_1p9__axis_p10p55_p1p83",
+    "source_run": "/home/junyoung/fire_robot_ws_return_recovery_20261012/artifacts/recovery_v17_worlds12345/world3",
+    "sha256": "427d36bbf1c22caaf99592325e3a1d74150029b9501d7b3e583d939158151bc9"
+  },
+  {
+    "file": "11_job2_grasp_handle.jpg",
+    "frame": 7627,
+    "sim_time": 563.772,
+    "phase": "GRASP_HANDLE:observed_blue_10p6_1p9__axis_p10p55_p1p83",
+    "source_run": "/home/junyoung/fire_robot_ws_return_recovery_20261012/artifacts/recovery_v17_worlds12345/world3",
+    "sha256": "5ead7c1e054c1c85d8bb22a98060f6d3d31948c10836d44811db3cd9b2b7835a"
+  },
+  {
+    "file": "12_job2_handle_held_base_open.jpg",
+    "frame": 7905,
+    "sim_time": 584.298,
+    "phase": "HANDLE_HELD_BASE_OPEN:observed_blue_10p6_1p9__axis_p10p55_p1p83",
+    "source_run": "/home/junyoung/fire_robot_ws_return_recovery_20261012/artifacts/recovery_v17_worlds12345/world3",
+    "sha256": "cdc5ef4a70ee1d47dd5a159ae2d155c3d48042d2b456cb48ae73ef42c2bda04e"
+  },
+  {
+    "file": "13_job2_return_lever.jpg",
+    "frame": 9700,
+    "sim_time": 717.816,
+    "phase": "RETURN_LEVER:observed_blue_10p6_1p9__axis_p10p55_p1p83",
+    "source_run": "/home/junyoung/fire_robot_ws_return_recovery_20261012/artifacts/recovery_v17_worlds12345/world3",
+    "sha256": "ec65861e63663fa44f475cd12b1c9982a8926d8b7a2b3e60193473b919af2b3b"
+  },
+  {
+    "file": "14_job2_complete.jpg",
+    "frame": 10078,
+    "sim_time": 746.13,
+    "phase": "COMPLETE:observed_blue_10p6_1p9__axis_p10p55_p1p83",
+    "source_run": "/home/junyoung/fire_robot_ws_return_recovery_20261012/artifacts/recovery_v17_worlds12345/world3",
+    "sha256": "58f91bf7d6d33c349f5fdf81b2e8e8292e918c8034d4397472a4536c7f59e01e"
+  },
+  {
+    "file": "15_job2_success.jpg",
+    "frame": 10078,
+    "sim_time": 746.13,
+    "phase": "COMPLETE:observed_blue_10p6_1p9__axis_p10p55_p1p83",
+    "source_run": "/home/junyoung/fire_robot_ws_return_recovery_20261012/artifacts/recovery_v17_worlds12345/world3",
+    "sha256": "58f91bf7d6d33c349f5fdf81b2e8e8292e918c8034d4397472a4536c7f59e01e"
+  },
+  {
+    "file": "16_job3_selected.jpg",
+    "frame": 11508,
+    "sim_time": 853.314,
+    "phase": "COMPLETE:observed_blue_10p6_1p9__axis_p10p55_p1p83",
+    "source_run": "/home/junyoung/fire_robot_ws_return_recovery_20261012/artifacts/recovery_v17_worlds12345/world3",
+    "sha256": "cafcfb0d8357d2f822e3c1f2419d014273741a177b5d7dc111ef807537c5110f"
+  },
+  {
+    "file": "17_job3_pre_grasp.jpg",
+    "frame": 12109,
+    "sim_time": 898.458,
+    "phase": "PRE_GRASP:observed_blue_13p1_m1p6__axis_p14p13_m2p26",
+    "source_run": "/home/junyoung/fire_robot_ws_return_recovery_20261012/artifacts/recovery_v17_worlds12345/world3",
+    "sha256": "d42d1dda3a5dc3ef01a5912e9dc89ef0be82cc8565929fffc884d4ab9063148a"
+  },
+  {
+    "file": "18_job3_grasp_handle.jpg",
+    "frame": 12264,
+    "sim_time": 910.008,
+    "phase": "GRASP_HANDLE:observed_blue_13p1_m1p6__axis_p14p13_m2p26",
+    "source_run": "/home/junyoung/fire_robot_ws_return_recovery_20261012/artifacts/recovery_v17_worlds12345/world3",
+    "sha256": "88a3a9f93c6662ebeab7705a80894ca8010a22bed071bf68ab7dd24c4b674bb3"
+  },
+  {
+    "file": "19_job3_handle_held_base_open.jpg",
+    "frame": 12531,
+    "sim_time": 929.874,
+    "phase": "HANDLE_HELD_BASE_OPEN:observed_blue_13p1_m1p6__axis_p14p13_m2p26",
+    "source_run": "/home/junyoung/fire_robot_ws_return_recovery_20261012/artifacts/recovery_v17_worlds12345/world3",
+    "sha256": "abbcfeef810df43e44131d91f4509ef513d94d688caaa82cd36ce312923e17e3"
+  },
+  {
+    "file": "20_job3_return_lever.jpg",
+    "frame": 14288,
+    "sim_time": 1056.396,
+    "phase": "RETURN_LEVER:observed_blue_13p1_m1p6__axis_p14p13_m2p26",
+    "source_run": "/home/junyoung/fire_robot_ws_return_recovery_20261012/artifacts/recovery_v17_worlds12345/world3",
+    "sha256": "ca02f2633bf6ac7460c6638a420e65f10861bf0e4e8d151b6d03cde9522ac78b"
+  },
+  {
+    "file": "21_job3_complete.jpg",
+    "frame": 14636,
+    "sim_time": 1082.4,
+    "phase": "COMPLETE:observed_blue_13p1_m1p6__axis_p14p13_m2p26",
+    "source_run": "/home/junyoung/fire_robot_ws_return_recovery_20261012/artifacts/recovery_v17_worlds12345/world3",
+    "sha256": "922fa54c6c13e9f94e1c4ccefca5bd08a4f4a712a91d6749c3f388fcbd32b634"
+  },
+  {
+    "file": "22_job3_success.jpg",
+    "frame": 14636,
+    "sim_time": 1082.4,
+    "phase": "COMPLETE:observed_blue_13p1_m1p6__axis_p14p13_m2p26",
+    "source_run": "/home/junyoung/fire_robot_ws_return_recovery_20261012/artifacts/recovery_v17_worlds12345/world3",
+    "sha256": "922fa54c6c13e9f94e1c4ccefca5bd08a4f4a712a91d6749c3f388fcbd32b634"
+  },
+  {
+    "file": "23_job4_selected.jpg",
+    "frame": 16607,
+    "sim_time": 1228.326,
+    "phase": "COMPLETE:observed_blue_13p1_m1p6__axis_p14p13_m2p26",
+    "source_run": "/home/junyoung/fire_robot_ws_return_recovery_20261012/artifacts/recovery_v17_worlds12345/world3",
+    "sha256": "bb04ae46856e745098ffc8c73ef85e1a2b8ca124d45043ca20ad325872ee8679"
+  },
+  {
+    "file": "24_job4_pre_grasp.jpg",
+    "frame": 17121,
+    "sim_time": 1266.738,
+    "phase": "PRE_GRASP:observed_blue_18p8_1p8__axis_p18p62_p1p79",
+    "source_run": "/home/junyoung/fire_robot_ws_return_recovery_20261012/artifacts/recovery_v17_worlds12345/world3",
+    "sha256": "e161acb8ac2f241f20dc4a925b464a2265cbed77476d24fd7a556bb52df72124"
+  },
+  {
+    "file": "25_job4_grasp_handle.jpg",
+    "frame": 17284,
+    "sim_time": 1278.354,
+    "phase": "GRASP_HANDLE:observed_blue_18p8_1p8__axis_p18p62_p1p79",
+    "source_run": "/home/junyoung/fire_robot_ws_return_recovery_20261012/artifacts/recovery_v17_worlds12345/world3",
+    "sha256": "471d3fccb22b4664ce23944f09015cc89cde57957782874d08b69a8137e2faba"
+  },
+  {
+    "file": "26_job4_handle_held_base_open.jpg",
+    "frame": 17566,
+    "sim_time": 1299.144,
+    "phase": "HANDLE_HELD_BASE_OPEN:observed_blue_18p8_1p8__axis_p18p62_p1p79",
+    "source_run": "/home/junyoung/fire_robot_ws_return_recovery_20261012/artifacts/recovery_v17_worlds12345/world3",
+    "sha256": "2bb76ed99607d5d98121080997c45d8ece3c278e0f9ebefdb35e845e9ffa356b"
+  },
+  {
+    "file": "27_job4_return_lever.jpg",
+    "frame": 19563,
+    "sim_time": 1443.288,
+    "phase": "RETURN_LEVER:observed_blue_18p8_1p8__axis_p18p62_p1p79",
+    "source_run": "/home/junyoung/fire_robot_ws_return_recovery_20261012/artifacts/recovery_v17_worlds12345/world3",
+    "sha256": "767b69ce90eb9ad86f3a8ef7dbb67acb25663a04f0f58d3eaae000e5e7da3878"
+  },
+  {
+    "file": "28_job4_complete.jpg",
+    "frame": 19906,
+    "sim_time": 1467.642,
+    "phase": "COMPLETE:observed_blue_18p8_1p8__axis_p18p62_p1p79",
+    "source_run": "/home/junyoung/fire_robot_ws_return_recovery_20261012/artifacts/recovery_v17_worlds12345/world3",
+    "sha256": "b3ce70f28337f0b3eed5d9dd2803d9560acf63fe54e070e9ea002db101589411"
+  },
+  {
+    "file": "29_job4_success.jpg",
+    "frame": 19906,
+    "sim_time": 1467.642,
+    "phase": "COMPLETE:observed_blue_18p8_1p8__axis_p18p62_p1p79",
+    "source_run": "/home/junyoung/fire_robot_ws_return_recovery_20261012/artifacts/recovery_v17_worlds12345/world3",
+    "sha256": "b3ce70f28337f0b3eed5d9dd2803d9560acf63fe54e070e9ea002db101589411"
+  },
+  {
+    "file": "30_final.jpg",
+    "frame": 22906,
+    "sim_time": 1687.291,
+    "phase": "COMPLETE:observed_blue_18p8_1p8__axis_p18p62_p1p79",
+    "source_run": "/home/junyoung/fire_robot_ws_return_recovery_20261012/artifacts/recovery_v17_worlds12345/world3",
+    "sha256": "9704a34fe46858ab127e211af09255c314b3b5ea7bdfe106d1f37af2fa092bb0"
+  }
+]

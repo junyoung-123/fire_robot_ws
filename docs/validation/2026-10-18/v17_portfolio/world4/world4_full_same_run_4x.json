@@ -1,0 +1,20 @@
+{
+  "world_id": 4,
+  "source_run": "/home/junyoung/fire_robot_ws_return_recovery_20261012/artifacts/recovery_v17_worlds12345/world4",
+  "source_frames": 7163,
+  "simulation_interval_sec": [
+    0.066,
+    526.879
+  ],
+  "uniform_playback_speed": 4.0,
+  "output_frames": 3952,
+  "duration_sec": 131.73333333333332,
+  "output_fps": 30.0,
+  "cross_run_splicing": false,
+  "actual_capture_fps": 13.59495684426922,
+  "capture_gap_p95_sec": 0.132000000000005,
+  "capture_gap_max_sec": 0.3959999999999866,
+  "complete_mission_verified": true,
+  "status": "MISSION_COMPLETE",
+  "missing_camera_frames": 0
+}

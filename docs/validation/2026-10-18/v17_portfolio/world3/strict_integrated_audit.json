@@ -1,0 +1,141 @@
+{
+  "scope": "offline_only_not_control",
+  "world_id": 3,
+  "evaluation_expected_blue_models": [
+    "door_blue1",
+    "door_blue2",
+    "door_blue3",
+    "door_blue4"
+  ],
+  "physical_opening_applicable": true,
+  "pass_all": true,
+  "checks": {
+    "full_original_spawn_scope": true,
+    "mission_complete": true,
+    "runner_pass": true,
+    "source_unchanged": true,
+    "models_unchanged": true,
+    "recorder_scripts_unchanged": true,
+    "live_slam_map_publisher": true,
+    "no_prior_map": true,
+    "wheel_odometry": true,
+    "no_control_truth_subscription": true,
+    "frozen_run_baseline": true,
+    "all_expected_still_open_at_end": true,
+    "all_distinct_physical_doors_processed": true,
+    "no_physical_revisit_after_success": true,
+    "every_success_has_open_release_clearance_stow_and_opposed_contact": true,
+    "no_recorded_chassis_door_contact": true,
+    "no_recorded_moving_door_wall_contact": true,
+    "whole_chassis_past_exit": true
+  },
+  "jobs": [
+    {
+      "session": 1,
+      "observed_door_id": "door_blue_b55ad4__axis_p5p16_m2p16",
+      "successful": true,
+      "contacted_models": [
+        "door_blue1"
+      ],
+      "maximum_contact_gap_sim_sec": {
+        "left": 0.060000000000002274,
+        "right": 0.060000000000002274
+      },
+      "opposed_lever_contact_confirmed": true,
+      "observed_opening_confirmed": true,
+      "actual_finger_release_confirmed": true,
+      "actual_wrist_clearance_confirmed": true,
+      "actual_arm_stow_confirmed": true,
+      "evaluation_angles_at_job_end": {
+        "door_blue1": 2.1210787537207088,
+        "door_blue2": 0.0,
+        "door_blue3": 0.0,
+        "door_blue4": 0.0
+      }
+    },
+    {
+      "session": 2,
+      "observed_door_id": "observed_blue_10p6_1p9__axis_p10p55_p1p83",
+      "successful": true,
+      "contacted_models": [
+        "door_blue2"
+      ],
+      "maximum_contact_gap_sim_sec": {
+        "left": 0.06000000000005912,
+        "right": 0.06000000000005912
+      },
+      "opposed_lever_contact_confirmed": true,
+      "observed_opening_confirmed": true,
+      "actual_finger_release_confirmed": true,
+      "actual_wrist_clearance_confirmed": true,
+      "actual_arm_stow_confirmed": true,
+      "evaluation_angles_at_job_end": {
+        "door_blue1": 2.1210787537207088,
+        "door_blue2": 2.123716869058574,
+        "door_blue3": 0.0,
+        "door_blue4": 0.0
+      }
+    },
+    {
+      "session": 3,
+      "observed_door_id": "observed_blue_13p1_m1p6__axis_p14p13_m2p26",
+      "successful": true,
+      "contacted_models": [
+        "door_blue3"
+      ],
+      "maximum_contact_gap_sim_sec": {
+        "left": 0.060000000000172804,
+        "right": 0.060000000000172804
+      },
+      "opposed_lever_contact_confirmed": true,
+      "observed_opening_confirmed": true,
+      "actual_finger_release_confirmed": true,
+      "actual_wrist_clearance_confirmed": true,
+      "actual_arm_stow_confirmed": true,
+      "evaluation_angles_at_job_end": {
+        "door_blue1": 2.1210787537207088,
+        "door_blue2": 2.123716869058574,
+        "door_blue3": 2.102583478874416,
+        "door_blue4": 0.0
+      }
+    },
+    {
+      "session": 4,
+      "observed_door_id": "observed_blue_18p8_1p8__axis_p18p62_p1p79",
+      "successful": true,
+      "contacted_models": [
+        "door_blue4"
+      ],
+      "maximum_contact_gap_sim_sec": {
+        "left": 0.060000000000172804,
+        "right": 0.060000000000172804
+      },
+      "opposed_lever_contact_confirmed": true,
+      "observed_opening_confirmed": true,
+      "actual_finger_release_confirmed": true,
+      "actual_wrist_clearance_confirmed": true,
+      "actual_arm_stow_confirmed": true,
+      "evaluation_angles_at_job_end": {
+        "door_blue1": 2.1210787537207088,
+        "door_blue2": 2.123716869058574,
+        "door_blue3": 2.102583478874416,
+        "door_blue4": 2.123368919681776
+      }
+    }
+  ],
+  "physical_revisits_after_success": [],
+  "final_evaluation_angles_rad": {
+    "door_blue1": 2.1210787537207088,
+    "door_blue2": 2.123716869058574,
+    "door_blue3": 2.102583478874416,
+    "door_blue4": 2.123368919681776
+  },
+  "control_truth_subscriptions": {},
+  "independently_classified_chassis_contacts": [],
+  "moving_door_wall_contacts": [],
+  "limitations": [
+    "Sampled contact evidence is not continuous force measurement.",
+    "Door sensors do not prove absence of every arm-obstacle collision.",
+    "Experimental archived motion is not authorized for real-robot deployment."
+  ]
+}

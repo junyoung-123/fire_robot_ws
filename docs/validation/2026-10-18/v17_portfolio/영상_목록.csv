@@ -1,0 +1,5 @@
+﻿world,verdict,physical_blue_doors,source_run,video,video_sha256,playback_speed,runtime_commit,note
+1,FULL PASS,3,/home/junyoung/fire_robot_ws_return_recovery_20261012/artifacts/recovery_v17_worlds12345/world1,world1/world1_full_same_run_4x.mp4,7f266bec59aec9a319e7b851a69bbfbf102c76e31e49b0a236680c2bd2e0ba16,4,3d24d54,관측한 파란 문 3개 접촉 개방·해제·팔 회수·복귀 후 출구 통과
+2,FULL PASS,3,/home/junyoung/fire_robot_ws_return_recovery_20261012/artifacts/recovery_v17_worlds12345/world2,world2/world2_full_same_run_4x.mp4,27956e2d5576067c5dc83cdb577a0a35b6b552f983e6a877e2a113c95f8a4778,4,3d24d54,관측한 파란 문 3개 접촉 개방·해제·팔 회수·복귀 후 출구 통과
+3,FULL PASS,4,/home/junyoung/fire_robot_ws_return_recovery_20261012/artifacts/recovery_v17_worlds12345/world3,world3/world3_full_same_run_4x.mp4,6e8a3e52a7b05ae1cf7eeb80ef4a1d022bacf4e1acfc99431aed1a363b3ba555,4,3d24d54,관측한 파란 문 4개 접촉 개방·해제·팔 회수·복귀 후 출구 통과
+4,FULL PASS,0,/home/junyoung/fire_robot_ws_return_recovery_20261012/artifacts/recovery_v17_worlds12345/world4,world4/world4_full_same_run_4x.mp4,b01f450aee2c2842aa0acba5a1d0edd0cd7a908cb1d3ec264a5b57ede7234b2c,4,3d24d54,"파란 문 없음: 탐색 후 출구 통과, 개방 항목 비적용"

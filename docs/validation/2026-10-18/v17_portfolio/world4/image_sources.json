@@ -1,0 +1,42 @@
+[
+  {
+    "file": "01_start.jpg",
+    "frame": 4,
+    "sim_time": 0.396,
+    "phase": "WAITING",
+    "source_run": "/home/junyoung/fire_robot_ws_return_recovery_20261012/artifacts/recovery_v17_worlds12345/world4",
+    "sha256": "31271fc00e36fb3290eb3dadac4472534c47c33eed3bb8c1b40ab3e284bb620b"
+  },
+  {
+    "file": "02_navigation_25pct.jpg",
+    "frame": 1819,
+    "sim_time": 132.066,
+    "phase": "WAITING",
+    "source_run": "/home/junyoung/fire_robot_ws_return_recovery_20261012/artifacts/recovery_v17_worlds12345/world4",
+    "sha256": "7a8b4a825894576d5988a5e7371561bdab7e3717d9e7c9b02aaf5e7345efa9ea"
+  },
+  {
+    "file": "03_navigation_50pct.jpg",
+    "frame": 3613,
+    "sim_time": 263.802,
+    "phase": "WAITING",
+    "source_run": "/home/junyoung/fire_robot_ws_return_recovery_20261012/artifacts/recovery_v17_worlds12345/world4",
+    "sha256": "adde67b2a8551bfdf1ff851ec0d667a5e672cb6b3248fd345837d9a6083f1f0b"
+  },
+  {
+    "file": "04_navigation_75pct.jpg",
+    "frame": 5400,
+    "sim_time": 395.472,
+    "phase": "WAITING",
+    "source_run": "/home/junyoung/fire_robot_ws_return_recovery_20261012/artifacts/recovery_v17_worlds12345/world4",
+    "sha256": "b9037e655f52f3ffb9a711010a30cc4987bcec87d667ee319254e69de5ae209c"
+  },
+  {
+    "file": "05_final.jpg",
+    "frame": 7162,
+    "sim_time": 526.879,
+    "phase": "WAITING",
+    "source_run": "/home/junyoung/fire_robot_ws_return_recovery_20261012/artifacts/recovery_v17_worlds12345/world4",
+    "sha256": "0ec3778f1821120999ab018b14ce7dd76f0ce63a776360d9da291164e0820ab9"
+  }
+]

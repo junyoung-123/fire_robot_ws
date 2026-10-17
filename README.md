@@ -1,5 +1,33 @@
 # Fire Robot Workspace
 
+## V17 통합 검증과 포트폴리오 (2026-10-18)
+
+**이 브랜치는 `codex/v17-portfolio-20261018`이며, 검증 코드 기준은 `3d24d54`입니다.**
+이후 개발 중인 V18과 구분해 보존합니다. 아래 날짜별 과거 기록은 당시 결과입니다.
+
+- **World 1~4 FULL PASS:** 관측 기반 주행, 대상 문 접촉 개방, 손잡이 해제·팔 회수·복귀, 차체 전체 출구 통과.
+- 파란 문 처리: World 1 `3/3`, World 2 `3/3`, World 3 `4/4`. World 4는 파란 문이 없어 물리 개방 항목 비적용.
+- **World 5는 미통과:** 첫 시도 1/6, 동일 V17 재시도는 이전 정체 구간을 통과했으나 4/6 작업 성공 후 다섯 번째 문에서 안전정지. 성공 자료에 포함하지 않았습니다.
+- 사전 지도 없이 온라인 SLAM, 자체 휠 오도메트리, 카메라·LiDAR 관측을 사용합니다. 문 개수·문/장애물 정답 좌표·문/레버 정답 각도는 제어 입력이 아닙니다.
+- 로봇 치수·센서 보정·학습 모델·정책 및 안전 파라미터는 사용합니다. 실물 검증이나 반복 성공률, 다섯 월드 전체 통과를 의미하지 않습니다.
+- 개방각 기준 `2.05 rad`(약 117.46도) 유지. 검증 파일 해시, 관측 입력, 접촉·해제·회수 및 출구 통과를 독립 검사했습니다.
+- 관련 회귀 테스트 330개 PASS. 전체 단위 테스트는 기존 4 FAIL / 17 ERROR가 남아 있어 전체 테스트 통과로 표현하지 않습니다.
+
+[영상·이미지 전체 보기](docs/validation/2026-10-18/v17_portfolio/00_영상보기.html) ·
+[검증 범위·제출용 설명](docs/validation/2026-10-18/v17_portfolio/00_읽어주세요.txt) ·
+[영상 출처·해시 목록](docs/validation/2026-10-18/v17_portfolio/영상_목록.csv)
+
+| 환경 | 동일 실행 전체 영상, 4배속 | 독립 검사·증거 이미지 |
+|---|---|---|
+| World 1 | [MP4](docs/validation/2026-10-18/v17_portfolio/world1/world1_full_same_run_4x.mp4) | [결과](docs/validation/2026-10-18/v17_portfolio/world1/00_results.html) |
+| World 2 | [MP4](docs/validation/2026-10-18/v17_portfolio/world2/world2_full_same_run_4x.mp4) | [결과](docs/validation/2026-10-18/v17_portfolio/world2/00_results.html) |
+| World 3 | [MP4](docs/validation/2026-10-18/v17_portfolio/world3/world3_full_same_run_4x.mp4) | [결과](docs/validation/2026-10-18/v17_portfolio/world3/00_results.html) |
+| World 4 | [MP4](docs/validation/2026-10-18/v17_portfolio/world4/world4_full_same_run_4x.mp4) | [결과](docs/validation/2026-10-18/v17_portfolio/world4/00_results.html) |
+
+HTML은 내려받아 열어야 영상이 재생됩니다. 영상은 서로 다른 실행의 편집 연결이 아닌 월드별 단일 연속 기록입니다.
+현재 성공 조건은 `scripts/frozen_worlds/suite.py`와 동봉된 V17 baseline에 해당합니다.
+과거 기본 `simulation.launch.py` 실행과 동일한 조건으로 간주하지 마세요.
+
 ## 최신 통합 코드와 검증 (2026-10-12)
 
 **최신 통합 브랜치: `codex/integrated-contact-20261012`. 월드1 R243 단일 연속 실행 FULL PASS.**
