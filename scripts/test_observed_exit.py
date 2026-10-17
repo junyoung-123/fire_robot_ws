@@ -373,6 +373,69 @@ class ObservedExitTests(unittest.TestCase):
         self.assertFalse(node._start_observed_exit_recovery())
         self.assertEqual(node._exit_local_recovery_attempts, 0)
 
+    def test_camera_refinement_cannot_restart_nav2_during_escape(self):
+        node, scene = self.blue_node()
+        node.state = State.NAVIGATING
+        node._locked_target_refine_enabled = True
+        node._local_obstacle_escape_start_time = None
+        node._nav_start_pose_recovery_active = False
+        node._door_retarget_backoff_until = None
+        node._exit_local_recovery = (5., (2., 3., 0.), (7., 3.))
+        original = node.target_door
+        node._maybe_refine_locked_blue_target(NS(door_color='blue'))
+        self.assertIs(node.target_door, original)
+        node.target_door_pub.publish.assert_not_called()
+        self.assertFalse(node._maybe_replace_locked_observed_blue_target(
+            NS(), original))
+
+    def test_new_wheel_progress_allows_bounded_escape_to_continue(self):
+        node, scene = self.guarded_node()
+        node._exit_local_recovery = (0., (2., 3., 0.), (7., 3.))
+        node._observed_escape_progress = (55., .50)
+        node.get_clock = lambda: NS(now=lambda: Time(seconds=61))
+        scene.odom_pose = (2.63, 3., .8)
+        scene.safe.return_value = False
+        node._run_observed_exit_recovery()
+        node._transition.assert_not_called()
+        self.assertAlmostEqual(node._observed_escape_progress[1], .63)
+        self.assertEqual(node._observed_escape_progress[0], 61.)
+
+    def test_escape_oscillation_cannot_renew_progress_budget(self):
+        node, scene = self.guarded_node()
+        node._exit_local_recovery = (0., (2., 3., 0.), (7., 3.))
+        node._observed_escape_progress = (10., .5)
+        node.get_clock = lambda: NS(now=lambda: Time(seconds=69))
+        scene.odom_pose = (2.49, 3., 1.2)
+        scene.safe.return_value = False
+        node._run_observed_exit_recovery()
+        self.assertEqual(node._observed_escape_progress, (10., .5))
+        node.get_clock = lambda: NS(now=lambda: Time(seconds=71))
+        node._run_observed_exit_recovery()
+        node._transition.assert_called_once_with(State.EMERGENCY_STOP)
+
+    def test_escape_total_deadline_cannot_be_renewed_by_motion(self):
+        node, scene = self.guarded_node()
+        node._exit_local_recovery = (0., (2., 3., 0.), (7., 3.))
+        node._observed_escape_progress = (179., 1.)
+        node.get_clock = lambda: NS(now=lambda: Time(seconds=181))
+        scene.odom_pose = (3.1, 3., 0.)
+        node._run_observed_exit_recovery()
+        node._transition.assert_called_once_with(State.EMERGENCY_STOP)
+        node._send_exit_goal.assert_not_called()
+
+    def test_stale_scene_and_slam_jump_cannot_extend_escape(self):
+        node, scene = self.guarded_node()
+        node._exit_local_recovery = (0., (2., 3., 0.), (7., 3.))
+        node._observed_escape_progress = (5., .3)
+        scene.pose = (100., 100., 2.)
+        scene.odom_pose = (2.2, 3., 0.)
+        scene.safe.return_value = False
+        node._run_observed_exit_recovery()
+        self.assertEqual(node._observed_escape_progress, (5., .3))
+        node._post_open_footprint_guard.snapshot.return_value = None
+        node._run_observed_exit_recovery()
+        self.assertEqual(node._observed_escape_progress, (5., .3))
+
 
 if __name__ == '__main__':
     unittest.main()

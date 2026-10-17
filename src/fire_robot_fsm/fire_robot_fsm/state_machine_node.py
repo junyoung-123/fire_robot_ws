@@ -1223,7 +1223,8 @@ class StateMachineNode(Node):
         # Do not restart Nav2 while an exclusive manual recovery owns motion.
         if (self._local_obstacle_escape_start_time is not None
                 or self._nav_start_pose_recovery_active
-                or self._door_retarget_backoff_until is not None):
+                or self._door_retarget_backoff_until is not None
+                or getattr(self, '_exit_local_recovery', None) is not None):
             return
         # Keep visual-servo refinement active through the aligned settle
         # interval. A side-camera projection selected from several metres away
@@ -1682,6 +1683,8 @@ class StateMachineNode(Node):
 
     def _maybe_replace_locked_observed_blue_target(
             self, observation: DoorInfo, target: DoorInfo) -> bool:
+        if getattr(self, '_exit_local_recovery', None) is not None:
+            return False
         if not target.door_id.startswith('observed_blue_'):
             return False
         if observation.door_id.startswith('observed_blue_'):
@@ -8240,6 +8243,7 @@ class StateMachineNode(Node):
         self._observed_recovery_scope = scope
         self._observed_recovery_blue_id = door.door_id if blue else None
         self._exit_local_recovery = (self.get_clock().now().nanoseconds/1e9, pose, target)
+        self._observed_escape_progress = (self._exit_local_recovery[0], 0.0)
         self._nav_done = self._nav_failed = False
         self._request_navigation_cancel_for_manual_control(f'observed {scope} escape')
         self._publish_post_open_twist(Twist())
@@ -8262,11 +8266,15 @@ class StateMachineNode(Node):
         elapsed = now-started
         guard = self._post_open_footprint_guard
         scene = guard.snapshot(self._latest_scan, self._latest_scan_received_sec)
-        if not 0. <= elapsed <= 60.:
+        progress_stamp, best_moved = getattr(
+            self, '_observed_escape_progress', (started, 0.0))
+        if not 0. <= elapsed <= 180. or now-progress_stamp > 60.:
             self._publish_post_open_twist(Twist())
             guard.reset_recovery()
             self._exit_local_recovery = None
-            self.get_logger().error('Observed exit escape deadline; stopping before replan.')
+            self.get_logger().error(
+                f'Observed {scope} escape deadline; stopping before replan '
+                f'(elapsed={elapsed:.1f}s, no new wheel progress={now-progress_stamp:.1f}s).')
             self._transition(State.EMERGENCY_STOP)
             return
         if elapsed < 1. or scene is None or getattr(scene, 'odom_pose', None) is None:
@@ -8279,6 +8287,10 @@ class StateMachineNode(Node):
             self.get_logger().error('Implausible wheel-odometry jump during exit escape.')
             self._transition(State.EMERGENCY_STOP)
             return
+        # Only new own-odometry displacement extends the inactivity budget.
+        # Oscillation, SLAM corrections and angular motion cannot renew it.
+        if moved >= best_moved + .05:
+            self._observed_escape_progress = (now, moved)
         heading = math.atan2(target[1]-pose[1], target[0]-pose[0])
         error = self._normalize_angle(heading-pose[2])
         if (moved >= .20 and abs(error) <= .30 and scene.safe(.06, 0.)
@@ -10488,6 +10500,14 @@ class StateMachineNode(Node):
         msg.handle_position.point.x = x
         msg.handle_position.point.y = y
         msg.handle_position.point.z = 0.9
+        # Keep the observed panel separate from the later drive-up pose.
+        msg.observed_door_position.header.frame_id = 'map'
+        last_seen = max(0.0, float(cluster.get('last_seen', 0.0)))
+        msg.observed_door_position.header.stamp.sec = int(last_seen)
+        msg.observed_door_position.header.stamp.nanosec = int(
+            (last_seen-int(last_seen))*1e9)
+        msg.observed_door_position.point.x = x
+        msg.observed_door_position.point.y = y
         if cluster.get('target_projected_from_center_bias', 0.0) >= 1.0:
             msg.handle_detected = False
             msg.handle_detection_method = 'observed_wall_projection'
@@ -12107,6 +12127,8 @@ class StateMachineNode(Node):
             abs(self._axis_lateral_xy(xy[0], xy[1]) - self._explore_center_y)
             for xy in self._unique_xy_points(points))
         if best_lateral >= min_lateral:
+            return True
+        if self._live_observed_blue_parking_pose(door) is not None:
             return True
         self.get_logger().info(
             f'Blue candidate {door.door_id} rejected: openable '
@@ -15846,6 +15868,8 @@ class StateMachineNode(Node):
             return (
                 f'estimated handle 후보가 이미 열린 {relation} station '
                 f'{opened_progress:.1f}m 근처에 있음')
+        if self._live_observed_blue_parking_pose(door) is not None:
+            return ''
         hx, hy = self._door_handle_xy(door)
         handle_abs_lateral = abs(
             self._axis_lateral_xy(hx, hy) - self._explore_center_y)
@@ -17564,11 +17588,45 @@ class StateMachineNode(Node):
                 for cluster_id in self._observed_blue_cluster_id_values(cluster):
                     self._add_door_id_keys(self._opened_door_ids, cluster_id)
 
+    def _live_observed_blue_parking_pose(self, door):
+        """Use a fresh panel observation and measured wall, not initial map lanes."""
+        if (getattr(self, '_axis_door_lane_bounds_enabled', True)
+                or door.door_color != 'blue'):
+            return None
+        anchor = self._observed_door_xy(door)
+        if anchor is None:
+            return None
+        stamp = Time.from_msg(door.observed_door_position.header.stamp)
+        age = (self.get_clock().now()-stamp).nanoseconds/1e9
+        if not 0. <= age <= .75:
+            return None
+        normal = self._observed_door_wall_normal(door, anchor=anchor)
+        if normal is None:
+            return None
+        c, s = math.cos(normal), math.sin(normal)
+        hp = door.handle_position
+        if hp.header.frame_id == 'map':
+            dx, dy = float(hp.point.x)-anchor[0], float(hp.point.y)-anchor[1]
+            if (math.isfinite(dx) and math.isfinite(dy)
+                    and math.hypot(dx, dy) <= .7 and abs(c*dx+s*dy) <= .15):
+                anchor = (float(hp.point.x), float(hp.point.y))
+        distance = max(.10, self._axis_door_side_standoff_m)
+        return anchor[0]-distance*c, anchor[1]-distance*s, normal
+
     def _door_with_axis_aligned_approach(self, door: DoorInfo) -> DoorInfo:
         adjusted = copy.deepcopy(door)
         if (not self._axis_door_approach_enabled
                 or adjusted.door_color != 'blue'
                 or not self._door_has_map_identity(adjusted)):
+            return adjusted
+        measured_parking = self._live_observed_blue_parking_pose(adjusted)
+        if measured_parking is not None:
+            x, y, yaw = measured_parking
+            adjusted.door_pose.header.frame_id = 'map'
+            adjusted.door_pose.pose.position.x = x
+            adjusted.door_pose.pose.position.y = y
+            adjusted.door_pose.pose.position.z = 0.0
+            self._set_pose_yaw(adjusted.door_pose.pose, yaw)
             return adjusted
         if self._blue_pose_handle_opposite_wall(adjusted):
             self.get_logger().info(
@@ -17866,6 +17924,16 @@ class StateMachineNode(Node):
         if door.door_pose.header.frame_id != 'map':
             return None
 
+        measured_parking = self._live_observed_blue_parking_pose(door)
+        if measured_parking is not None:
+            return measured_parking
+        if (not getattr(self, '_axis_door_lane_bounds_enabled', True)
+                and self._observed_door_xy(door) is not None):
+            # Reusing the selected parking pose does not certify opening:
+            # fresh blue/handle, wall-normal and swept-path checks still apply.
+            p = door.door_pose.pose
+            return float(p.position.x), float(p.position.y), self._pose_yaw(p)
+
         if (
                 self._axis_door_approach_enabled
                 and door.door_color == 'blue'
@@ -18002,14 +18070,23 @@ class StateMachineNode(Node):
         lateral_error = -math.sin(robot_yaw) * dx + math.cos(robot_yaw) * dy
         return dist, yaw_error, forward_error, lateral_error
 
-    def _observed_door_wall_normal(self, door):
+    def _observed_door_wall_normal(self, door, anchor=None):
         scan = self._latest_scan
-        if scan is None or door.handle_position.header.frame_id != 'map':
+        if scan is None or (anchor is None and door.handle_position.header.frame_id != 'map'):
             return None
         stamp = Time.from_msg(scan.header.stamp)
         age = (self.get_clock().now()-stamp).nanoseconds/1e9
         if age < 0.0 or age > .6:
             return None
+        if anchor is None:
+            anchor = (float(door.handle_position.point.x),
+                      float(door.handle_position.point.y))
+        if not all(math.isfinite(v) for v in anchor):
+            return None
+        key = (stamp.nanoseconds, tuple(anchor))
+        cache = getattr(self, '_observed_wall_normal_cache', {})
+        if key in cache:
+            return cache[key]
         try:
             tf = self._tf_buffer.lookup_transform(
                 'map', scan.header.frame_id, stamp, timeout=Duration(seconds=.03))
@@ -18018,12 +18095,16 @@ class StateMachineNode(Node):
         p, q = tf.transform.translation, tf.transform.rotation
         yaw = math.atan2(2*(q.w*q.z+q.x*q.y), 1-2*(q.y*q.y+q.z*q.z))
         c, s = math.cos(yaw), math.sin(yaw)
-        h = door.handle_position.point
-        dx, dy = h.x-p.x, h.y-p.y
+        dx, dy = anchor[0]-p.x, anchor[1]-p.y
         normal = fit_wall_normal(scan.ranges, scan.angle_min, scan.angle_increment,
                                  scan.range_min, scan.range_max,
                                  (c*dx+s*dy, -s*dx+c*dy))
-        return None if normal is None else self._normalize_angle(yaw+normal)
+        result = None if normal is None else self._normalize_angle(yaw+normal)
+        if len(cache) >= 32:
+            cache.clear()
+        cache[key] = result
+        self._observed_wall_normal_cache = cache
+        return result
 
     def _blue_target_open_pose_aligned_for_safe_memory(self, door: DoorInfo) -> bool:
         error = self._door_open_pose_error(door)
